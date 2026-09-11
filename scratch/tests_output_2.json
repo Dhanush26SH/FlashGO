@@ -1,0 +1,31 @@
+{
+  "test_a_valid": {
+    "status": "PASS",
+    "po_id": "a95a2f9f-2587-4041-812a-6c6b2166dcf4",
+    "items_created": 1
+  },
+  "test_b_invalid": {
+    "status": "PASS",
+    "error_message": "Product 02bd6c6a-598e-4ed6-b7e1-0e81d2f806fd is not mapped to vendor 7ad7bb5c-f66c-425e-b90a-0fb467f6f255",
+    "pos_created": 0,
+    "po_items_created": 0
+  },
+  "invariants": {
+    "warehouse_stock": {
+      "pre": 474,
+      "post": 474
+    },
+    "product_batches": {
+      "pre": 478,
+      "post": 478
+    },
+    "stock_ledgers": {
+      "pre": 494,
+      "post": 494
+    }
+  },
+  "test_c_auth": {
+    "status": "PASS",
+    "error_message": "Unauthorized: Only admins can create procurement orders"
+  }
+}

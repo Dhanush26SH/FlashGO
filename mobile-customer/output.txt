@@ -1,0 +1,358 @@
+Suspicious text '= {
+  munchies: '🍿',
+  dairy: '🥛',
+  veg: '🥗',
+  bakery: '🍞',
+  beverage: '🥤',
+  personalcare: '🧴',
+  household: '🧹',
+  sweet: '🍫'
+};
+
+// Initial Mock Products
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  rating_avg: number;
+  rating_count: number;
+  stock_quantity: number;
+  unit: string;
+  imageUrl: string;
+}
+
+const INITIAL_PRODUCTS: Product[] = [
+  { id: '1', name: 'Organic Bananas', category: 'veg', price: 1.99, rating_avg: 4.8, rating_count: 34, stock_quantity: 120, unit: 'Bunch of 6', imageUrl: 'https://images.unsplash.com/photo-1571501474524-1818250c9b65?auto=format&fit=crop&w=200&q=80' },
+  { id: '2', name: 'Munchies Potato Chips', category: 'munchies', price: 3.49, rating_avg: 4.5, rating_count: 56, stock_quantity: 80, unit: '150g Bag', imageUrl: 'https://images.unsplash.com/photo-1566478989037-e98748d57d22?auto=format&fit=crop&w=200&q=80' },
+  { id: '3', name: 'Whole Pasteurised Milk', category: 'dairy', price: 2.79, rating_avg: 4.9, rating_count: 112, stock_quantity: 90, unit: '1 Liter', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=200&q=80' },
+  { id: '4', name: 'Artisanal Sourdough', category: 'bakery', price: 4.29, rating_avg: 4.7, rating_count: 42, stock_quantity: 15, unit: '400g Loaf', imageUrl: 'https://images.unsplash.com/photo-1589367920969-ab8e050eb046?auto=format&fit=crop&w=200&q=80' },
+  { id: '5', name: 'Fresh Strawberries', category: 'veg', price: 3.99, rating_avg: 4.6, rating_count: 28, stock_quantity: 40, unit: '250g Pack', imageUrl: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=200&q=80' },
+  { id: '6', name: 'Sparkling Lemonade', category: 'beverage', price: 2.19, rating_avg: 4.4, rating_count: 19, stock_quantity: 65, unit: '500ml Can', imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=200&q=80' },
+  { id: '7', name: 'Dove Body Wash', category: 'personalcare', price: 5.99, rating_avg: 4.7, rating_count: 210, stock_quantity: 45, unit: '500ml', imageUrl: 'https://images.unsplash.com/photo-1629367305988-c89b251a37c3?auto=format&fit=crop&w=200&q=80' },
+  { id: '8', name: 'Premium Dark Chocolate', category: 'sweet', price: 4.50, rating_avg: 4.9, rating_count: 88, stock_quantity: 30, unit: '100g Bar', imageUrl: 'https://images.unsplash.com/photo-1614088685112-0a760b71a3c8?auto=format&fit=crop&w=200&q=80' },
+  { id: '9', name: 'Surface Cleaner', category: 'household', price: 3.49, rating_avg: 4.5, rating_count: 124, stock_quantity: 50, unit: '1 Liter', imageUrl: 'https://images.unsplash.com/photo-1584820927500-2479e0a05a41?auto=format&fit=crop&w=200&q=80' }
+];
+
+export default function App() {
+  // Screens: 'auth' | 'main' | 'tracking'
+  const [currentScreen, setCurrentScreen] = useState' after tag <string, any>
+Suspicious text '('auth');
+  
+  // Auth state
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  
+  // Customer & Loyalty profile
+  const [walletBalance, setWalletBalance] = useState(100.00);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(120);
+  const [isVip, setIsVip] = useState(false);
+
+  // Shop state
+  const [products, setProducts] = useState' after tag <'auth' | 'main' | 'tracking'>
+Suspicious text '(INITIAL_PRODUCTS);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState' after tag <Product[]>
+Suspicious text '(null);
+  const [cart, setCart] = useState' after tag <string | null>
+Suspicious text '>({});
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(0); // in percentage
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // Active Order Tracking State
+  const [trackingStep, setTrackingStep] = useState' after tag <string, number>
+Suspicious text '('placed');
+  const [secureOtp, setSecureOtp] = useState('8831');
+  const [riderProgress, setRiderProgress] = useState(0); // 0 to 100%
+  const [etaMinutes, setEtaMinutes] = useState(10);
+  
+  // Review Modal State
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [deliveryRating, setDeliveryRating] = useState(5);
+  const [productRatings, setProductRatings] = useState' after tag <'placed' | 'picking' | 'packed' | 'shipping' | 'delivered'>
+Suspicious text '>({});
+
+  // Animations
+  const cartAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Pulse effect for live driver marker
+  useEffect(() => {
+    if (currentScreen === 'tracking') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.4,
+            duration: 800,
+            useNativeDriver: true
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true
+          })
+        ])
+      ).start();
+    }
+  }, [currentScreen]);
+
+  // Telemetry GPS simulator
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (currentScreen === 'tracking') {
+      setTrackingStep('placed');
+      setRiderProgress(0);
+      setEtaMinutes(10);
+      
+      let progress = 0;
+      interval = setInterval(() => {
+        progress += 5;
+        if (progress' after tag <string, number>
+Suspicious text '{
+            setIsReviewOpen(true);
+          }, 1200);
+        }
+      }, 1500); // Fast simulation: ~30 seconds total
+    }
+    return () => clearInterval(interval);
+  }, [currentScreen]);
+
+  // Slide Cart handler
+  useEffect(() => {
+    Animated.timing(cartAnim, {
+      toValue: isCartOpen ? 0 : SCREEN_HEIGHT,
+      duration: 350,
+      useNativeDriver: true
+    }).start();
+  }, [isCartOpen]);
+
+  // VIP Threshold Check
+  useEffect(() => {
+    if (loyaltyPoints >= 200) {
+      setIsVip(true);
+    } else {
+      setIsVip(false);
+    }
+  }, [loyaltyPoints]);
+
+  // OTP Login triggers
+  const handleSendOtp = () => {
+    if (phoneNumber.length' after tag < 100) {
+          setTrackingStep('shipping');
+          setRiderProgress((progress - 70) / 30); // scale rider movement
+          setEtaMinutes(Math.max(1, Math.ceil((100 - progress) / 3)));
+        } else {
+          setTrackingStep('delivered');
+          setRiderProgress(1);
+          setEtaMinutes(0);
+          clearInterval(interval);
+          
+          // Delayed open rating modal
+          setTimeout(() =>
+Suspicious text '{
+    if (otpCode !== '1234') {
+      Alert.alert('Incorrect Code', 'Enter mock OTP code "1234" to login');
+      return;
+    }
+    setCurrentScreen('main');
+  };
+
+  // Add/Remove Cart items
+  const addToCart = (productId: string) => {
+    setCart(prev => ({
+      ...prev,
+      [productId]: (prev[productId] || 0) + 1
+    }));
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => {
+      const copy = { ...prev };
+      if (copy[productId]' after tag < 10) {
+      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit mobile number');
+      return;
+    }
+    setOtpSent(true);
+  };
+
+  const handleVerifyOtp = () =>
+Suspicious text 'a + b, 0);
+  const subtotal = Object.entries(cart).reduce((sum, [id, qty]) => {
+    const p = products.find(prod => prod.id === id);
+    return sum + (p ? p.price * qty : 0);
+  }, 0);
+
+  const discountAmount = subtotal * (appliedDiscount / 100);
+  const deliveryFee = subtotal > 15 ? 0 : 4.99; // Free delivery threshold
+  const totalBill = subtotal - discountAmount + deliveryFee;
+
+  const handleApplyCoupon = () => {
+    if (couponCode.toUpperCase() === 'FLASH20') {
+      setAppliedDiscount(20);
+      Alert.alert('Coupon Applied', 'FLASH20 code gives you 20% discount!');
+    } else {
+      Alert.alert('Invalid Coupon', 'Try coupon FLASH20 for 20% off');
+    }
+  };
+
+  const handleWalletRecharge = () => {
+    setWalletBalance(prev => prev + 50.00);
+    setLoyaltyPoints(prev => prev + 10);
+    Alert.alert('Wallet Top-up', 'Successfully added $50.00 to your FlashGO Wallet (+10 Loyalty stars!)');
+  };
+
+  const handleCheckout = () => {
+    if (walletBalance' after tag <= 1) {
+        delete copy[productId];
+      } else {
+        copy[productId]--;
+      }
+      return copy;
+    });
+  };
+
+  // Cart Metrics
+  const cartItemsCount = Object.values(cart).reduce((a, b) =>
+Suspicious text 'prev - totalBill);
+    // Award standard purchase points
+    const earnedPoints = Math.floor(subtotal * 1.5);
+    setLoyaltyPoints(prev => prev + earnedPoints);
+    
+    // Generate order secure OTP
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    setSecureOtp(code);
+    setIsCartOpen(false);
+    
+    // Initialize product rating keys
+    const itemsRating: Record' after tag < totalBill) {
+      Alert.alert('Insufficient Balance', 'Please top up your wallet funds first!');
+      return;
+    }
+    
+    // Debit balance
+    setWalletBalance(prev =>
+Suspicious text '= {};
+    Object.keys(cart).forEach(id => {
+      itemsRating[id] = 5; // Default 5 star
+    });
+    setProductRatings(itemsRating);
+
+    setCurrentScreen('tracking');
+  };
+
+  // Rating submit
+  const handleReviewSubmit = () => {
+    // Recompute product ratings in state
+    const updatedProducts = products.map(p => {
+      const userRating = productRatings[p.id];
+      if (userRating !== undefined) {
+        const oldCount = p.rating_count;
+        const newCount = oldCount + 1;
+        const newAvg = ((p.rating_avg * oldCount) + userRating) / newCount;
+        return {
+          ...p,
+          rating_count: newCount,
+          rating_avg: Number(newAvg.toFixed(2))
+        };
+      }
+      return p;
+    });
+
+    setProducts(updatedProducts);
+    setLoyaltyPoints(prev => prev + 15); // +15 loyalty bonus points
+    setCart({}); // Clear Cart
+    setCouponCode('');
+    setAppliedDiscount(0);
+    setIsReviewOpen(false);
+    setCurrentScreen('main');
+
+    Alert.alert('Thank You!', 'Review submitted successfully! You earned +15 VIP Loyalty points.');
+  };
+
+  // Filtered lists
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory ? p.category === selectedCategory : true;
+    return matchesSearch && matchesCategory;
+  });
+
+  return (' after tag <string, number>
+Suspicious text '{/* -------------------- 1. AUTH SCREEN -------------------- */}
+      {currentScreen === 'auth' && (' after tag <StatusBar barStyle="light-content" />
+Suspicious text 'setOtpSent(false)}>' after tag <TouchableOpacity style={{ marginTop: 12, alignItems: 'center' }} onPress={() =>
+Suspicious text '{/* New Blinkit-style Header */}' after tag <>
+Suspicious text '{/* Upgraded Search Bar */}' after tag <ScrollView contentContainerStyle={styles.mainScrollBody}>
+Suspicious text 'setSelectedCategory(null)}
+              >' after tag <TouchableOpacity 
+                style={[styles.categoryIconBtn, selectedCategory === null && styles.categoryBtnActive]}
+                onPress={() =>
+Suspicious text 'setSelectedCategory(cat)}
+                >' after tag <TouchableOpacity 
+                  key={cat} 
+                  style={[styles.categoryIconBtn, selectedCategory === cat && styles.categoryBtnActive]}
+                  onPress={() =>
+Suspicious text '{products.map(p => {
+                const qtyInCart = cart[p.id] || 0;
+                return (' after tag <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+Suspicious text 'removeFromCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.addBtnSmall} onPress={() =>
+Suspicious text '{products.filter(p => p.category === 'veg' || p.category === 'dairy' || p.category === 'bakery').map(p => {
+                const qtyInCart = cart[p.id] || 0;
+                return (' after tag <View style={styles.blinkitGridContainer}>
+Suspicious text 'removeFromCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.addBtnSmall} onPress={() =>
+Suspicious text '{products.filter(p => p.category === 'munchies' || p.category === 'beverage').map(p => {
+                const qtyInCart = cart[p.id] || 0;
+                return (' after tag <View style={styles.blinkitGridContainer}>
+Suspicious text 'removeFromCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.addBtnSmall} onPress={() =>
+Suspicious text '{products.filter(p => p.category === 'personalcare').map(p => {
+                const qtyInCart = cart[p.id] || 0;
+                return (' after tag <View style={styles.blinkitGridContainer}>
+Suspicious text 'removeFromCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.addBtnSmall} onPress={() =>
+Suspicious text '{products.filter(p => p.category === 'sweet').map(p => {
+                const qtyInCart = cart[p.id] || 0;
+                return (' after tag <View style={styles.blinkitGridContainer}>
+Suspicious text 'removeFromCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.counterBtnSmall} onPress={() =>
+Suspicious text 'addToCart(p.id)}>' after tag <TouchableOpacity style={styles.addBtnSmall} onPress={() =>
+Suspicious text 'setIsCartOpen(true)}>' after tag <TouchableOpacity style={styles.floatingCart} onPress={() =>
+Suspicious text '{/* Overlay Backdrop */}' after tag <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+Suspicious text 'setIsCartOpen(false)} />' after tag <TouchableOpacity style={styles.backdrop} onPress={() =>
+Suspicious text 'setIsCartOpen(false)}>' after tag <TouchableOpacity onPress={() =>
+Suspicious text '{Object.entries(cart).map(([id, qty]) => {
+                    const item = products.find(p => p.id === id);
+                    if (!item) return null;
+                    return (' after tag <ScrollView style={styles.cartItemsScroll}>
+Suspicious text '{/* Header */}' after tag <View style={styles.trackingContainer}>
+Suspicious text '{/* Warehouse Base Center */}' after tag <View style={styles.mapViewport}>
+Suspicious text '{/* Customer Dropoff */}' after tag <View style={styles.mapRoadLineDiagonal} />
+Suspicious text '{[1, 2, 3, 4, 5].map(val => (' after tag <View style={styles.starRow}>
+Suspicious text 'setDeliveryRating(val)}>' after tag <TouchableOpacity key={val} onPress={() =>
+Suspicious text '= val ? '#fbbf24' : 'transparent'} 
+                      />' after tag <Star 
+                        size={28} 
+                        color="#fbbf24" 
+                        fill={deliveryRating >
+Suspicious text '{Object.entries(cart).map(([id, qty]) => {
+                    const item = products.find(p => p.id === id);
+                    if (!item) return null;
+                    const val = productRatings[id] || 5;
+                    return (' after tag <ScrollView style={{ maxHeight: 150, marginVertical: 12 }}>
+Suspicious text '{[1, 2, 3, 4, 5].map(starVal => (' after tag <View style={{ flexDirection: 'row', gap: 4 }}>
+Suspicious text 'setProductRatings(prev => ({ ...prev, [id]: starVal }))}
+                            >' after tag <TouchableOpacity 
+                              key={starVal} 
+                              onPress={() =>
+Suspicious text '= starVal ? '#fbbf24' : 'transparent'} 
+                              />' after tag <Star 
+                                size={18} 
+                                color="#fbbf24" 
+                                fill={val >

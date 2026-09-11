@@ -1,0 +1,11 @@
+-- Migration to update Chips & Namkeen images
+
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/63cae623-74ac-4f16-be7e-3d642e9e40d2/bakedpitachips.jpg' WHERE id = '63cae623-74ac-4f16-be7e-3d642e9e40d2';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/62556632-92ab-4d8e-bde8-c64c259b28cd/balajisimplysaltedwafers.jpg' WHERE id = '62556632-92ab-4d8e-bde8-c64c259b28cd';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/9ceb5740-b2d5-4d25-83e4-b9daa73e996a/bingomadanglesachaarimasti.jpg' WHERE id = '9ceb5740-b2d5-4d25-83e4-b9daa73e996a';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/224efeba-5c02-43c8-9500-ff2875d1f0fa/haldiramsaloobhujia.jpg' WHERE id = '224efeba-5c02-43c8-9500-ff2875d1f0fa';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/98874d67-09a8-4f46-b71e-31c8bf5abe2e/haldiramsnagpurkhattameetha.jpg' WHERE id = '98874d67-09a8-4f46-b71e-31c8bf5abe2e';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/fa5ed270-2690-424b-9ce5-bdaa1ec1ad88/kurkuremasalamunch.jpg' WHERE id = 'fa5ed270-2690-424b-9ce5-bdaa1ec1ad88';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/3b20bd91-3df4-4294-8c4b-19bceb39e896/laysclassicsaltedpotatochips.jpg' WHERE id = '3b20bd91-3df4-4294-8c4b-19bceb39e896';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/2d99cb4d-0d28-42e0-a257-0639fba2ea3d/laysindiasmagicmasalapotatochips.jpg' WHERE id = '2d99cb4d-0d28-42e0-a257-0639fba2ea3d';
+UPDATE products SET image_url = 'https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/products/92eedf8a-c8bd-4191-a1bf-e3a73e3fec6a/tooyummmultigrainchips.jpg' WHERE id = '92eedf8a-c8bd-4191-a1bf-e3a73e3fec6a';

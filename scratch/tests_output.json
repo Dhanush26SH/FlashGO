@@ -1,0 +1,111 @@
+{
+  "test_a_valid": "FAILED: Unauthorized: Only admins can create procurement orders",
+  "test_b_invalid": {
+    "status": "PASS",
+    "error_message": "Unauthorized: Only admins can create procurement orders",
+    "pos_created": 0,
+    "po_items_created": 0
+  },
+  "invariants": {
+    "warehouse_stock": {
+      "pre": 474,
+      "post": 474
+    },
+    "product_batches": {
+      "pre": 478,
+      "post": 478
+    },
+    "stock_ledgers": {
+      "pre": 494,
+      "post": 494
+    }
+  },
+  "test_c_auth": {
+    "status": "PASS",
+    "error_message": "Unauthorized: Only admins can create procurement orders"
+  },
+  "regression_179cfb": {
+    "po": {
+      "id": "53ea865d-2b8f-44d0-a2b6-e249b4179cfb",
+      "total_cost": 125,
+      "status": "received",
+      "vendor": {
+        "name": "PureDairy Co."
+      },
+      "items": [
+        {
+          "quantity": 5,
+          "received_quantity": 5
+        }
+      ],
+      "receipts": [
+        {
+          "id": "070764b5-f5cf-4701-ad06-87cf2e1c076e"
+        },
+        {
+          "id": "9c815be4-7f29-426b-b880-c294b68f8deb"
+        }
+      ]
+    },
+    "batches": [
+      {
+        "batch_number": "AMUL-TEST-001",
+        "received_quantity": 3
+      },
+      {
+        "batch_number": "AMUL-TEST-002",
+        "received_quantity": 2
+      }
+    ]
+  },
+  "amul_stock_ledgers": [
+    {
+      "id": "81ff5474-b503-4c47-9965-dc3923141923",
+      "warehouse_id": "9f4d3149-f3e4-432b-98b6-f17af77c9c33",
+      "product_id": "9701ec5a-3fa0-4503-8404-3e6ce538fdaa",
+      "quantity_change": 2,
+      "reason": "grn",
+      "performed_by": "b0599090-3dd3-4399-82cc-cdf6c92219d9",
+      "created_at": "2026-09-08T18:36:21.827378+00:00",
+      "batch_id": "dd7c6860-8798-4028-a0b7-e1fd5c06dfac",
+      "order_id": null,
+      "order_item_id": null
+    },
+    {
+      "id": "2ba5a446-a420-418a-9024-5d6b51260f92",
+      "warehouse_id": "9f4d3149-f3e4-432b-98b6-f17af77c9c33",
+      "product_id": "9701ec5a-3fa0-4503-8404-3e6ce538fdaa",
+      "quantity_change": 3,
+      "reason": "grn",
+      "performed_by": "b0599090-3dd3-4399-82cc-cdf6c92219d9",
+      "created_at": "2026-09-08T18:24:35.542221+00:00",
+      "batch_id": "3859782c-b2eb-4911-b087-91904a2e08e7",
+      "order_id": null,
+      "order_item_id": null
+    },
+    {
+      "id": "13850122-1f2f-4013-900a-1bd2fb502e8a",
+      "warehouse_id": "76525a09-3fd1-4949-b45e-49c77255b4ce",
+      "product_id": "9701ec5a-3fa0-4503-8404-3e6ce538fdaa",
+      "quantity_change": 100,
+      "reason": "grn",
+      "performed_by": null,
+      "created_at": "2026-09-06T02:49:06.117857+00:00",
+      "batch_id": null,
+      "order_id": null,
+      "order_item_id": null
+    },
+    {
+      "id": "72758662-4adc-4218-ac8d-a8a6ca893cc2",
+      "warehouse_id": "9f4d3149-f3e4-432b-98b6-f17af77c9c33",
+      "product_id": "9701ec5a-3fa0-4503-8404-3e6ce538fdaa",
+      "quantity_change": 100,
+      "reason": "initial_stock",
+      "performed_by": null,
+      "created_at": "2026-09-04T04:05:00.284314+00:00",
+      "batch_id": null,
+      "order_id": null,
+      "order_item_id": null
+    }
+  ]
+}

@@ -1,0 +1,212 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Home, Package, HeadphonesIcon, User, RotateCcw, Grid, Printer } from 'lucide-react-native';
+import { View, ActivityIndicator } from 'react-native';
+
+import { useMobileAppContext } from '../context/MobileAppContext';
+import { theme } from '../theme';
+
+// Screens
+import AuthScreen from '../screens/AuthScreen';
+import HomeScreen from '../screens/HomeScreen';
+import OrdersScreen from '../screens/OrdersScreen';
+import SupportScreen from '../screens/SupportScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import TrackingScreen from '../screens/TrackingScreen';
+import AddressesScreen from '../screens/AddressesScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import ProductDetailsScreen from '../screens/ProductDetailsScreen';
+import OrderDetailsScreen from '../screens/OrderDetailsScreen';
+import CategoryBrowserScreen from '../screens/CategoryBrowserScreen';
+import OrderAgainScreen from '../screens/OrderAgainScreen';
+import CategoriesScreen from '../screens/CategoriesScreen';
+import PrintScreen from '../screens/PrintScreen';
+import LocationSelectorSheet from '../components/LocationSelectorSheet';
+import ConfirmLocationScreen from '../screens/ConfirmLocationScreen';
+import SeasonalBrowserScreen from '../screens/SeasonalBrowserScreen';
+import DepartmentBrowserScreen from '../screens/DepartmentBrowserScreen';
+import CartScreen from '../screens/CartScreen';
+
+// Types
+export type RootStackParamList = {
+  Auth: undefined;
+  MainTabs: undefined;
+  ProductDetails: { product: any };
+  Tracking: { orderId: string | null };
+  Addresses: undefined;
+  Notifications: undefined;
+  OrderDetails: { order: any };
+  CategoryBrowser: { categoryId: string };
+  DepartmentBrowser: { 
+    departmentName: string; 
+    categoryNames?: string[]; 
+    filterTag?: string; 
+    filterOrigin?: string;
+  };
+  SeasonalBrowser: { config: any };
+  ConfirmLocation: { lat: number, lng: number, name: string, address: string };
+  Profile: undefined;
+  OrdersStack: undefined;
+  SupportStack: undefined;
+  Cart: undefined;
+  LocationSelector: undefined;
+};
+
+export type MainTabParamList = {
+  Home: undefined;
+  OrderAgain: undefined;
+  Categories: undefined;
+  Print: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
+
+function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      id="MainTabsNavigator"
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          paddingBottom: 8,
+          paddingTop: 8,
+          minHeight: 65,
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+        },
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textMuted,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          marginTop: 2,
+          paddingBottom: 4,
+        }
+      }}
+    >
+      <Tab.Screen 
+        name="Home" 
+        component={HomeScreen} 
+        options={{
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />
+        }}
+      />
+      <Tab.Screen 
+        name="OrderAgain" 
+        component={OrderAgainScreen} 
+        options={{
+          tabBarLabel: 'Order Again',
+          tabBarIcon: ({ color, size }) => <RotateCcw size={size} color={color} />
+        }}
+      />
+      <Tab.Screen 
+        name="Categories" 
+        component={CategoriesScreen} 
+        options={{
+          tabBarIcon: ({ color, size }) => <Grid size={size} color={color} />
+        }}
+      />
+      <Tab.Screen 
+        name="Print" 
+        component={PrintScreen} 
+        options={{
+          tabBarIcon: ({ color, size }) => <Printer size={size} color={color} />
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+export default function AppNavigator() {
+  const { sessionUser, isLoadingSession } = useMobileAppContext();
+
+  if (isLoadingSession) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Navigator id="RootStackNavigator" screenOptions={{ headerShown: false }}>
+        {!sessionUser ? (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : (
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+            <Stack.Screen name="Tracking" component={TrackingScreen} />
+            <Stack.Screen name="Addresses" component={AddressesScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+            <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+            <Stack.Screen 
+              name="CategoryBrowser" 
+              component={CategoryBrowserScreen} 
+              options={{ 
+                presentation: 'transparentModal', 
+                animation: 'slide_from_bottom' 
+              }} 
+            />
+            <Stack.Screen 
+              name="DepartmentBrowser" 
+              component={DepartmentBrowserScreen} 
+              options={{ 
+                presentation: 'transparentModal', 
+                animation: 'slide_from_bottom' 
+              }} 
+            />
+            <Stack.Screen 
+              name="SeasonalBrowser" 
+              component={SeasonalBrowserScreen} 
+              options={{ presentation: 'card' }}
+            />
+            <Stack.Screen 
+              name="ConfirmLocation" 
+              component={ConfirmLocationScreen} 
+              options={{ 
+                presentation: 'fullScreenModal',
+                animation: 'slide_from_bottom'
+              }} 
+            />
+            <Stack.Screen 
+              name="Profile" 
+              component={ProfileScreen} 
+              options={{ 
+                presentation: 'transparentModal', 
+                animation: 'slide_from_bottom' 
+              }} 
+            />
+            <Stack.Screen name="OrdersStack" component={OrdersScreen} />
+            <Stack.Screen name="SupportStack" component={SupportScreen} />
+            <Stack.Screen 
+              name="Cart" 
+              component={CartScreen} 
+              options={{ 
+                presentation: 'transparentModal',
+                animation: 'fade'
+              }} 
+            />
+            <Stack.Screen 
+              name="LocationSelector" 
+              component={LocationSelectorSheet} 
+              options={{ 
+                presentation: 'transparentModal',
+                animation: 'slide_from_bottom'
+              }} 
+            />
+          </>
+        )}
+      </Stack.Navigator>
+    </>
+  );
+}

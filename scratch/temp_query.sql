@@ -1,0 +1,1 @@
+SELECT count(*) as c FROM stock_ledgers

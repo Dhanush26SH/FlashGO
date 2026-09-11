@@ -1,0 +1,231 @@
+.od-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.od-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.od-kpi-card {
+  padding: 20px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: all var(--transition-normal);
+}
+
+.od-kpi-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-lg);
+}
+
+.od-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.od-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.od-kpi-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+}
+
+.od-kpi-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+}
+
+.od-kpi-desc {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.od-pulse-alert-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--danger);
+  border-radius: 50%;
+  align-self: center;
+  margin-left: 4px;
+  animation: pulse-ring 1.5s infinite ease-in-out;
+}
+
+.od-charts-map-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.od-column-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.od-chart-container {
+  padding: 24px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.od-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.od-chart-title {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.od-chart-subtitle {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.od-btn-group {
+  display: flex;
+  background-color: var(--bg-base);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+}
+
+.od-timeframe-btn {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.od-timeframe-btn-active {
+  background-color: var(--bg-surface);
+  color: var(--primary);
+}
+
+.od-two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.od-chart-card {
+  padding: 16px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.od-subchart-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.od-speedometer-layout {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 110px;
+  margin-top: 10px;
+}
+
+.od-speed-dial {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.od-dial-label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.od-dial-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.od-telemetry-card {
+  padding: 24px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.od-live-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--primary);
+  border-radius: 50%;
+  animation: pulse-ring 1.2s infinite;
+}
+
+.od-static-map-placeholder {
+  height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-sm);
+  text-align: center;
+  padding: 24px;
+}
+
+.od-tooltip {
+  position: absolute;
+  padding: 6px 10px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  text-align: center;
+  z-index: 10;
+}

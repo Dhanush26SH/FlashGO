@@ -1,0 +1,438 @@
+{
+  "mapped": {
+    "Vegetables & Fruits": {
+      "Fresh Fruits": [
+        "Fresh Hass Avocados",
+        "Fresh Hass Avocados",
+        "Fresh Hass Avocados",
+        "Fresh Hass Avocados",
+        "Fresh Hass Avocados",
+        "Fresh Hass Avocados",
+        "Fresh Hass Avocados",
+        "Pomegranate",
+        "Banana Robusta",
+        "Apple Royal Gala"
+      ],
+      "Fresh Vegetables": [
+        "Carrot",
+        "Cucumber",
+        "Green Chilli",
+        "Potato",
+        "Potato",
+        "Tomato Hybrid",
+        "Onion"
+      ]
+    },
+    "Dairy, Bread & Eggs": {
+      "Milk": [
+        "Amul Gold Full Cream Milk",
+        "Nestlé a+ Slim Milk",
+        "Amul Taaza Toned Milk",
+        "Amul Gold Full Cream Milk"
+      ],
+      "Bread": [
+        "Modern Multigrain Bread",
+        "Britannia 100% Whole Wheat Bread",
+        "Harvest Gold White Bread"
+      ],
+      "Eggs": [
+        "Eggs Brown",
+        "Farm Fresh White Eggs"
+      ],
+      "Cheese & Paneer": [
+        "Amul Cheese Slices",
+        "Mother Dairy Paneer"
+      ],
+      "Butter & Ghee": [
+        "Amul Salted Butter"
+      ]
+    },
+    "Atta, Rice & Dal": {
+      "Rice": [
+        "24 Mantra Organic Brown Rice",
+        "India Gate Basmati Rice Feast Rozzana",
+        "Daawat Rozana Gold Basmati Rice"
+      ],
+      "Atta & Flour": [
+        "Aashirvaad Shudh Chakki Atta",
+        "Fortune Chakki Fresh Atta"
+      ],
+      "Dal & Pulses": [
+        "Tata Sampann Masoor Dal",
+        "Tata Sampann Toor Dal",
+        "Tata Sampann Moong Dal",
+        "Fortune Chana Dal"
+      ]
+    },
+    "Tea, Coffee & Milk Drinks": {
+      "Milk Drinks": [
+        "Amul Kool Kesar Flavoured Milk",
+        "Hershey's Milkshake Chocolate",
+        "Cadbury Bournvita Chocolate Health Drink"
+      ],
+      "Tea": [
+        "Brooke Bond Red Label Tea",
+        "Brooke Bond Taj Mahal Tea",
+        "Tata Tea Premium"
+      ],
+      "Coffee": [
+        "Bru Instant Coffee",
+        "Nescafé Classic Instant Coffee"
+      ]
+    },
+    "Oil, Ghee & Masala": {
+      "Spices & Masala": [
+        "Catch Cumin Powder",
+        "MDH Garam Masala",
+        "Tata Salt Iodised",
+        "Everest Turmeric Powder",
+        "Everest Red Chilli Powder"
+      ],
+      "Edible Oil": [
+        "Fortune Sunlite Refined Sunflower Oil",
+        "Saffola Gold Edible Oil",
+        "Dhara Kachi Ghani Mustard Oil"
+      ],
+      "Ghee": [
+        "Amul Pure Ghee"
+      ]
+    },
+    "Drinks & Juices": {
+      "Cold Drinks": [
+        "Coca-Cola Soft Drink",
+        "Pepsi Soft Drink",
+        "Sprite Lemon-Lime Soft Drink",
+        "Thums Up Soft Drink"
+      ],
+      "Juices": [
+        "Frooti Mango Drink",
+        "Maaza Mango Drink",
+        "Real Fruit Power Mixed Fruit Juice",
+        "Tropicana 100% Orange Juice"
+      ],
+      "Water": [
+        "Bisleri Packaged Drinking Water"
+      ]
+    },
+    "Instant Food": {
+      "Breakfast Mixes": [
+        "Gits Dosa Mix",
+        "Kellogg's Corn Flakes Original",
+        "MTR Instant Rava Idli Mix",
+        "Quaker Oats"
+      ],
+      "Ready to Eat": [
+        "Knorr Classic Sweet Corn Veg Soup",
+        "MTR Ready to Eat Dal Makhani"
+      ],
+      "Noodles & Pasta": [
+        "Maggi 2-Minute Masala Noodles",
+        "Sunfeast YiPPee! Magic Masala Noodles"
+      ]
+    },
+    "Chips & Namkeen": {
+      "Potato Chips": [
+        "Lay's India's Magic Masala Potato Chips",
+        "Too Yumm! Multigrain Chips",
+        "Lay's Classic Salted Potato Chips",
+        "Balaji Simply Salted Wafers",
+        "Baked Pita Chips",
+        "Baked Pita Chips",
+        "Baked Pita Chips",
+        "Baked Pita Chips",
+        "Baked Pita Chips",
+        "Baked Pita Chips",
+        "Baked Pita Chips"
+      ],
+      "Namkeen & Bhujia": [
+        "Kurkure Masala Munch",
+        "Bingo! Mad Angles Achaari Masti",
+        "Haldiram's Aloo Bhujia",
+        "Haldiram's Nagpur Khatta Meetha"
+      ]
+    },
+    "Sweets & Chocolates": {
+      "Chocolates": [
+        "Ferrero Rocher Chocolate",
+        "Cadbury Dairy Milk Silk Chocolate",
+        "Cadbury Dairy Milk Chocolate",
+        "Snickers Chocolate Bar",
+        "Nestlé KitKat 4 Finger",
+        "Kinder Joy Chocolate for Boys"
+      ],
+      "Indian Sweets": [
+        "Haldiram's Soan Papdi",
+        "Kaju Katli Indian Sweet"
+      ]
+    },
+    "Bakery & Biscuits": {
+      "Biscuits": [
+        "Parle-G Original Glucose Biscuits",
+        "Britannia Good Day Cashew Cookies",
+        "Britannia Marie Gold Biscuits",
+        "Cadbury Oreo Vanilla Creme Biscuits",
+        "Britannia Bourbon The Original"
+      ],
+      "Cookies": [
+        "Unibic Choco Chip Cookies"
+      ]
+    },
+    "Ice Creams & Frozen Food": {
+      "Frozen Snacks": [
+        "McCain Smiles",
+        "Safal Frozen Green Peas",
+        "ITC Master Chef Crispy Chicken Fries",
+        "McCain French Fries"
+      ],
+      "Ice Creams": [
+        "Amul Chocolate Magic Ice Cream Tub",
+        "Amul Vanilla Magic Ice Cream Tub",
+        "Kwality Wall's Cornetto Double Chocolate",
+        "Magnum Chocolate Truffle Ice Cream Stick"
+      ]
+    },
+    "Chicken, Meat & Fish": {
+      "Fish & Seafood": [
+        "Prawns Cleaned",
+        "Rohu Fish Curry Cut",
+        "Seer Fish Steaks"
+      ],
+      "Chicken": [
+        "Chicken Curry Cut",
+        "Chicken Breast Boneless",
+        "Chicken Drumsticks"
+      ],
+      "Meat": [
+        "Mutton Curry Cut"
+      ]
+    },
+    "Cleaners & Repellents": {
+      "Surface Cleaners": [
+        "Savlon Antiseptic Liquid",
+        "Lizol Citrus Disinfectant Surface Cleaner",
+        "Vim Dishwash Gel Lemon",
+        "Harpic Power Plus Toilet Cleaner Original"
+      ],
+      "Repellents": [
+        "Goodknight Gold Flash Mosquito Repellent Refill",
+        "Godrej HIT Crawling Insect Killer Spray"
+      ],
+      "Detergents": [
+        "Surf Excel Matic Front Load Detergent Powder",
+        "Ariel Matic Top Load Detergent Powder"
+      ]
+    },
+    "Beauty & Cosmetics": {
+      "Makeup": [
+        "Colorbar Perfect Match Primer",
+        "Swiss Beauty Liquid Concealer",
+        "Lakmé Eyeconic Kajal Deep Black",
+        "Maybelline New York Colossal Kajal",
+        "Maybelline New York Fit Me Matte + Poreless Foundation",
+        "Lakmé 9 to 5 Primer + Matte Lip Color",
+        "Elle 18 Color Pops Matte Lip Color"
+      ]
+    },
+    "Skin & Face": {
+      "Creams & Lotions": [
+        "Lakmé Sun Expert SPF 50 PA+++ Sunscreen",
+        "Pond's Super Light Gel",
+        "Vaseline Intensive Care Deep Moisture Lotion",
+        "Nivea Soft Light Moisturiser"
+      ],
+      "Face Wash": [
+        "Garnier Bright Complete Vitamin C Face Wash",
+        "Mamaearth Ubtan Face Wash",
+        "Cetaphil Gentle Skin Cleanser",
+        "Himalaya Purifying Neem Face Wash"
+      ]
+    },
+    "Hair Care": {
+      "Shampoo": [
+        "Clinic Plus Strong & Long Shampoo",
+        "Head & Shoulders Anti-Dandruff Shampoo",
+        "Pantene Advanced Hairfall Solution Shampoo",
+        "Dove Hair Therapy Breakage Repair Shampoo"
+      ],
+      "Hair Oil": [
+        "Parachute Advansed Coconut Hair Oil"
+      ],
+      "Conditioner & Serum": [
+        "Livon Hair Serum",
+        "L'Oréal Paris Total Repair 5 Conditioner"
+      ]
+    },
+    "Bath & Body": {
+      "Soaps & Body Wash": [
+        "Dove Cream Beauty Bathing Bar",
+        "Pears Pure & Gentle Bathing Bar"
+      ]
+    },
+    "Feminine Hygiene": {
+      "Sanitary Pads": [
+        "Whisper Choice Ultra Sanitary Pads",
+        "Whisper Ultra Clean XL+ Sanitary Pads",
+        "Stayfree Secure XL Cottony Soft Pads",
+        "Sofy Antibacteria Extra Long Pads",
+        "Nua Ultra-Safe Sanitary Pads"
+      ],
+      "Other Hygiene": [
+        "Sirona Premium Applicator Tampons Regular",
+        "Pee Safe Menstrual Cup Medium"
+      ]
+    },
+    "Baby Care": {
+      "Diapers & Pants": [
+        "Pampers All-Round Protection Pants Large",
+        "Huggies Complete Comfort Wonder Pants Medium"
+      ],
+      "Baby Skin Care": [
+        "Johnson's Baby Powder",
+        "Johnson's Baby Lotion",
+        "Mee Mee Baby Wet Wipes"
+      ],
+      "Baby Food": [
+        "Himalaya Gentle Baby Shampoo",
+        "Nestlé Cerelac Wheat Apple Baby Cereal"
+      ]
+    },
+    "Health & Wellness": {
+      "First Aid & Pain Relief": [
+        "Electral ORS Powder",
+        "Vicks VapoRub",
+        "Volini Pain Relief Spray",
+        "Dettol Original Hand Sanitizer"
+      ],
+      "Supplements & Digestives": [
+        "Himalaya Ashvagandha Tablets",
+        "Dabur Chyawanprash"
+      ]
+    },
+    "Sauces & Spreads": {
+      "Spreads & Mayonnaise": [
+        "Hershey's Chocolate Syrup",
+        "Kissan Mixed Fruit Jam",
+        "Veeba Eggless Mayonnaise",
+        "Dr. Oetker FunFoods Veg Mayonnaise",
+        "Nutella Hazelnut Cocoa Spread",
+        "Sundrop Peanut Butter Creamy"
+      ],
+      "Sauces & Ketchup": [
+        "Kissan Fresh Tomato Ketchup",
+        "Ching's Schezwan Chutney"
+      ]
+    },
+    "Stationery & Games": {
+      "Stationery": [
+        "Cello Butterflow Ball Pen Blue",
+        "Camel Oil Pastels",
+        "Fevicol MR White Adhesive",
+        "Apsara Platinum Pencils",
+        "Classmate Single Line Notebook"
+      ],
+      "Games": [
+        "UNO Playing Cards",
+        "Funskool Business Board Game"
+      ]
+    },
+    "Electronics & Accessories": {
+      "Mobile Accessories": [
+        "Portronics Konnect L USB Type-C Cable"
+      ]
+    },
+    "Home & Lifestyle": {
+      "Cleaning Tools": [
+        "Microfiber Cleaning Cloth",
+        "Scotch-Brite Scrub Pad",
+        "Gala No Dust Broom"
+      ],
+      "Fresheners": [
+        "Godrej Aer Pocket Bathroom Fragrance",
+        "Odonil Bathroom Air Freshener Blocks"
+      ]
+    },
+    "Kitchenware & Appliances": {}
+  },
+  "unmapped": [
+    {
+      "category": "Tea, Coffee & Milk Drinks",
+      "name": "Amul Kool Kesar (TEST3)"
+    },
+    {
+      "category": "Bakery & Biscuits",
+      "name": "Sunfeast Dark Fantasy Choco Fills"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Prestige Popular Aluminium Pressure Cooker"
+    },
+    {
+      "category": "Electronics & Accessories",
+      "name": "Syska Power Bank P1001"
+    },
+    {
+      "category": "Electronics & Accessories",
+      "name": "Eveready AAA Batteries"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Pigeon Favourite Electric Kettle"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Bajaj Majesty DX 11 Dry Iron"
+    },
+    {
+      "category": "Bath & Body",
+      "name": "Dettol Original Soap"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Butterfly Premium Vegetable Chopper"
+    },
+    {
+      "category": "Bath & Body",
+      "name": "Nivea Men Deep Impact Body Wash"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Borosil Glass Mixing Bowl Set"
+    },
+    {
+      "category": "Bath & Body",
+      "name": "Fiama Gel Bar Celebration Pack"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Cello Opalware Dinner Plate Set"
+    },
+    {
+      "category": "Electronics & Accessories",
+      "name": "Duracell Alkaline AA Batteries"
+    },
+    {
+      "category": "Bath & Body",
+      "name": "Lux Soft Touch Soap"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Milton Thermosteel Bottle"
+    },
+    {
+      "category": "Electronics & Accessories",
+      "name": "Philips LED Bulb 9W"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Prestige Omega Deluxe Granite Fry Pan"
+    },
+    {
+      "category": "Electronics & Accessories",
+      "name": "boAt BassHeads 100 Wired Earphones"
+    },
+    {
+      "category": "Kitchenware & Appliances",
+      "name": "Cello Max Fresh Container Set"
+    }
+  ]
+}

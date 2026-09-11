@@ -1,0 +1,43 @@
+{
+  "pure_dairy_vendors_count": 1,
+  "pure_dairy_vendors": [
+    {
+      "id": "b0000000-0000-0000-0000-000000000002",
+      "name": "PureDairy Co.",
+      "contact_person": "Sarah Milk",
+      "email": "sarah@puredairy.com",
+      "phone": "+15550102",
+      "address": "Grasslands Dairy Valley",
+      "created_at": "2026-07-03T17:54:18.436741+00:00"
+    }
+  ],
+  "po_179cfb": {
+    "vendor_id": "b0000000-0000-0000-0000-000000000002",
+    "status": "received",
+    "total_cost": 125,
+    "ordered_qty": 5,
+    "received_qty": 5
+  },
+  "original_puredairy_vp_count": 9,
+  "mapping_stats": {
+    "active_products_mapped": 223,
+    "active_products_unmapped": 0,
+    "duplicate_pairs": 0
+  },
+  "invariants_post": {
+    "warehouse_stock": 474,
+    "product_batches": 478,
+    "stock_ledgers": 494
+  },
+  "genuine_admin_fetch": [
+    "Amul Cheese Slices",
+    "Amul Salted Butter",
+    "Amul Taaza Toned Milk",
+    "Amul Chocolate Magic Ice Cream Tub",
+    "Amul Vanilla Magic Ice Cream Tub",
+    "Amul Pure Ghee",
+    "Amul Kool Kesar (TEST3)",
+    "Amul Kool Kesar Flavoured Milk",
+    "Amul Gold Full Cream Milk"
+  ]
+}

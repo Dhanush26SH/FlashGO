@@ -1,0 +1,106 @@
+[
+  {
+    "id": "c0000000-0000-0000-0000-000000000002",
+    "name": "Dairy, Bread & Eggs"
+  },
+  {
+    "id": "41f66f69-beb5-451e-8f8d-4019b2e5ed57",
+    "name": "Atta, Rice & Dal"
+  },
+  {
+    "id": "5b643fab-1b85-4f37-b156-c160cb09868d",
+    "name": "Oil, Ghee & Masala"
+  },
+  {
+    "id": "c1fafdee-a672-43b1-9b2f-3904e0301177",
+    "name": "Bakery & Biscuits"
+  },
+  {
+    "id": "a71f9f54-609b-4c28-a210-0b9b4527c75a",
+    "name": "Chips & Namkeen"
+  },
+  {
+    "id": "9fd1d487-17b5-4cc1-aaef-1f835115bcfe",
+    "name": "Drinks & Juices"
+  },
+  {
+    "id": "53efa55b-833a-4bdb-adea-3c37c4972de9",
+    "name": "Tea, Coffee & Milk Drinks"
+  },
+  {
+    "id": "d11c0d26-3f6b-4e22-802f-13a6c46fec08",
+    "name": "Instant Food"
+  },
+  {
+    "id": "e74d1264-1049-492d-b2cd-75bd63351553",
+    "name": "Sweets & Chocolates"
+  },
+  {
+    "id": "0411abdd-af0f-4534-a0e2-45d821cd4983",
+    "name": "Ice Creams & Frozen Food"
+  },
+  {
+    "id": "b616d113-642b-47b1-acd3-c85e4da8df75",
+    "name": "Sauces & Spreads"
+  },
+  {
+    "id": "daa11eb2-573b-4576-a04d-7e1ee4efc3a8",
+    "name": "Chicken, Meat & Fish"
+  },
+  {
+    "id": "6991baa7-59ff-45a2-b6d9-0e0a4074b1d6",
+    "name": "Bath & Body"
+  },
+  {
+    "id": "9fce9dc0-9c64-4b1f-82b3-0e4b1cba9f4f",
+    "name": "Hair Care"
+  },
+  {
+    "id": "9339dc05-98cb-4d5d-98de-c2158bccd563",
+    "name": "Skin & Face"
+  },
+  {
+    "id": "364675c4-ebd2-4640-8c5f-d8c3326067c4",
+    "name": "Beauty & Cosmetics"
+  },
+  {
+    "id": "dc49a878-fcd8-4614-b939-7fdf495e32f2",
+    "name": "Feminine Hygiene"
+  },
+  {
+    "id": "06180b8b-ad91-42eb-a5de-8ae2a390463a",
+    "name": "Baby Care"
+  },
+  {
+    "id": "6d300e19-8934-4b7b-bc19-f7a505b58380",
+    "name": "Health & Wellness"
+  },
+  {
+    "id": "1717ebc5-4cd0-4ef2-b670-200d82756d5b",
+    "name": "Cleaners & Repellents"
+  },
+  {
+    "id": "8ebaa744-5930-4ffe-bcef-58449277dcaf",
+    "name": "Home & Lifestyle"
+  },
+  {
+    "id": "a819177f-448e-4e3e-871b-0fb694853058",
+    "name": "Kitchenware & Appliances"
+  },
+  {
+    "id": "40768ca9-9f11-4d62-a02d-77ffeba17f12",
+    "name": "Stationery & Games"
+  },
+  {
+    "id": "92e28de2-1dc8-4ba3-9615-b5c4dda1c7be",
+    "name": "Electronics & Accessories"
+  },
+  {
+    "id": "cd246d1c-b5ac-451d-ba8e-eed0e54e295e",
+    "name": "Pet Care"
+  },
+  {
+    "id": "c0000000-0000-0000-0000-000000000001",
+    "name": "Vegetables & Fruits"
+  }
+]

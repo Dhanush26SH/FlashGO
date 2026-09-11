@@ -1,0 +1,1 @@
+const q = 'query { message(mailbox: "flashgo-cust-a-test", id: "8IIfd42CQW") { id subject html } }'; fetch('https://api.maildrop.cc/graphql', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) }).then(res => res.json()).then(data => console.log(JSON.stringify(data, null, 2))).catch(console.error);

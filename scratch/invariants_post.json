@@ -1,0 +1,13 @@
+{
+  "vendors": 112,
+  "vendor_products": 223,
+  "totalProducts": 237,
+  "activeProducts": 223,
+  "warehouse_stock_rows": 474,
+  "warehouse_stock_sum": 44473,
+  "product_batches_rows": 478,
+  "product_batches_sum": 0,
+  "stock_ledgers": 494,
+  "procurement_orders": 8,
+  "goods_receipts": 4
+}

@@ -1,0 +1,888 @@
+{
+  "Atta, Rice & Dal": [
+    {
+      "id": "44c85d6c-e21e-4c08-9328-13d699e66f12",
+      "name": "24 Mantra Organic Brown Rice"
+    },
+    {
+      "id": "f75ebfb1-14dc-4a8a-bd25-6bf4f86a434b",
+      "name": "Aashirvaad Shudh Chakki Atta"
+    },
+    {
+      "id": "d96b3b2e-dfd1-4403-88d9-1bdf3a793ae6",
+      "name": "Tata Sampann Masoor Dal"
+    },
+    {
+      "id": "0f32c1e6-7fa6-4839-9d26-221d67ea313a",
+      "name": "Fortune Chakki Fresh Atta"
+    },
+    {
+      "id": "a908c202-c6a6-4549-9b25-415176db3c61",
+      "name": "India Gate Basmati Rice Feast Rozzana"
+    },
+    {
+      "id": "6132d229-6894-4dad-90a6-2fc44fdc1263",
+      "name": "Daawat Rozana Gold Basmati Rice"
+    },
+    {
+      "id": "ee1aedd0-93bf-45ca-8206-ecf927b6391d",
+      "name": "Tata Sampann Toor Dal"
+    },
+    {
+      "id": "5d8cba66-2cfe-4b93-954d-6a84e536227d",
+      "name": "Tata Sampann Moong Dal"
+    },
+    {
+      "id": "5a6231c0-24f0-4232-95d0-f86aeabb9758",
+      "name": "Fortune Chana Dal"
+    }
+  ],
+  "Sweets & Chocolates": [
+    {
+      "id": "ed4f5961-91df-4807-bce1-0c062ce31c14",
+      "name": "Ferrero Rocher Chocolate"
+    },
+    {
+      "id": "27b290f6-ad87-412a-b2b2-0b684855e489",
+      "name": "Cadbury Dairy Milk Silk Chocolate"
+    },
+    {
+      "id": "d529df05-214b-4e6e-bbf0-0786a54541d2",
+      "name": "Haldiram's Soan Papdi"
+    },
+    {
+      "id": "f0d1d4e5-f3a8-4c7f-b64e-722af3208686",
+      "name": "Cadbury Dairy Milk Chocolate"
+    },
+    {
+      "id": "2d55f36d-0b73-4ad3-b477-8f2ede2b0db5",
+      "name": "Snickers Chocolate Bar"
+    },
+    {
+      "id": "95458f41-d849-4073-b5c5-7fe61393a80a",
+      "name": "Nestlé KitKat 4 Finger"
+    },
+    {
+      "id": "c80b6832-2e1e-40da-8cbd-11f24a7f11a5",
+      "name": "Kaju Katli Indian Sweet"
+    },
+    {
+      "id": "19cacab2-5acd-4f09-9bb1-b1952c93678b",
+      "name": "Kinder Joy Chocolate for Boys"
+    }
+  ],
+  "Vegetables & Fruits": [
+    {
+      "id": "73181fe1-fbdf-46f5-b153-662a8c0c33ba",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "5a9b6aa1-3cf5-4e74-a34d-d4717d4d5e99",
+      "name": "Carrot"
+    },
+    {
+      "id": "cbfd7337-1bc3-429e-b1e2-8ec8a68c2bbc",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "1928bbee-3990-4a72-93e9-5af9c2037d46",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "89f2c3bc-2925-44a6-98d6-157672dcff10",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "f4e5fd05-8b8f-4467-8aff-3a513005f129",
+      "name": "Cucumber"
+    },
+    {
+      "id": "c0355a14-f251-4b6d-99f1-22080044ee8e",
+      "name": "Green Chilli"
+    },
+    {
+      "id": "d9bac059-f832-4be1-a444-897a69ee31a7",
+      "name": "Potato"
+    },
+    {
+      "id": "b837a1dd-0224-4f09-9e37-67e59499a16e",
+      "name": "Potato"
+    },
+    {
+      "id": "79aac19a-b133-4a1f-a5a9-b35934937acb",
+      "name": "Tomato Hybrid"
+    },
+    {
+      "id": "b02adc28-4003-4bf3-8099-d90608ce1524",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "c0280122-72bb-44db-adf4-fa83fff8e711",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "f92b5f3b-33f4-409e-a599-2b055a3f6b96",
+      "name": "Fresh Hass Avocados"
+    },
+    {
+      "id": "8116cc4f-7e9b-48fa-a12b-2e5705185ff8",
+      "name": "Onion"
+    },
+    {
+      "id": "0ef4897a-19c0-452c-b665-79e23ffe13af",
+      "name": "Pomegranate"
+    },
+    {
+      "id": "54aa44a3-cfbe-4b47-bf69-967f4860b5fe",
+      "name": "Banana Robusta"
+    },
+    {
+      "id": "ce22a7e6-c7a6-46bd-867c-1f9f6fd8794e",
+      "name": "Apple Royal Gala"
+    }
+  ],
+  "Dairy, Bread & Eggs": [
+    {
+      "id": "888f7899-2f74-4d18-a2b5-dfce6c354287",
+      "name": "Amul Gold Full Cream Milk"
+    },
+    {
+      "id": "61b14935-4986-434c-8523-91dc91f54d90",
+      "name": "Modern Multigrain Bread"
+    },
+    {
+      "id": "58b6779b-712d-47da-aa9a-490d29d644c1",
+      "name": "Nestlé a+ Slim Milk"
+    },
+    {
+      "id": "b02cf549-2722-4127-99dd-64a2b9c25125",
+      "name": "Eggs Brown"
+    },
+    {
+      "id": "f91d4d44-0eae-404e-8fa8-83bc1d9abb73",
+      "name": "Amul Taaza Toned Milk"
+    },
+    {
+      "id": "8f673a29-73a1-4380-8c47-7377cacd0811",
+      "name": "Amul Cheese Slices"
+    },
+    {
+      "id": "9701ec5a-3fa0-4503-8404-3e6ce538fdaa",
+      "name": "Amul Gold Full Cream Milk"
+    },
+    {
+      "id": "1b3b37f7-c225-4b70-b99b-22ca597d0953",
+      "name": "Amul Salted Butter"
+    },
+    {
+      "id": "40be9f37-e39b-436f-ab77-152e7a1aecbb",
+      "name": "Britannia 100% Whole Wheat Bread"
+    },
+    {
+      "id": "c3be8e6f-b885-454d-9dab-dad33d5e683e",
+      "name": "Farm Fresh White Eggs"
+    },
+    {
+      "id": "4827579a-a79d-4d8a-bf1b-e4d2e892f08a",
+      "name": "Harvest Gold White Bread"
+    },
+    {
+      "id": "ac53fdec-7e47-4cfb-a2dd-f721e7e22443",
+      "name": "Mother Dairy Paneer"
+    }
+  ],
+  "Tea, Coffee & Milk Drinks": [
+    {
+      "id": "dd69d4dd-2400-4bb2-a6ce-970fc8f9e6cd",
+      "name": "Amul Kool Kesar (TEST3)"
+    },
+    {
+      "id": "49bb5e2a-3211-4e9c-bab9-24581bc3d6ed",
+      "name": "Amul Kool Kesar Flavoured Milk"
+    },
+    {
+      "id": "78a079ad-18f2-46da-b741-e760b07eea19",
+      "name": "Brooke Bond Red Label Tea"
+    },
+    {
+      "id": "1cb04c9c-446a-4874-bd86-5526a35c0cee",
+      "name": "Brooke Bond Taj Mahal Tea"
+    },
+    {
+      "id": "1e64679b-61b6-468b-9aa5-a21acb46c27a",
+      "name": "Bru Instant Coffee"
+    },
+    {
+      "id": "7c7188a3-91f3-4f74-97d7-351df16eed0d",
+      "name": "Hershey's Milkshake Chocolate"
+    },
+    {
+      "id": "a65d88a3-30d9-4699-bcda-be4dcdb6a5cf",
+      "name": "Cadbury Bournvita Chocolate Health Drink"
+    },
+    {
+      "id": "35c7d84b-2aca-4d6e-8e27-467d637c5d97",
+      "name": "Nescafé Classic Instant Coffee"
+    },
+    {
+      "id": "c0bb7bbd-a85b-4340-b8e5-3c5defb99885",
+      "name": "Tata Tea Premium"
+    }
+  ],
+  "Oil, Ghee & Masala": [
+    {
+      "id": "8ce332b9-3c08-4264-be60-6c286ae37ec4",
+      "name": "Catch Cumin Powder"
+    },
+    {
+      "id": "e3cc8db6-b565-4f2c-baee-f0026563a5bb",
+      "name": "MDH Garam Masala"
+    },
+    {
+      "id": "56c3bd82-7293-4a1b-8042-f05cefc3d8e0",
+      "name": "Fortune Sunlite Refined Sunflower Oil"
+    },
+    {
+      "id": "9d651bd6-6f55-4d6b-99fd-f9f324e8d51e",
+      "name": "Saffola Gold Edible Oil"
+    },
+    {
+      "id": "5b7ae770-132a-4817-a0d3-0dcd7d89c0fe",
+      "name": "Dhara Kachi Ghani Mustard Oil"
+    },
+    {
+      "id": "bc57a38e-da0b-4727-87ed-109dd94bdd59",
+      "name": "Amul Pure Ghee"
+    },
+    {
+      "id": "64fcc51f-eaa7-47d2-a876-ea8e582e22f0",
+      "name": "Tata Salt Iodised"
+    },
+    {
+      "id": "3195fe88-1243-41ad-82eb-70ecd68a2507",
+      "name": "Everest Turmeric Powder"
+    },
+    {
+      "id": "496dc8c8-0353-4217-b119-1309495997cd",
+      "name": "Everest Red Chilli Powder"
+    }
+  ],
+  "Drinks & Juices": [
+    {
+      "id": "621119f9-5348-4394-be80-c29c8c1fac97",
+      "name": "Coca-Cola Soft Drink"
+    },
+    {
+      "id": "775c2946-a1d7-4851-a88d-4a96eb9f5230",
+      "name": "Frooti Mango Drink"
+    },
+    {
+      "id": "4cb0e675-b5de-4a95-a50e-8f91f97a3f99",
+      "name": "Bisleri Packaged Drinking Water"
+    },
+    {
+      "id": "460863ff-b235-4f12-8c42-155e5fcb8841",
+      "name": "Maaza Mango Drink"
+    },
+    {
+      "id": "e1157417-1c02-4e40-8dcd-c109830631bc",
+      "name": "Pepsi Soft Drink"
+    },
+    {
+      "id": "aef792cc-7837-4e35-8bbf-369773a4a92f",
+      "name": "Real Fruit Power Mixed Fruit Juice"
+    },
+    {
+      "id": "e4a99565-fe67-48e5-8d77-e6957acf493b",
+      "name": "Sprite Lemon-Lime Soft Drink"
+    },
+    {
+      "id": "e1cded7a-49b5-4bcd-9d22-6555a21e48b1",
+      "name": "Thums Up Soft Drink"
+    },
+    {
+      "id": "cf853b9d-4fbc-4adb-9f5d-babce10857a0",
+      "name": "Tropicana 100% Orange Juice"
+    }
+  ],
+  "Instant Food": [
+    {
+      "id": "c8a3356e-9778-4e8d-b0aa-23bfdedda9af",
+      "name": "Gits Dosa Mix"
+    },
+    {
+      "id": "284dabaa-1c7d-4fee-9863-4d08a25f6751",
+      "name": "Kellogg's Corn Flakes Original"
+    },
+    {
+      "id": "c6930628-f0b7-4de4-af53-153502948fd5",
+      "name": "Knorr Classic Sweet Corn Veg Soup"
+    },
+    {
+      "id": "a8981a07-388c-4eae-a300-e2b18950831e",
+      "name": "Maggi 2-Minute Masala Noodles"
+    },
+    {
+      "id": "40b22a9a-31fa-4838-a5c7-2e39d892ef17",
+      "name": "MTR Instant Rava Idli Mix"
+    },
+    {
+      "id": "7e687737-2994-4559-8fa9-63df0f22f5ca",
+      "name": "MTR Ready to Eat Dal Makhani"
+    },
+    {
+      "id": "7e9e3177-9c98-4811-acf8-2d7418f36f76",
+      "name": "Quaker Oats"
+    },
+    {
+      "id": "b7bd39e3-55b4-4a7e-aea9-19764fd1929e",
+      "name": "Sunfeast YiPPee! Magic Masala Noodles"
+    }
+  ],
+  "Chips & Namkeen": [
+    {
+      "id": "2d99cb4d-0d28-42e0-a257-0639fba2ea3d",
+      "name": "Lay's India's Magic Masala Potato Chips"
+    },
+    {
+      "id": "92eedf8a-c8bd-4191-a1bf-e3a73e3fec6a",
+      "name": "Too Yumm! Multigrain Chips"
+    },
+    {
+      "id": "3b20bd91-3df4-4294-8c4b-19bceb39e896",
+      "name": "Lay's Classic Salted Potato Chips"
+    },
+    {
+      "id": "fa5ed270-2690-424b-9ce5-bdaa1ec1ad88",
+      "name": "Kurkure Masala Munch"
+    },
+    {
+      "id": "9ceb5740-b2d5-4d25-83e4-b9daa73e996a",
+      "name": "Bingo! Mad Angles Achaari Masti"
+    },
+    {
+      "id": "224efeba-5c02-43c8-9500-ff2875d1f0fa",
+      "name": "Haldiram's Aloo Bhujia"
+    },
+    {
+      "id": "98874d67-09a8-4f46-b71e-31c8bf5abe2e",
+      "name": "Haldiram's Nagpur Khatta Meetha"
+    },
+    {
+      "id": "62556632-92ab-4d8e-bde8-c64c259b28cd",
+      "name": "Balaji Simply Salted Wafers"
+    },
+    {
+      "id": "63cae623-74ac-4f16-be7e-3d642e9e40d2",
+      "name": "Baked Pita Chips"
+    },
+    {
+      "id": "ba0c1013-dc53-44c5-a4fc-ffe5cdd426ac",
+      "name": "Baked Pita Chips"
+    },
+    {
+      "id": "a23bf886-c599-4859-b653-05f953a8e0fc",
+      "name": "Baked Pita Chips"
+    },
+    {
+      "id": "819ba37e-29c8-4501-a3f2-ccb60aec3778",
+      "name": "Baked Pita Chips"
+    },
+    {
+      "id": "4606659b-f0b2-40b7-a00e-42629c6fcf46",
+      "name": "Baked Pita Chips"
+    },
+    {
+      "id": "d44fb868-19f8-4483-8303-792c294e1af3",
+      "name": "Baked Pita Chips"
+    },
+    {
+      "id": "f3c1cc57-a2d1-499e-80c8-705c5fc12fe3",
+      "name": "Baked Pita Chips"
+    }
+  ],
+  "Bakery & Biscuits": [
+    {
+      "id": "f8e426c2-191c-4a1f-8436-39886dc9cd92",
+      "name": "Parle-G Original Glucose Biscuits"
+    },
+    {
+      "id": "bd4afaeb-5736-4374-94d7-c4d550584b3b",
+      "name": "Britannia Good Day Cashew Cookies"
+    },
+    {
+      "id": "bf40d6ec-67a1-48af-951a-e8ddb935d5be",
+      "name": "Britannia Marie Gold Biscuits"
+    },
+    {
+      "id": "7c3db5d9-49d4-43bd-8a66-211c0f883b49",
+      "name": "Sunfeast Dark Fantasy Choco Fills"
+    },
+    {
+      "id": "3122b6ac-deac-4d74-a8e9-35983ac6b4a6",
+      "name": "Cadbury Oreo Vanilla Creme Biscuits"
+    },
+    {
+      "id": "33d41094-f940-4257-9a41-ed88d7438896",
+      "name": "Unibic Choco Chip Cookies"
+    },
+    {
+      "id": "96d06549-2560-4d37-914c-1b2c80ec90c5",
+      "name": "Britannia Bourbon The Original"
+    }
+  ],
+  "Chicken, Meat & Fish": [
+    {
+      "id": "38b25429-3534-4027-a331-d1abf768266e",
+      "name": "Prawns Cleaned"
+    },
+    {
+      "id": "d9be942d-bbfa-4036-9fe2-38783a29a45b",
+      "name": "Chicken Curry Cut"
+    },
+    {
+      "id": "6b0e91df-7fdb-466b-a947-d07b512b95cb",
+      "name": "Chicken Breast Boneless"
+    },
+    {
+      "id": "c32a0154-b43b-49f6-b3bd-651ec83437d2",
+      "name": "Chicken Drumsticks"
+    },
+    {
+      "id": "9cfa0233-6e3f-4504-aa1c-b7f418e532ba",
+      "name": "Mutton Curry Cut"
+    },
+    {
+      "id": "0e8e7090-cda6-40f8-8ef7-8813410cc2d5",
+      "name": "Rohu Fish Curry Cut"
+    },
+    {
+      "id": "eb43237c-1288-41f3-91a9-46fd95f3b503",
+      "name": "Seer Fish Steaks"
+    }
+  ],
+  "Cleaners & Repellents": [
+    {
+      "id": "9c8839c4-23d0-4ec1-b4b9-bb3dd380a714",
+      "name": "Savlon Antiseptic Liquid"
+    },
+    {
+      "id": "28869937-bb55-4aaf-b7b5-fca2504352bc",
+      "name": "Lizol Citrus Disinfectant Surface Cleaner"
+    },
+    {
+      "id": "8c8cbda3-95d9-426f-a66a-220b5d9173d0",
+      "name": "Goodknight Gold Flash Mosquito Repellent Refill"
+    },
+    {
+      "id": "8a90143d-4982-4fbf-915a-f06b373711d6",
+      "name": "Godrej HIT Crawling Insect Killer Spray"
+    },
+    {
+      "id": "4f058d92-05be-426d-b08b-8f675cff810b",
+      "name": "Surf Excel Matic Front Load Detergent Powder"
+    },
+    {
+      "id": "6ade49b5-5fc0-485b-a4fa-7edf6cb39e70",
+      "name": "Ariel Matic Top Load Detergent Powder"
+    },
+    {
+      "id": "2f751e80-5991-44c5-8013-1d0f28d347b4",
+      "name": "Vim Dishwash Gel Lemon"
+    },
+    {
+      "id": "67e79d11-8772-4962-95c9-f747ee111e21",
+      "name": "Harpic Power Plus Toilet Cleaner Original"
+    }
+  ],
+  "Feminine Hygiene": [
+    {
+      "id": "422047a4-b3c9-4cfc-b903-ebfd3f7135d3",
+      "name": "Whisper Choice Ultra Sanitary Pads"
+    },
+    {
+      "id": "9928f74a-3627-487b-8f66-75d1e5e07cf7",
+      "name": "Whisper Ultra Clean XL+ Sanitary Pads"
+    },
+    {
+      "id": "849981a5-7877-466d-be24-9c800069f868",
+      "name": "Stayfree Secure XL Cottony Soft Pads"
+    },
+    {
+      "id": "9ede352b-3d2b-43b4-a414-2dfa2bc7c619",
+      "name": "Sofy Antibacteria Extra Long Pads"
+    },
+    {
+      "id": "4eea7ebd-7610-4136-96e0-6dfdbe26fdde",
+      "name": "Sirona Premium Applicator Tampons Regular"
+    },
+    {
+      "id": "484cbe30-83ed-4baa-9919-ed852e8f867a",
+      "name": "Pee Safe Menstrual Cup Medium"
+    },
+    {
+      "id": "4ed9366c-4507-4f1d-afbc-eb9b4329d0d5",
+      "name": "Nua Ultra-Safe Sanitary Pads"
+    }
+  ],
+  "Stationery & Games": [
+    {
+      "id": "27dd90d6-6c9d-4d14-9cdb-24d0629cf100",
+      "name": "Cello Butterflow Ball Pen Blue"
+    },
+    {
+      "id": "dd5d51ad-48ba-4c66-bbee-78d21109b7e7",
+      "name": "Camel Oil Pastels"
+    },
+    {
+      "id": "70710b4f-1aed-46f4-8641-ebd6c9b0b88c",
+      "name": "Fevicol MR White Adhesive"
+    },
+    {
+      "id": "6a5d82c9-c364-413b-9573-0c190f83df50",
+      "name": "Apsara Platinum Pencils"
+    },
+    {
+      "id": "045b3bca-1e17-4458-b711-4b4c529159f7",
+      "name": "UNO Playing Cards"
+    },
+    {
+      "id": "3554af00-0d47-47cb-9b56-6e11b8e645b9",
+      "name": "Funskool Business Board Game"
+    },
+    {
+      "id": "af291e73-b620-4e93-8673-cd201a491bfc",
+      "name": "Classmate Single Line Notebook"
+    }
+  ],
+  "Hair Care": [
+    {
+      "id": "e7f914bb-79e4-4414-bf8c-f2952976afd1",
+      "name": "Clinic Plus Strong & Long Shampoo"
+    },
+    {
+      "id": "c0fc0bcf-5e2d-4cd7-abea-d5af281658d3",
+      "name": "Head & Shoulders Anti-Dandruff Shampoo"
+    },
+    {
+      "id": "48fe9ace-8ba5-4eef-a450-c55cbe35ec51",
+      "name": "Pantene Advanced Hairfall Solution Shampoo"
+    },
+    {
+      "id": "8df20045-e729-4929-9191-7a6d2465f77f",
+      "name": "Parachute Advansed Coconut Hair Oil"
+    },
+    {
+      "id": "5bba925e-0a38-4086-9ca6-feb5e06f53b6",
+      "name": "Livon Hair Serum"
+    },
+    {
+      "id": "d7a8a37a-28fe-41ae-9be3-81cdfc093aea",
+      "name": "L'Oréal Paris Total Repair 5 Conditioner"
+    },
+    {
+      "id": "b708dbf3-746f-4f52-b41d-6ddaf53ea181",
+      "name": "Dove Hair Therapy Breakage Repair Shampoo"
+    }
+  ],
+  "Beauty & Cosmetics": [
+    {
+      "id": "925a2514-1d59-4277-be33-d8e5245c0615",
+      "name": "Colorbar Perfect Match Primer"
+    },
+    {
+      "id": "bdcd9681-8ece-41a4-8a5f-5448f336be44",
+      "name": "Swiss Beauty Liquid Concealer"
+    },
+    {
+      "id": "b725f260-77f8-456a-8bd4-8a9e3ab8d6d9",
+      "name": "Lakmé Eyeconic Kajal Deep Black"
+    },
+    {
+      "id": "216be4d8-01c8-47d9-8729-ad7f122d3498",
+      "name": "Maybelline New York Colossal Kajal"
+    },
+    {
+      "id": "ef3d40be-fb9e-4c6b-a305-e5b586cd91dd",
+      "name": "Maybelline New York Fit Me Matte + Poreless Foundation"
+    },
+    {
+      "id": "23fe9243-0a07-4fdd-8ca2-80579d2e53a4",
+      "name": "Lakmé 9 to 5 Primer + Matte Lip Color"
+    },
+    {
+      "id": "8fcd80d9-ad3a-4170-aa31-835ab822fb2b",
+      "name": "Elle 18 Color Pops Matte Lip Color"
+    }
+  ],
+  "Health & Wellness": [
+    {
+      "id": "df8e08a6-69e1-475d-a477-986a083f07f7",
+      "name": "Electral ORS Powder"
+    },
+    {
+      "id": "6b782f33-03dc-4611-a04c-1a61b21e5c28",
+      "name": "Himalaya Ashvagandha Tablets"
+    },
+    {
+      "id": "4417f17f-d6fd-42c2-8134-91fbcf2a3772",
+      "name": "Dabur Chyawanprash"
+    },
+    {
+      "id": "7fe881d5-7d10-402a-945f-dc5863cb066c",
+      "name": "Vicks VapoRub"
+    },
+    {
+      "id": "b89fb250-105f-4321-916f-29f0c0d3c43e",
+      "name": "Volini Pain Relief Spray"
+    },
+    {
+      "id": "78b4cb4d-ae04-4df5-95d8-a6ba4ee9c0b9",
+      "name": "Dettol Original Hand Sanitizer"
+    }
+  ],
+  "Sauces & Spreads": [
+    {
+      "id": "17ec9642-4a36-495b-a26a-b1f5c3f55af8",
+      "name": "Hershey's Chocolate Syrup"
+    },
+    {
+      "id": "eb14ebf3-8b11-4c80-abdc-fd10af2f640e",
+      "name": "Kissan Mixed Fruit Jam"
+    },
+    {
+      "id": "8b7a1c4d-ef9f-4c99-9bb0-aa5f77d72274",
+      "name": "Kissan Fresh Tomato Ketchup"
+    },
+    {
+      "id": "91aa22b7-ecf4-49b9-9dee-34a937f95614",
+      "name": "Veeba Eggless Mayonnaise"
+    },
+    {
+      "id": "1bd8eff3-abb5-4799-a70c-2215e7b3aecc",
+      "name": "Dr. Oetker FunFoods Veg Mayonnaise"
+    },
+    {
+      "id": "156678e7-d5dc-4f3a-b0ba-1f8f739ffdeb",
+      "name": "Nutella Hazelnut Cocoa Spread"
+    },
+    {
+      "id": "e2df1ffa-29d2-4c6f-a8b9-377302e396ce",
+      "name": "Sundrop Peanut Butter Creamy"
+    },
+    {
+      "id": "30496772-b6c2-4089-8cec-9c4cdc613343",
+      "name": "Ching's Schezwan Chutney"
+    }
+  ],
+  "Skin & Face": [
+    {
+      "id": "8e17e5d3-510c-48bf-82ab-24906f59a162",
+      "name": "Lakmé Sun Expert SPF 50 PA+++ Sunscreen"
+    },
+    {
+      "id": "a0d6d236-8d36-4adc-b9e8-14577eb36b9d",
+      "name": "Garnier Bright Complete Vitamin C Face Wash"
+    },
+    {
+      "id": "22417a1b-c029-4016-81bb-4f11d008cdcd",
+      "name": "Pond's Super Light Gel"
+    },
+    {
+      "id": "3e2a0fbf-9ac2-457b-b009-f0c1367bd07a",
+      "name": "Mamaearth Ubtan Face Wash"
+    },
+    {
+      "id": "3bf9e88f-f0c1-49a4-968f-dfb607ef74db",
+      "name": "Cetaphil Gentle Skin Cleanser"
+    },
+    {
+      "id": "e58019f1-1f2d-4f4f-a6be-05d770fea3ed",
+      "name": "Himalaya Purifying Neem Face Wash"
+    },
+    {
+      "id": "761aba0c-a540-4aa6-adac-25b7e2b270f2",
+      "name": "Vaseline Intensive Care Deep Moisture Lotion"
+    },
+    {
+      "id": "3c2adba7-5160-419e-8e13-65093685a421",
+      "name": "Nivea Soft Light Moisturiser"
+    }
+  ],
+  "Ice Creams & Frozen Food": [
+    {
+      "id": "6ad56381-d5f0-4ba2-b793-770af46caf1a",
+      "name": "McCain Smiles"
+    },
+    {
+      "id": "3e0d7413-3263-49cc-bf46-f31a78ae1b40",
+      "name": "Safal Frozen Green Peas"
+    },
+    {
+      "id": "fa5a31c1-111b-4ee3-a84a-54eabb90913b",
+      "name": "ITC Master Chef Crispy Chicken Fries"
+    },
+    {
+      "id": "b7bc63ec-c00b-452d-93b8-dbc0dbf6115d",
+      "name": "Amul Chocolate Magic Ice Cream Tub"
+    },
+    {
+      "id": "0cf2eb3e-8979-4845-8961-94f5aae3890d",
+      "name": "Amul Vanilla Magic Ice Cream Tub"
+    },
+    {
+      "id": "02bd6c6a-598e-4ed6-b7e1-0e81d2f806fd",
+      "name": "Kwality Wall's Cornetto Double Chocolate"
+    },
+    {
+      "id": "d0ac3b60-7fb5-4b56-9e8d-9c76f14edf00",
+      "name": "Magnum Chocolate Truffle Ice Cream Stick"
+    },
+    {
+      "id": "819b5f51-de29-445e-8748-10bfa5c5af90",
+      "name": "McCain French Fries"
+    }
+  ],
+  "Home & Lifestyle": [
+    {
+      "id": "dee87464-d779-46a3-9827-9723d69300ba",
+      "name": "Microfiber Cleaning Cloth"
+    },
+    {
+      "id": "3c2e088f-162c-4a89-87ea-68599105c845",
+      "name": "Godrej Aer Pocket Bathroom Fragrance"
+    },
+    {
+      "id": "147327b0-c5a5-4d50-ac0c-08bf1de91c4a",
+      "name": "Odonil Bathroom Air Freshener Blocks"
+    },
+    {
+      "id": "25aa0b71-82f3-4ccd-8c38-4d127ba24cbc",
+      "name": "Scotch-Brite Scrub Pad"
+    },
+    {
+      "id": "60692105-a511-451e-a661-5fbce6061aff",
+      "name": "Gala No Dust Broom"
+    }
+  ],
+  "Baby Care": [
+    {
+      "id": "995f743c-8fd8-420d-a784-c088a45d2b2f",
+      "name": "Pampers All-Round Protection Pants Large"
+    },
+    {
+      "id": "626189de-6245-46e0-bc6c-f5bc73ccb0b0",
+      "name": "Huggies Complete Comfort Wonder Pants Medium"
+    },
+    {
+      "id": "e5f6a7b7-9561-4221-b180-e250bd8495fc",
+      "name": "Johnson's Baby Powder"
+    },
+    {
+      "id": "11cec891-7324-4390-a4a2-d84bc3d17a5f",
+      "name": "Johnson's Baby Lotion"
+    },
+    {
+      "id": "4b21729d-4384-4f30-a200-9237f21685dd",
+      "name": "Himalaya Gentle Baby Shampoo"
+    },
+    {
+      "id": "83ba14ff-77e0-4bc8-a05b-398e598c2f9e",
+      "name": "Mee Mee Baby Wet Wipes"
+    },
+    {
+      "id": "6e16bc8d-4851-4b55-888a-886444dcc175",
+      "name": "Nestlé Cerelac Wheat Apple Baby Cereal"
+    }
+  ],
+  "Electronics & Accessories": [
+    {
+      "id": "f04e6389-a50a-4364-911c-998eddc2545b",
+      "name": "Portronics Konnect L USB Type-C Cable"
+    },
+    {
+      "id": "43c7ef46-df8a-4328-89e9-77cb8ca0f920",
+      "name": "Syska Power Bank P1001"
+    },
+    {
+      "id": "a729b38c-65b3-433d-b194-1832b02af309",
+      "name": "Eveready AAA Batteries"
+    },
+    {
+      "id": "ded9f384-7852-49ce-9dff-bb4c324791ac",
+      "name": "Duracell Alkaline AA Batteries"
+    },
+    {
+      "id": "0e5c7d68-5138-49b4-a51f-be36d951ca64",
+      "name": "Philips LED Bulb 9W"
+    },
+    {
+      "id": "77f1fe06-c65b-42ac-99a5-bf2ce27bb10b",
+      "name": "boAt BassHeads 100 Wired Earphones"
+    }
+  ],
+  "Bath & Body": [
+    {
+      "id": "64ee5e22-7793-4a1c-948c-8c69d3a06ce5",
+      "name": "Dove Cream Beauty Bathing Bar"
+    },
+    {
+      "id": "f5a07766-638e-4bce-b6da-80313d1f41fd",
+      "name": "Pears Pure & Gentle Bathing Bar"
+    },
+    {
+      "id": "91377fb4-674a-409a-85dc-a0f0ee081964",
+      "name": "Dettol Original Soap"
+    },
+    {
+      "id": "e4341737-8167-44fc-a53a-994d443ee559",
+      "name": "Nivea Men Deep Impact Body Wash"
+    },
+    {
+      "id": "ffc8849d-8eef-4f94-b8cb-e464d6b2de17",
+      "name": "Fiama Gel Bar Celebration Pack"
+    },
+    {
+      "id": "92ba4b0c-372a-4201-8b8c-dab8319fc0cf",
+      "name": "Lux Soft Touch Soap"
+    }
+  ],
+  "Kitchenware & Appliances": [
+    {
+      "id": "3d31d307-f6b6-4811-8543-73e1acfe70bd",
+      "name": "Prestige Popular Aluminium Pressure Cooker"
+    },
+    {
+      "id": "4b3fc51b-c84d-4306-8b6c-094b19005ef6",
+      "name": "Pigeon Favourite Electric Kettle"
+    },
+    {
+      "id": "7876f0d6-a399-4da5-868b-b8371e07a418",
+      "name": "Bajaj Majesty DX 11 Dry Iron"
+    },
+    {
+      "id": "bf224964-6ca4-46cb-a3ba-9a2329cadc8c",
+      "name": "Butterfly Premium Vegetable Chopper"
+    },
+    {
+      "id": "accf3dc0-412e-4f4f-beaf-bbe6b4cee56c",
+      "name": "Borosil Glass Mixing Bowl Set"
+    },
+    {
+      "id": "2f136d99-ca24-48c2-90e5-d7cc63f1a115",
+      "name": "Cello Opalware Dinner Plate Set"
+    },
+    {
+      "id": "569844e4-6a2d-4cc9-8066-027f8fd4468f",
+      "name": "Milton Thermosteel Bottle"
+    },
+    {
+      "id": "d2f4c71e-9166-4655-ab8a-f2be6696e274",
+      "name": "Prestige Omega Deluxe Granite Fry Pan"
+    },
+    {
+      "id": "4b93141d-4306-4cf7-87ca-5985faae9541",
+      "name": "Cello Max Fresh Container Set"
+    }
+  ]
+}

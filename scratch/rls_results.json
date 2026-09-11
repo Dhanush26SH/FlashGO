@@ -1,0 +1,27 @@
+{
+  "sample_stock_ledgers": null,
+  "admin": {
+    "select": "Success",
+    "insert": "Success",
+    "update": "Success",
+    "delete": "Success"
+  },
+  "warehouse_manager": {
+    "select": "Success",
+    "insert": "new row violates row-level security policy for table \"vendor_products\"",
+    "update": "Success",
+    "delete": "Success"
+  },
+  "picker": {
+    "select": "Success",
+    "insert": "new row violates row-level security policy for table \"vendor_products\"",
+    "update": "Success",
+    "delete": "Success"
+  },
+  "anon": {
+    "select": "Success",
+    "insert": "new row violates row-level security policy for table \"vendor_products\"",
+    "update": "Success",
+    "delete": "Success"
+  }
+}

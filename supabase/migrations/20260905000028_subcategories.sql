@@ -1,0 +1,347 @@
+-- Migration: 20260905000028_subcategories.sql
+CREATE TABLE public.subcategories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INT DEFAULT 0,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT subcategories_category_name_key UNIQUE (category_id, name),
+    CONSTRAINT fk_category FOREIGN KEY (category_id) REFERENCES public.categories(id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.subcategories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access to subcategories" ON public.subcategories FOR SELECT TO public USING (true);
+
+ALTER TABLE public.subcategories ADD CONSTRAINT subcategories_id_category_id_key UNIQUE (id, category_id);
+
+ALTER TABLE public.products ADD COLUMN subcategory_id UUID DEFAULT NULL;
+ALTER TABLE public.products ADD CONSTRAINT fk_products_subcategory_category FOREIGN KEY (subcategory_id, category_id) REFERENCES public.subcategories(id, category_id) ON DELETE SET NULL;
+
+DROP FUNCTION IF EXISTS public.get_warehouse_catalog(UUID, TEXT, INT);
+CREATE OR REPLACE FUNCTION public.get_warehouse_catalog(
+    p_warehouse_id UUID,
+    p_search_query TEXT DEFAULT NULL,
+    p_limit INT DEFAULT 500
+) RETURNS TABLE(
+    product_id UUID,
+    category_id UUID,
+    subcategory_id UUID,
+    name TEXT,
+    description TEXT,
+    price NUMERIC,
+    discount_price NUMERIC,
+    image_url TEXT,
+    sku TEXT,
+    barcode TEXT,
+    is_active BOOLEAN,
+    rating_avg NUMERIC,
+    rating_count INT,
+    stock_quantity INT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.id AS product_id,
+        p.category_id,
+        p.subcategory_id,
+        p.name,
+        p.description,
+        p.price,
+        p.discount_price,
+        p.image_url,
+        p.sku,
+        p.barcode,
+        p.is_active,
+        p.rating_avg,
+        p.rating_count,
+        ws.quantity AS stock_quantity
+    FROM public.products p
+    JOIN public.warehouse_stock ws ON ws.product_id = p.id
+    WHERE ws.warehouse_id = p_warehouse_id
+      AND p.is_active = true
+      AND (
+          p_search_query IS NULL 
+          OR p.name ILIKE '%' || p_search_query || '%'
+          OR p.sku ILIKE '%' || p_search_query || '%'
+          OR p.barcode ILIKE '%' || p_search_query || '%'
+      )
+    ORDER BY p.name ASC
+    LIMIT LEAST(COALESCE(p_limit, 500), 1000);
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.get_warehouse_catalog(UUID, TEXT, INT) TO authenticated;
+
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('76ac1011-a4b5-4c1a-88ae-7e4a2147c235', 'c0000000-0000-0000-0000-000000000001', 'Fresh Fruits');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('79003aed-15f2-4508-97b6-e5801497f5e7', 'c0000000-0000-0000-0000-000000000001', 'Fresh Vegetables');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('1dd43413-4cb9-48fb-98f3-449b052bb58b', 'c0000000-0000-0000-0000-000000000002', 'Milk');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('5d603522-61c6-42c1-8ebb-6279a416f2eb', 'c0000000-0000-0000-0000-000000000002', 'Bread');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('1bca54e5-01eb-49b8-86e9-8d9ecb8c8773', 'c0000000-0000-0000-0000-000000000002', 'Eggs');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('09086a42-a19c-4064-b2b4-444050d1cc56', 'c0000000-0000-0000-0000-000000000002', 'Cheese & Paneer');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('161896f5-0a1e-4850-b3fc-b8298a96243b', 'c0000000-0000-0000-0000-000000000002', 'Butter & Ghee');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('8ad401a4-4d2e-485a-a169-818bf4715424', '41f66f69-beb5-451e-8f8d-4019b2e5ed57', 'Rice');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('2c989006-12be-4be5-a699-7e0ef181f23d', '41f66f69-beb5-451e-8f8d-4019b2e5ed57', 'Atta & Flour');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('d02b8d6f-008b-4b06-9709-387dd89dc888', '41f66f69-beb5-451e-8f8d-4019b2e5ed57', 'Dal & Pulses');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('c8f9aa2c-ee54-40db-9b20-8c347865a30b', '53efa55b-833a-4bdb-adea-3c37c4972de9', 'Milk Drinks');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('6d9cd0e9-2651-463d-beca-7c695429c1b1', '53efa55b-833a-4bdb-adea-3c37c4972de9', 'Tea');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('9a360815-d4dc-42f9-b524-fc5826170bce', '53efa55b-833a-4bdb-adea-3c37c4972de9', 'Coffee');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('2eea4ec7-f14e-4c08-ba2d-2f80a8465666', '5b643fab-1b85-4f37-b156-c160cb09868d', 'Spices & Masala');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('966bd5a9-c6b2-462d-b442-8d139ad13030', '5b643fab-1b85-4f37-b156-c160cb09868d', 'Edible Oil');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('2bf0986d-b048-44db-a938-e6ab9c0bf465', '5b643fab-1b85-4f37-b156-c160cb09868d', 'Ghee');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('e46288f8-014b-458f-a3f1-445633a195dd', '9fd1d487-17b5-4cc1-aaef-1f835115bcfe', 'Cold Drinks');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('2d52f6ec-536d-4758-88dc-7747507b3cb1', '9fd1d487-17b5-4cc1-aaef-1f835115bcfe', 'Juices');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('6bc37add-5b82-406a-8694-d6abdba5d6ba', '9fd1d487-17b5-4cc1-aaef-1f835115bcfe', 'Water');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('4ea7dc1c-6baf-4e42-91cd-61023704a8a7', 'd11c0d26-3f6b-4e22-802f-13a6c46fec08', 'Breakfast Mixes');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('6eabbcf1-20d7-41fa-a6d7-30cc9104cf5b', 'd11c0d26-3f6b-4e22-802f-13a6c46fec08', 'Ready to Eat');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('07dd7b83-32a9-430b-a210-217aa8f47444', 'd11c0d26-3f6b-4e22-802f-13a6c46fec08', 'Noodles & Pasta');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c', 'a71f9f54-609b-4c28-a210-0b9b4527c75a', 'Potato Chips');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('dbb493fa-5c24-44a3-bc5b-58c23f2501b7', 'a71f9f54-609b-4c28-a210-0b9b4527c75a', 'Namkeen & Bhujia');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('a869638d-963d-4baa-8abb-1f35fdc63d0a', 'e74d1264-1049-492d-b2cd-75bd63351553', 'Chocolates');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('c11e0cb4-3699-4ab1-a58c-6c3c5e9f8b6f', 'e74d1264-1049-492d-b2cd-75bd63351553', 'Indian Sweets');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('6f667404-eb1d-481b-872e-d4e023c1a046', 'c1fafdee-a672-43b1-9b2f-3904e0301177', 'Biscuits');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('be007c39-df4f-4ef6-bdc9-0fa6673d1f09', 'c1fafdee-a672-43b1-9b2f-3904e0301177', 'Cookies');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('0c5f32eb-b182-452a-948c-d3f486e1c1ab', '0411abdd-af0f-4534-a0e2-45d821cd4983', 'Frozen Snacks');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('c6e0dea2-d9df-4f5e-b733-f8426245dc77', '0411abdd-af0f-4534-a0e2-45d821cd4983', 'Ice Creams');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('4fda5e4c-1a67-4ecc-98fd-4fff6c5a0ef2', 'daa11eb2-573b-4576-a04d-7e1ee4efc3a8', 'Fish & Seafood');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('d2bd276a-1900-4fb7-b991-30dd66fd3e7f', 'daa11eb2-573b-4576-a04d-7e1ee4efc3a8', 'Chicken');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('e681dcc3-8cd1-422b-a021-1e52fa435369', 'daa11eb2-573b-4576-a04d-7e1ee4efc3a8', 'Meat');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('09925206-8ce4-4ea9-b2bc-c040099f4f10', '1717ebc5-4cd0-4ef2-b670-200d82756d5b', 'Surface Cleaners');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('25504141-78a6-4f74-aab7-90d9a00cdb56', '1717ebc5-4cd0-4ef2-b670-200d82756d5b', 'Repellents');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('15e311f8-aed2-404a-b059-5535d103bc14', '1717ebc5-4cd0-4ef2-b670-200d82756d5b', 'Detergents');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('270d1c04-4600-4513-9c66-4a2788d8cf88', '364675c4-ebd2-4640-8c5f-d8c3326067c4', 'Makeup');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('ab564460-eab1-4107-980b-e3e1e8e31d65', '9339dc05-98cb-4d5d-98de-c2158bccd563', 'Creams & Lotions');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('f03c9aea-8aab-45fe-a9d9-043485618474', '9339dc05-98cb-4d5d-98de-c2158bccd563', 'Face Wash');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('5085fbfc-2b86-40b2-afa3-efc3cf1519d5', '9fce9dc0-9c64-4b1f-82b3-0e4b1cba9f4f', 'Shampoo');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('8b5e69a5-699e-4124-9555-276e447b9441', '9fce9dc0-9c64-4b1f-82b3-0e4b1cba9f4f', 'Hair Oil');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('db36e9bb-8ec3-4d4f-9420-378aa86c3fe1', '9fce9dc0-9c64-4b1f-82b3-0e4b1cba9f4f', 'Conditioner & Serum');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9', '6991baa7-59ff-45a2-b6d9-0e0a4074b1d6', 'Soaps & Body Wash');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('4a1ba8bd-7f57-4524-a3db-d2f1166de02d', 'dc49a878-fcd8-4614-b939-7fdf495e32f2', 'Sanitary Pads');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('9f8c6dd4-5868-421e-b1ea-d3e899934434', 'dc49a878-fcd8-4614-b939-7fdf495e32f2', 'Other Hygiene');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('ff782cd5-4c14-497a-beaf-1bdfa2cf2c0f', '06180b8b-ad91-42eb-a5de-8ae2a390463a', 'Diapers & Pants');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('adeb5f7e-8e7d-4054-9718-70833a3b8cae', '06180b8b-ad91-42eb-a5de-8ae2a390463a', 'Baby Skin Care');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('6fbd0beb-aaa8-445a-b55d-ee1a4b856967', '06180b8b-ad91-42eb-a5de-8ae2a390463a', 'Baby Food');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('ae735e2d-631d-4ed3-91f2-b6c256052873', '6d300e19-8934-4b7b-bc19-f7a505b58380', 'First Aid & Pain Relief');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('c41c245f-95ce-4e42-8195-1e6b7fef7449', '6d300e19-8934-4b7b-bc19-f7a505b58380', 'Supplements & Digestives');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('c2700bb4-7c45-4c3d-b897-d503614fa74e', 'b616d113-642b-47b1-acd3-c85e4da8df75', 'Spreads & Mayonnaise');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('5991fdef-3898-41a5-a9e8-dd92aab22ee2', 'b616d113-642b-47b1-acd3-c85e4da8df75', 'Sauces & Ketchup');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('ae435999-9f36-497b-bf9b-31abd69f2bc0', '40768ca9-9f11-4d62-a02d-77ffeba17f12', 'Stationery');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('eab3f825-9275-40cd-b2f9-a407397a7898', '40768ca9-9f11-4d62-a02d-77ffeba17f12', 'Games');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('3a6333ae-a3db-44e1-aeed-368111b18931', '92e28de2-1dc8-4ba3-9615-b5c4dda1c7be', 'Mobile Accessories');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('388ce589-821d-4f4e-a707-e8d81c2d7a2e', '8ebaa744-5930-4ffe-bcef-58449277dcaf', 'Cleaning Tools');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('65b1a67c-cce6-413f-a986-e2df789ff185', '8ebaa744-5930-4ffe-bcef-58449277dcaf', 'Fresheners');
+
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('ce019c50-6a5d-4611-90e7-e1763ecf75ca', 'a819177f-448e-4e3e-871b-0fb694853058', 'Cookware');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('44e33cb3-9974-4af2-8052-12e086f26b35', 'a819177f-448e-4e3e-871b-0fb694853058', 'Appliances');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('d26d9af5-a99e-4328-8bda-c8883caf823a', 'a819177f-448e-4e3e-871b-0fb694853058', 'Kitchen Tools');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('c976db44-6ff2-421d-a04d-db672170c4fc', '92e28de2-1dc8-4ba3-9615-b5c4dda1c7be', 'Batteries');
+INSERT INTO public.subcategories (id, category_id, name) VALUES ('6f860c5f-dbc7-4561-9fa5-dd84fe44d479', '92e28de2-1dc8-4ba3-9615-b5c4dda1c7be', 'Lighting');
+
+UPDATE public.products SET subcategory_id = '8ad401a4-4d2e-485a-a169-818bf4715424' WHERE id = '44c85d6c-e21e-4c08-9328-13d699e66f12';
+UPDATE public.products SET subcategory_id = 'a869638d-963d-4baa-8abb-1f35fdc63d0a' WHERE id = 'ed4f5961-91df-4807-bce1-0c062ce31c14';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = '73181fe1-fbdf-46f5-b153-662a8c0c33ba';
+UPDATE public.products SET subcategory_id = '1dd43413-4cb9-48fb-98f3-449b052bb58b' WHERE id = '888f7899-2f74-4d18-a2b5-dfce6c354287';
+UPDATE public.products SET subcategory_id = 'a869638d-963d-4baa-8abb-1f35fdc63d0a' WHERE id = '27b290f6-ad87-412a-b2b2-0b684855e489';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = '5a9b6aa1-3cf5-4e74-a34d-d4717d4d5e99';
+UPDATE public.products SET subcategory_id = '2eea4ec7-f14e-4c08-ba2d-2f80a8465666' WHERE id = '8ce332b9-3c08-4264-be60-6c286ae37ec4';
+UPDATE public.products SET subcategory_id = 'e46288f8-014b-458f-a3f1-445633a195dd' WHERE id = '621119f9-5348-4394-be80-c29c8c1fac97';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = 'cbfd7337-1bc3-429e-b1e2-8ec8a68c2bbc';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = '1928bbee-3990-4a72-93e9-5af9c2037d46';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = '89f2c3bc-2925-44a6-98d6-157672dcff10';
+UPDATE public.products SET subcategory_id = '4ea7dc1c-6baf-4e42-91cd-61023704a8a7' WHERE id = 'c8a3356e-9778-4e8d-b0aa-23bfdedda9af';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = 'f4e5fd05-8b8f-4467-8aff-3a513005f129';
+UPDATE public.products SET subcategory_id = '2d52f6ec-536d-4758-88dc-7747507b3cb1' WHERE id = '775c2946-a1d7-4851-a88d-4a96eb9f5230';
+UPDATE public.products SET subcategory_id = 'c8f9aa2c-ee54-40db-9b20-8c347865a30b' WHERE id = '49bb5e2a-3211-4e9c-bab9-24581bc3d6ed';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = 'c0355a14-f251-4b6d-99f1-22080044ee8e';
+UPDATE public.products SET subcategory_id = '6bc37add-5b82-406a-8694-d6abdba5d6ba' WHERE id = '4cb0e675-b5de-4a95-a50e-8f91f97a3f99';
+UPDATE public.products SET subcategory_id = '6d9cd0e9-2651-463d-beca-7c695429c1b1' WHERE id = '78a079ad-18f2-46da-b741-e760b07eea19';
+UPDATE public.products SET subcategory_id = '6d9cd0e9-2651-463d-beca-7c695429c1b1' WHERE id = '1cb04c9c-446a-4874-bd86-5526a35c0cee';
+UPDATE public.products SET subcategory_id = 'c11e0cb4-3699-4ab1-a58c-6c3c5e9f8b6f' WHERE id = 'd529df05-214b-4e6e-bbf0-0786a54541d2';
+UPDATE public.products SET subcategory_id = '9a360815-d4dc-42f9-b524-fc5826170bce' WHERE id = '1e64679b-61b6-468b-9aa5-a21acb46c27a';
+UPDATE public.products SET subcategory_id = 'c8f9aa2c-ee54-40db-9b20-8c347865a30b' WHERE id = '7c7188a3-91f3-4f74-97d7-351df16eed0d';
+UPDATE public.products SET subcategory_id = 'c8f9aa2c-ee54-40db-9b20-8c347865a30b' WHERE id = 'a65d88a3-30d9-4699-bcda-be4dcdb6a5cf';
+UPDATE public.products SET subcategory_id = '4ea7dc1c-6baf-4e42-91cd-61023704a8a7' WHERE id = '284dabaa-1c7d-4fee-9863-4d08a25f6751';
+UPDATE public.products SET subcategory_id = 'a869638d-963d-4baa-8abb-1f35fdc63d0a' WHERE id = 'f0d1d4e5-f3a8-4c7f-b64e-722af3208686';
+UPDATE public.products SET subcategory_id = '6eabbcf1-20d7-41fa-a6d7-30cc9104cf5b' WHERE id = 'c6930628-f0b7-4de4-af53-153502948fd5';
+UPDATE public.products SET subcategory_id = '2d52f6ec-536d-4758-88dc-7747507b3cb1' WHERE id = '460863ff-b235-4f12-8c42-155e5fcb8841';
+UPDATE public.products SET subcategory_id = '07dd7b83-32a9-430b-a210-217aa8f47444' WHERE id = 'a8981a07-388c-4eae-a300-e2b18950831e';
+UPDATE public.products SET subcategory_id = '2eea4ec7-f14e-4c08-ba2d-2f80a8465666' WHERE id = 'e3cc8db6-b565-4f2c-baee-f0026563a5bb';
+UPDATE public.products SET subcategory_id = '5d603522-61c6-42c1-8ebb-6279a416f2eb' WHERE id = '61b14935-4986-434c-8523-91dc91f54d90';
+UPDATE public.products SET subcategory_id = '4ea7dc1c-6baf-4e42-91cd-61023704a8a7' WHERE id = '40b22a9a-31fa-4838-a5c7-2e39d892ef17';
+UPDATE public.products SET subcategory_id = 'a869638d-963d-4baa-8abb-1f35fdc63d0a' WHERE id = '2d55f36d-0b73-4ad3-b477-8f2ede2b0db5';
+UPDATE public.products SET subcategory_id = '2c989006-12be-4be5-a699-7e0ef181f23d' WHERE id = 'f75ebfb1-14dc-4a8a-bd25-6bf4f86a434b';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = 'd9bac059-f832-4be1-a444-897a69ee31a7';
+UPDATE public.products SET subcategory_id = '966bd5a9-c6b2-462d-b442-8d139ad13030' WHERE id = '56c3bd82-7293-4a1b-8042-f05cefc3d8e0';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '2d99cb4d-0d28-42e0-a257-0639fba2ea3d';
+UPDATE public.products SET subcategory_id = '6eabbcf1-20d7-41fa-a6d7-30cc9104cf5b' WHERE id = '7e687737-2994-4559-8fa9-63df0f22f5ca';
+UPDATE public.products SET subcategory_id = '9a360815-d4dc-42f9-b524-fc5826170bce' WHERE id = '35c7d84b-2aca-4d6e-8e27-467d637c5d97';
+UPDATE public.products SET subcategory_id = '1dd43413-4cb9-48fb-98f3-449b052bb58b' WHERE id = '58b6779b-712d-47da-aa9a-490d29d644c1';
+UPDATE public.products SET subcategory_id = 'a869638d-963d-4baa-8abb-1f35fdc63d0a' WHERE id = '95458f41-d849-4073-b5c5-7fe61393a80a';
+UPDATE public.products SET subcategory_id = '6f667404-eb1d-481b-872e-d4e023c1a046' WHERE id = 'f8e426c2-191c-4a1f-8436-39886dc9cd92';
+UPDATE public.products SET subcategory_id = 'e46288f8-014b-458f-a3f1-445633a195dd' WHERE id = 'e1157417-1c02-4e40-8dcd-c109830631bc';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = 'b837a1dd-0224-4f09-9e37-67e59499a16e';
+UPDATE public.products SET subcategory_id = '4ea7dc1c-6baf-4e42-91cd-61023704a8a7' WHERE id = '7e9e3177-9c98-4811-acf8-2d7418f36f76';
+UPDATE public.products SET subcategory_id = '2d52f6ec-536d-4758-88dc-7747507b3cb1' WHERE id = 'aef792cc-7837-4e35-8bbf-369773a4a92f';
+UPDATE public.products SET subcategory_id = 'd02b8d6f-008b-4b06-9709-387dd89dc888' WHERE id = 'd96b3b2e-dfd1-4403-88d9-1bdf3a793ae6';
+UPDATE public.products SET subcategory_id = '2c989006-12be-4be5-a699-7e0ef181f23d' WHERE id = '0f32c1e6-7fa6-4839-9d26-221d67ea313a';
+UPDATE public.products SET subcategory_id = 'e46288f8-014b-458f-a3f1-445633a195dd' WHERE id = 'e4a99565-fe67-48e5-8d77-e6957acf493b';
+UPDATE public.products SET subcategory_id = '07dd7b83-32a9-430b-a210-217aa8f47444' WHERE id = 'b7bd39e3-55b4-4a7e-aea9-19764fd1929e';
+UPDATE public.products SET subcategory_id = '6d9cd0e9-2651-463d-beca-7c695429c1b1' WHERE id = 'c0bb7bbd-a85b-4340-b8e5-3c5defb99885';
+UPDATE public.products SET subcategory_id = 'e46288f8-014b-458f-a3f1-445633a195dd' WHERE id = 'e1cded7a-49b5-4bcd-9d22-6555a21e48b1';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = '79aac19a-b133-4a1f-a5a9-b35934937acb';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '92eedf8a-c8bd-4191-a1bf-e3a73e3fec6a';
+UPDATE public.products SET subcategory_id = '2d52f6ec-536d-4758-88dc-7747507b3cb1' WHERE id = 'cf853b9d-4fbc-4adb-9f5d-babce10857a0';
+UPDATE public.products SET subcategory_id = '6f667404-eb1d-481b-872e-d4e023c1a046' WHERE id = 'bd4afaeb-5736-4374-94d7-c4d550584b3b';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '3b20bd91-3df4-4294-8c4b-19bceb39e896';
+UPDATE public.products SET subcategory_id = '966bd5a9-c6b2-462d-b442-8d139ad13030' WHERE id = '9d651bd6-6f55-4d6b-99fd-f9f324e8d51e';
+UPDATE public.products SET subcategory_id = '4fda5e4c-1a67-4ecc-98fd-4fff6c5a0ef2' WHERE id = '38b25429-3534-4027-a331-d1abf768266e';
+UPDATE public.products SET subcategory_id = '09925206-8ce4-4ea9-b2bc-c040099f4f10' WHERE id = '9c8839c4-23d0-4ec1-b4b9-bb3dd380a714';
+UPDATE public.products SET subcategory_id = '4a1ba8bd-7f57-4524-a3db-d2f1166de02d' WHERE id = '422047a4-b3c9-4cfc-b903-ebfd3f7135d3';
+UPDATE public.products SET subcategory_id = '8ad401a4-4d2e-485a-a169-818bf4715424' WHERE id = 'a908c202-c6a6-4549-9b25-415176db3c61';
+UPDATE public.products SET subcategory_id = '6f667404-eb1d-481b-872e-d4e023c1a046' WHERE id = 'bf40d6ec-67a1-48af-951a-e8ddb935d5be';
+UPDATE public.products SET subcategory_id = '966bd5a9-c6b2-462d-b442-8d139ad13030' WHERE id = '5b7ae770-132a-4817-a0d3-0dcd7d89c0fe';
+UPDATE public.products SET subcategory_id = 'dbb493fa-5c24-44a3-bc5b-58c23f2501b7' WHERE id = 'fa5ed270-2690-424b-9ce5-bdaa1ec1ad88';
+UPDATE public.products SET subcategory_id = '8ad401a4-4d2e-485a-a169-818bf4715424' WHERE id = '6132d229-6894-4dad-90a6-2fc44fdc1263';
+UPDATE public.products SET subcategory_id = '2bf0986d-b048-44db-a938-e6ab9c0bf465' WHERE id = 'bc57a38e-da0b-4727-87ed-109dd94bdd59';
+UPDATE public.products SET subcategory_id = 'dbb493fa-5c24-44a3-bc5b-58c23f2501b7' WHERE id = '9ceb5740-b2d5-4d25-83e4-b9daa73e996a';
+UPDATE public.products SET subcategory_id = '6f667404-eb1d-481b-872e-d4e023c1a046' WHERE id = '7c3db5d9-49d4-43bd-8a66-211c0f883b49';
+UPDATE public.products SET subcategory_id = 'd02b8d6f-008b-4b06-9709-387dd89dc888' WHERE id = 'ee1aedd0-93bf-45ca-8206-ecf927b6391d';
+UPDATE public.products SET subcategory_id = '6f667404-eb1d-481b-872e-d4e023c1a046' WHERE id = '3122b6ac-deac-4d74-a8e9-35983ac6b4a6';
+UPDATE public.products SET subcategory_id = 'dbb493fa-5c24-44a3-bc5b-58c23f2501b7' WHERE id = '224efeba-5c02-43c8-9500-ff2875d1f0fa';
+UPDATE public.products SET subcategory_id = '2eea4ec7-f14e-4c08-ba2d-2f80a8465666' WHERE id = '64fcc51f-eaa7-47d2-a876-ea8e582e22f0';
+UPDATE public.products SET subcategory_id = 'd02b8d6f-008b-4b06-9709-387dd89dc888' WHERE id = '5d8cba66-2cfe-4b93-954d-6a84e536227d';
+UPDATE public.products SET subcategory_id = '2eea4ec7-f14e-4c08-ba2d-2f80a8465666' WHERE id = '3195fe88-1243-41ad-82eb-70ecd68a2507';
+UPDATE public.products SET subcategory_id = 'dbb493fa-5c24-44a3-bc5b-58c23f2501b7' WHERE id = '98874d67-09a8-4f46-b71e-31c8bf5abe2e';
+UPDATE public.products SET subcategory_id = 'be007c39-df4f-4ef6-bdc9-0fa6673d1f09' WHERE id = '33d41094-f940-4257-9a41-ed88d7438896';
+UPDATE public.products SET subcategory_id = 'd02b8d6f-008b-4b06-9709-387dd89dc888' WHERE id = '5a6231c0-24f0-4232-95d0-f86aeabb9758';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '62556632-92ab-4d8e-bde8-c64c259b28cd';
+UPDATE public.products SET subcategory_id = '6f667404-eb1d-481b-872e-d4e023c1a046' WHERE id = '96d06549-2560-4d37-914c-1b2c80ec90c5';
+UPDATE public.products SET subcategory_id = '2eea4ec7-f14e-4c08-ba2d-2f80a8465666' WHERE id = '496dc8c8-0353-4217-b119-1309495997cd';
+UPDATE public.products SET subcategory_id = 'ae435999-9f36-497b-bf9b-31abd69f2bc0' WHERE id = '27dd90d6-6c9d-4d14-9cdb-24d0629cf100';
+UPDATE public.products SET subcategory_id = '5085fbfc-2b86-40b2-afa3-efc3cf1519d5' WHERE id = 'e7f914bb-79e4-4414-bf8c-f2952976afd1';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = '925a2514-1d59-4277-be33-d8e5245c0615';
+UPDATE public.products SET subcategory_id = '1bca54e5-01eb-49b8-86e9-8d9ecb8c8773' WHERE id = 'b02cf549-2722-4127-99dd-64a2b9c25125';
+UPDATE public.products SET subcategory_id = 'ae735e2d-631d-4ed3-91f2-b6c256052873' WHERE id = 'df8e08a6-69e1-475d-a477-986a083f07f7';
+UPDATE public.products SET subcategory_id = 'c2700bb4-7c45-4c3d-b897-d503614fa74e' WHERE id = '17ec9642-4a36-495b-a26a-b1f5c3f55af8';
+UPDATE public.products SET subcategory_id = 'ab564460-eab1-4107-980b-e3e1e8e31d65' WHERE id = '8e17e5d3-510c-48bf-82ab-24906f59a162';
+UPDATE public.products SET subcategory_id = '09925206-8ce4-4ea9-b2bc-c040099f4f10' WHERE id = '28869937-bb55-4aaf-b7b5-fca2504352bc';
+UPDATE public.products SET subcategory_id = '0c5f32eb-b182-452a-948c-d3f486e1c1ab' WHERE id = '6ad56381-d5f0-4ba2-b793-770af46caf1a';
+UPDATE public.products SET subcategory_id = '388ce589-821d-4f4e-a707-e8d81c2d7a2e' WHERE id = 'dee87464-d779-46a3-9827-9723d69300ba';
+UPDATE public.products SET subcategory_id = 'ff782cd5-4c14-497a-beaf-1bdfa2cf2c0f' WHERE id = '995f743c-8fd8-420d-a784-c088a45d2b2f';
+UPDATE public.products SET subcategory_id = '3a6333ae-a3db-44e1-aeed-368111b18931' WHERE id = 'f04e6389-a50a-4364-911c-998eddc2545b';
+UPDATE public.products SET subcategory_id = 'ae435999-9f36-497b-bf9b-31abd69f2bc0' WHERE id = 'dd5d51ad-48ba-4c66-bbee-78d21109b7e7';
+UPDATE public.products SET subcategory_id = '4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9' WHERE id = '64ee5e22-7793-4a1c-948c-8c69d3a06ce5';
+UPDATE public.products SET subcategory_id = 'f03c9aea-8aab-45fe-a9d9-043485618474' WHERE id = 'a0d6d236-8d36-4adc-b9e8-14577eb36b9d';
+UPDATE public.products SET subcategory_id = '25504141-78a6-4f74-aab7-90d9a00cdb56' WHERE id = '8c8cbda3-95d9-426f-a66a-220b5d9173d0';
+UPDATE public.products SET subcategory_id = '5085fbfc-2b86-40b2-afa3-efc3cf1519d5' WHERE id = 'c0fc0bcf-5e2d-4cd7-abea-d5af281658d3';
+UPDATE public.products SET subcategory_id = 'c41c245f-95ce-4e42-8195-1e6b7fef7449' WHERE id = '6b782f33-03dc-4611-a04c-1a61b21e5c28';
+UPDATE public.products SET subcategory_id = 'ff782cd5-4c14-497a-beaf-1bdfa2cf2c0f' WHERE id = '626189de-6245-46e0-bc6c-f5bc73ccb0b0';
+UPDATE public.products SET subcategory_id = 'c2700bb4-7c45-4c3d-b897-d503614fa74e' WHERE id = 'eb14ebf3-8b11-4c80-abdc-fd10af2f640e';
+UPDATE public.products SET subcategory_id = 'ce019c50-6a5d-4611-90e7-e1763ecf75ca' WHERE id = '3d31d307-f6b6-4811-8543-73e1acfe70bd';
+UPDATE public.products SET subcategory_id = '0c5f32eb-b182-452a-948c-d3f486e1c1ab' WHERE id = '3e0d7413-3263-49cc-bf46-f31a78ae1b40';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = 'bdcd9681-8ece-41a4-8a5f-5448f336be44';
+UPDATE public.products SET subcategory_id = '3a6333ae-a3db-44e1-aeed-368111b18931' WHERE id = '43c7ef46-df8a-4328-89e9-77cb8ca0f920';
+UPDATE public.products SET subcategory_id = 'd2bd276a-1900-4fb7-b991-30dd66fd3e7f' WHERE id = 'd9be942d-bbfa-4036-9fe2-38783a29a45b';
+UPDATE public.products SET subcategory_id = 'c41c245f-95ce-4e42-8195-1e6b7fef7449' WHERE id = '4417f17f-d6fd-42c2-8134-91fbcf2a3772';
+UPDATE public.products SET subcategory_id = 'c976db44-6ff2-421d-a04d-db672170c4fc' WHERE id = 'a729b38c-65b3-433d-b194-1832b02af309';
+UPDATE public.products SET subcategory_id = 'ae435999-9f36-497b-bf9b-31abd69f2bc0' WHERE id = '70710b4f-1aed-46f4-8641-ebd6c9b0b88c';
+UPDATE public.products SET subcategory_id = '25504141-78a6-4f74-aab7-90d9a00cdb56' WHERE id = '8a90143d-4982-4fbf-915a-f06b373711d6';
+UPDATE public.products SET subcategory_id = '0c5f32eb-b182-452a-948c-d3f486e1c1ab' WHERE id = 'fa5a31c1-111b-4ee3-a84a-54eabb90913b';
+UPDATE public.products SET subcategory_id = 'adeb5f7e-8e7d-4054-9718-70833a3b8cae' WHERE id = 'e5f6a7b7-9561-4221-b180-e250bd8495fc';
+UPDATE public.products SET subcategory_id = '5085fbfc-2b86-40b2-afa3-efc3cf1519d5' WHERE id = '48fe9ace-8ba5-4eef-a450-c55cbe35ec51';
+UPDATE public.products SET subcategory_id = '4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9' WHERE id = 'f5a07766-638e-4bce-b6da-80313d1f41fd';
+UPDATE public.products SET subcategory_id = '44e33cb3-9974-4af2-8052-12e086f26b35' WHERE id = '4b3fc51b-c84d-4306-8b6c-094b19005ef6';
+UPDATE public.products SET subcategory_id = 'ab564460-eab1-4107-980b-e3e1e8e31d65' WHERE id = '22417a1b-c029-4016-81bb-4f11d008cdcd';
+UPDATE public.products SET subcategory_id = '4a1ba8bd-7f57-4524-a3db-d2f1166de02d' WHERE id = '9928f74a-3627-487b-8f66-75d1e5e07cf7';
+UPDATE public.products SET subcategory_id = 'ae435999-9f36-497b-bf9b-31abd69f2bc0' WHERE id = '6a5d82c9-c364-413b-9573-0c190f83df50';
+UPDATE public.products SET subcategory_id = '44e33cb3-9974-4af2-8052-12e086f26b35' WHERE id = '7876f0d6-a399-4da5-868b-b8371e07a418';
+UPDATE public.products SET subcategory_id = 'd2bd276a-1900-4fb7-b991-30dd66fd3e7f' WHERE id = '6b0e91df-7fdb-466b-a947-d07b512b95cb';
+UPDATE public.products SET subcategory_id = '4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9' WHERE id = '91377fb4-674a-409a-85dc-a0f0ee081964';
+UPDATE public.products SET subcategory_id = '65b1a67c-cce6-413f-a986-e2df789ff185' WHERE id = '3c2e088f-162c-4a89-87ea-68599105c845';
+UPDATE public.products SET subcategory_id = 'adeb5f7e-8e7d-4054-9718-70833a3b8cae' WHERE id = '11cec891-7324-4390-a4a2-d84bc3d17a5f';
+UPDATE public.products SET subcategory_id = '5991fdef-3898-41a5-a9e8-dd92aab22ee2' WHERE id = '8b7a1c4d-ef9f-4c99-9bb0-aa5f77d72274';
+UPDATE public.products SET subcategory_id = 'f03c9aea-8aab-45fe-a9d9-043485618474' WHERE id = '3e2a0fbf-9ac2-457b-b009-f0c1367bd07a';
+UPDATE public.products SET subcategory_id = '8b5e69a5-699e-4124-9555-276e447b9441' WHERE id = '8df20045-e729-4929-9191-7a6d2465f77f';
+UPDATE public.products SET subcategory_id = '4a1ba8bd-7f57-4524-a3db-d2f1166de02d' WHERE id = '849981a5-7877-466d-be24-9c800069f868';
+UPDATE public.products SET subcategory_id = 'ae735e2d-631d-4ed3-91f2-b6c256052873' WHERE id = '7fe881d5-7d10-402a-945f-dc5863cb066c';
+UPDATE public.products SET subcategory_id = 'd26d9af5-a99e-4328-8bda-c8883caf823a' WHERE id = 'bf224964-6ca4-46cb-a3ba-9a2329cadc8c';
+UPDATE public.products SET subcategory_id = 'd2bd276a-1900-4fb7-b991-30dd66fd3e7f' WHERE id = 'c32a0154-b43b-49f6-b3bd-651ec83437d2';
+UPDATE public.products SET subcategory_id = '6fbd0beb-aaa8-445a-b55d-ee1a4b856967' WHERE id = '4b21729d-4384-4f30-a200-9237f21685dd';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = 'b725f260-77f8-456a-8bd4-8a9e3ab8d6d9';
+UPDATE public.products SET subcategory_id = 'db36e9bb-8ec3-4d4f-9420-378aa86c3fe1' WHERE id = '5bba925e-0a38-4086-9ca6-feb5e06f53b6';
+UPDATE public.products SET subcategory_id = '4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9' WHERE id = 'e4341737-8167-44fc-a53a-994d443ee559';
+UPDATE public.products SET subcategory_id = '65b1a67c-cce6-413f-a986-e2df789ff185' WHERE id = '147327b0-c5a5-4d50-ac0c-08bf1de91c4a';
+UPDATE public.products SET subcategory_id = '4a1ba8bd-7f57-4524-a3db-d2f1166de02d' WHERE id = '9ede352b-3d2b-43b4-a414-2dfa2bc7c619';
+UPDATE public.products SET subcategory_id = 'eab3f825-9275-40cd-b2f9-a407397a7898' WHERE id = '045b3bca-1e17-4458-b711-4b4c529159f7';
+UPDATE public.products SET subcategory_id = 'c2700bb4-7c45-4c3d-b897-d503614fa74e' WHERE id = '91aa22b7-ecf4-49b9-9dee-34a937f95614';
+UPDATE public.products SET subcategory_id = 'ae735e2d-631d-4ed3-91f2-b6c256052873' WHERE id = 'b89fb250-105f-4321-916f-29f0c0d3c43e';
+UPDATE public.products SET subcategory_id = 'ce019c50-6a5d-4611-90e7-e1763ecf75ca' WHERE id = 'accf3dc0-412e-4f4f-beaf-bbe6b4cee56c';
+UPDATE public.products SET subcategory_id = 'c2700bb4-7c45-4c3d-b897-d503614fa74e' WHERE id = '1bd8eff3-abb5-4799-a70c-2215e7b3aecc';
+UPDATE public.products SET subcategory_id = '4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9' WHERE id = 'ffc8849d-8eef-4f94-b8cb-e464d6b2de17';
+UPDATE public.products SET subcategory_id = 'eab3f825-9275-40cd-b2f9-a407397a7898' WHERE id = '3554af00-0d47-47cb-9b56-6e11b8e645b9';
+UPDATE public.products SET subcategory_id = 'db36e9bb-8ec3-4d4f-9420-378aa86c3fe1' WHERE id = 'd7a8a37a-28fe-41ae-9be3-81cdfc093aea';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = '216be4d8-01c8-47d9-8729-ad7f122d3498';
+UPDATE public.products SET subcategory_id = 'adeb5f7e-8e7d-4054-9718-70833a3b8cae' WHERE id = '83ba14ff-77e0-4bc8-a05b-398e598c2f9e';
+UPDATE public.products SET subcategory_id = 'e681dcc3-8cd1-422b-a021-1e52fa435369' WHERE id = '9cfa0233-6e3f-4504-aa1c-b7f418e532ba';
+UPDATE public.products SET subcategory_id = '388ce589-821d-4f4e-a707-e8d81c2d7a2e' WHERE id = '25aa0b71-82f3-4ccd-8c38-4d127ba24cbc';
+UPDATE public.products SET subcategory_id = '9f8c6dd4-5868-421e-b1ea-d3e899934434' WHERE id = '4eea7ebd-7610-4136-96e0-6dfdbe26fdde';
+UPDATE public.products SET subcategory_id = '15e311f8-aed2-404a-b059-5535d103bc14' WHERE id = '4f058d92-05be-426d-b08b-8f675cff810b';
+UPDATE public.products SET subcategory_id = '15e311f8-aed2-404a-b059-5535d103bc14' WHERE id = '6ade49b5-5fc0-485b-a4fa-7edf6cb39e70';
+UPDATE public.products SET subcategory_id = 'ce019c50-6a5d-4611-90e7-e1763ecf75ca' WHERE id = '2f136d99-ca24-48c2-90e5-d7cc63f1a115';
+UPDATE public.products SET subcategory_id = 'f03c9aea-8aab-45fe-a9d9-043485618474' WHERE id = '3bf9e88f-f0c1-49a4-968f-dfb607ef74db';
+UPDATE public.products SET subcategory_id = 'c976db44-6ff2-421d-a04d-db672170c4fc' WHERE id = 'ded9f384-7852-49ce-9dff-bb4c324791ac';
+UPDATE public.products SET subcategory_id = '388ce589-821d-4f4e-a707-e8d81c2d7a2e' WHERE id = '60692105-a511-451e-a661-5fbce6061aff';
+UPDATE public.products SET subcategory_id = '4bf5cfa4-a3e3-4d49-8e82-268b16d97fc9' WHERE id = '92ba4b0c-372a-4201-8b8c-dab8319fc0cf';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = 'ef3d40be-fb9e-4c6b-a305-e5b586cd91dd';
+UPDATE public.products SET subcategory_id = '6fbd0beb-aaa8-445a-b55d-ee1a4b856967' WHERE id = '6e16bc8d-4851-4b55-888a-886444dcc175';
+UPDATE public.products SET subcategory_id = 'c2700bb4-7c45-4c3d-b897-d503614fa74e' WHERE id = '156678e7-d5dc-4f3a-b0ba-1f8f739ffdeb';
+UPDATE public.products SET subcategory_id = '9f8c6dd4-5868-421e-b1ea-d3e899934434' WHERE id = '484cbe30-83ed-4baa-9919-ed852e8f867a';
+UPDATE public.products SET subcategory_id = '4fda5e4c-1a67-4ecc-98fd-4fff6c5a0ef2' WHERE id = '0e8e7090-cda6-40f8-8ef7-8813410cc2d5';
+UPDATE public.products SET subcategory_id = 'ae735e2d-631d-4ed3-91f2-b6c256052873' WHERE id = '78b4cb4d-ae04-4df5-95d8-a6ba4ee9c0b9';
+UPDATE public.products SET subcategory_id = 'f03c9aea-8aab-45fe-a9d9-043485618474' WHERE id = 'e58019f1-1f2d-4f4f-a6be-05d770fea3ed';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = '23fe9243-0a07-4fdd-8ca2-80579d2e53a4';
+UPDATE public.products SET subcategory_id = 'd26d9af5-a99e-4328-8bda-c8883caf823a' WHERE id = '569844e4-6a2d-4cc9-8066-027f8fd4468f';
+UPDATE public.products SET subcategory_id = '4a1ba8bd-7f57-4524-a3db-d2f1166de02d' WHERE id = '4ed9366c-4507-4f1d-afbc-eb9b4329d0d5';
+UPDATE public.products SET subcategory_id = '6f860c5f-dbc7-4561-9fa5-dd84fe44d479' WHERE id = '0e5c7d68-5138-49b4-a51f-be36d951ca64';
+UPDATE public.products SET subcategory_id = 'ce019c50-6a5d-4611-90e7-e1763ecf75ca' WHERE id = 'd2f4c71e-9166-4655-ab8a-f2be6696e274';
+UPDATE public.products SET subcategory_id = '4fda5e4c-1a67-4ecc-98fd-4fff6c5a0ef2' WHERE id = 'eb43237c-1288-41f3-91a9-46fd95f3b503';
+UPDATE public.products SET subcategory_id = 'c2700bb4-7c45-4c3d-b897-d503614fa74e' WHERE id = 'e2df1ffa-29d2-4c6f-a8b9-377302e396ce';
+UPDATE public.products SET subcategory_id = 'ab564460-eab1-4107-980b-e3e1e8e31d65' WHERE id = '761aba0c-a540-4aa6-adac-25b7e2b270f2';
+UPDATE public.products SET subcategory_id = '09925206-8ce4-4ea9-b2bc-c040099f4f10' WHERE id = '2f751e80-5991-44c5-8013-1d0f28d347b4';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '63cae623-74ac-4f16-be7e-3d642e9e40d2';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = 'ba0c1013-dc53-44c5-a4fc-ffe5cdd426ac';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = 'a23bf886-c599-4859-b653-05f953a8e0fc';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '819ba37e-29c8-4501-a3f2-ccb60aec3778';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = '4606659b-f0b2-40b7-a00e-42629c6fcf46';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = 'd44fb868-19f8-4483-8303-792c294e1af3';
+UPDATE public.products SET subcategory_id = '9e1b8600-e8d2-4c3c-8dbc-d6e1ced3274c' WHERE id = 'f3c1cc57-a2d1-499e-80c8-705c5fc12fe3';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = 'b02adc28-4003-4bf3-8099-d90608ce1524';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = 'c0280122-72bb-44db-adf4-fa83fff8e711';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = 'f92b5f3b-33f4-409e-a599-2b055a3f6b96';
+UPDATE public.products SET subcategory_id = '79003aed-15f2-4508-97b6-e5801497f5e7' WHERE id = '8116cc4f-7e9b-48fa-a12b-2e5705185ff8';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = '0ef4897a-19c0-452c-b665-79e23ffe13af';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = '54aa44a3-cfbe-4b47-bf69-967f4860b5fe';
+UPDATE public.products SET subcategory_id = '76ac1011-a4b5-4c1a-88ae-7e4a2147c235' WHERE id = 'ce22a7e6-c7a6-46bd-867c-1f9f6fd8794e';
+UPDATE public.products SET subcategory_id = '1dd43413-4cb9-48fb-98f3-449b052bb58b' WHERE id = 'f91d4d44-0eae-404e-8fa8-83bc1d9abb73';
+UPDATE public.products SET subcategory_id = '09086a42-a19c-4064-b2b4-444050d1cc56' WHERE id = '8f673a29-73a1-4380-8c47-7377cacd0811';
+UPDATE public.products SET subcategory_id = '1dd43413-4cb9-48fb-98f3-449b052bb58b' WHERE id = '9701ec5a-3fa0-4503-8404-3e6ce538fdaa';
+UPDATE public.products SET subcategory_id = '161896f5-0a1e-4850-b3fc-b8298a96243b' WHERE id = '1b3b37f7-c225-4b70-b99b-22ca597d0953';
+UPDATE public.products SET subcategory_id = '5d603522-61c6-42c1-8ebb-6279a416f2eb' WHERE id = '40be9f37-e39b-436f-ab77-152e7a1aecbb';
+UPDATE public.products SET subcategory_id = '1bca54e5-01eb-49b8-86e9-8d9ecb8c8773' WHERE id = 'c3be8e6f-b885-454d-9dab-dad33d5e683e';
+UPDATE public.products SET subcategory_id = '5d603522-61c6-42c1-8ebb-6279a416f2eb' WHERE id = '4827579a-a79d-4d8a-bf1b-e4d2e892f08a';
+UPDATE public.products SET subcategory_id = '09086a42-a19c-4064-b2b4-444050d1cc56' WHERE id = 'ac53fdec-7e47-4cfb-a2dd-f721e7e22443';
+UPDATE public.products SET subcategory_id = 'c6e0dea2-d9df-4f5e-b733-f8426245dc77' WHERE id = 'b7bc63ec-c00b-452d-93b8-dbc0dbf6115d';
+UPDATE public.products SET subcategory_id = 'c6e0dea2-d9df-4f5e-b733-f8426245dc77' WHERE id = '0cf2eb3e-8979-4845-8961-94f5aae3890d';
+UPDATE public.products SET subcategory_id = '3a6333ae-a3db-44e1-aeed-368111b18931' WHERE id = '77f1fe06-c65b-42ac-99a5-bf2ce27bb10b';
+UPDATE public.products SET subcategory_id = 'd26d9af5-a99e-4328-8bda-c8883caf823a' WHERE id = '4b93141d-4306-4cf7-87ca-5985faae9541';
+UPDATE public.products SET subcategory_id = '5991fdef-3898-41a5-a9e8-dd92aab22ee2' WHERE id = '30496772-b6c2-4089-8cec-9c4cdc613343';
+UPDATE public.products SET subcategory_id = 'ae435999-9f36-497b-bf9b-31abd69f2bc0' WHERE id = 'af291e73-b620-4e93-8673-cd201a491bfc';
+UPDATE public.products SET subcategory_id = '5085fbfc-2b86-40b2-afa3-efc3cf1519d5' WHERE id = 'b708dbf3-746f-4f52-b41d-6ddaf53ea181';
+UPDATE public.products SET subcategory_id = '270d1c04-4600-4513-9c66-4a2788d8cf88' WHERE id = '8fcd80d9-ad3a-4170-aa31-835ab822fb2b';
+UPDATE public.products SET subcategory_id = '09925206-8ce4-4ea9-b2bc-c040099f4f10' WHERE id = '67e79d11-8772-4962-95c9-f747ee111e21';
+UPDATE public.products SET subcategory_id = 'c11e0cb4-3699-4ab1-a58c-6c3c5e9f8b6f' WHERE id = 'c80b6832-2e1e-40da-8cbd-11f24a7f11a5';
+UPDATE public.products SET subcategory_id = 'a869638d-963d-4baa-8abb-1f35fdc63d0a' WHERE id = '19cacab2-5acd-4f09-9bb1-b1952c93678b';
+UPDATE public.products SET subcategory_id = 'c6e0dea2-d9df-4f5e-b733-f8426245dc77' WHERE id = '02bd6c6a-598e-4ed6-b7e1-0e81d2f806fd';
+UPDATE public.products SET subcategory_id = 'c6e0dea2-d9df-4f5e-b733-f8426245dc77' WHERE id = 'd0ac3b60-7fb5-4b56-9e8d-9c76f14edf00';
+UPDATE public.products SET subcategory_id = '0c5f32eb-b182-452a-948c-d3f486e1c1ab' WHERE id = '819b5f51-de29-445e-8748-10bfa5c5af90';
+UPDATE public.products SET subcategory_id = 'ab564460-eab1-4107-980b-e3e1e8e31d65' WHERE id = '3c2adba7-5160-419e-8e13-65093685a421';

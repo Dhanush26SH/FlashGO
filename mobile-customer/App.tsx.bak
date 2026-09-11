@@ -1,0 +1,1558 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  StyleSheet, 
+  Text, 
+  View, 
+  TouchableOpacity, 
+  ScrollView, 
+  SafeAreaView, 
+  StatusBar, 
+  TextInput, 
+  Animated, 
+  Dimensions, 
+  Alert,
+  Image,
+  ActivityIndicator,
+  useWindowDimensions
+} from 'react-native';
+import {   
+  ShoppingBag, 
+  Award, 
+  Search, 
+  ChevronRight, 
+  Star, 
+  Clock, 
+  Plus, 
+  Minus, 
+  Percent,
+  Mic, User, Home, Home as HomeIcon, MapPin, Truck, RefreshCw, LogOut, Package, HeadphonesIcon 
+} from 'lucide-react-native';
+
+import { supabase } from './src/lib/supabase';
+import { useMobileApp } from './src/hooks/useMobileApp';
+import { processCheckout, getCoupons } from './src/services/api';
+import OrdersScreen from './src/screens/OrdersScreen';
+import TrackingScreen from './src/screens/TrackingScreen';
+import SupportScreen from './src/screens/SupportScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import AddressesScreen from './src/screens/AddressesScreen';
+import AuthScreen from './src/screens/AuthScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import CartSheet from './src/components/CartSheet';
+import ProductCard from './src/components/ProductCard';
+import { theme } from './src/theme';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Icons mapping for categories
+const CATEGORY_ICONS: Record<string, string> = {
+  munchies: '🍿',
+  dairy: '🥛',
+  veg: '🥗',
+  bakery: '🍞',
+  beverage: '🥤',
+  personalcare: '🧴',
+  household: '🧹',
+  sweet: '🍫'
+};
+
+// Initial Mock Products
+interface Product {
+  id: string;
+  category_id: string;
+  name: string;
+  description: string;
+  price: number;
+  discount_price?: number;
+  sku: string;
+  barcode: string;
+  image_url: string;
+  stock_quantity: number;
+  warehouse_location: string;
+  rating_avg: number;
+  rating_count: number;
+  created_at?: string;
+}
+
+
+const ALL_SECTIONS = [
+  { id: 'sec_0', title: "Grocery & Kitchen" },
+  { id: 'sec_1', title: "Snacks & Drinks" },
+  { id: 'sec_2', title: "Beauty & Personal Care" },
+  { id: 'sec_3', title: "Household Essentials" },
+  { id: 'sec_4', title: "Stores in spotlight" },
+  { id: 'sec_5', title: "Picks for your lifestyle" },
+  { id: 'sec_6', title: "Sweet Tooth" },
+  { id: 'sec_7', title: "Cold Drinks & Juices" },
+  { id: 'sec_8', title: "Featured this week" },
+  { id: 'sec_9', title: "Dry Fruit Masala & Oil" },
+  { id: 'sec_10', title: "Instant & Frozen Food" },
+  { id: 'sec_11', title: "Serums for every skin type" },
+  { id: 'sec_12', title: "Power up your hygiene game" },
+  { id: 'sec_13', title: "Keep pests & insects away" },
+  { id: 'sec_14', title: "Elevate your everyday comfort" },
+  { id: 'sec_15', title: "Sneakerheads & shoe-lovers corner" },
+  { id: 'sec_16', title: "Chocolates for your cravings" },
+  { id: 'sec_17', title: "For stylish & dapper dudes" },
+  { id: 'sec_18', title: "Glam & glow on the go" },
+  { id: 'sec_19', title: "Get summer-ready with ice cream" },
+  { id: 'sec_20', title: "Travel in style" },
+  { id: 'sec_21', title: "Farm-fresh fruits & vegetables" },
+  { id: 'sec_22', title: "Immerse yourself in every page" },
+  { id: 'sec_23', title: "Wholesome atta for cooking" },
+  { id: 'sec_24', title: "Unwind & chill" },
+  { id: 'sec_25', title: "Rice for everyday meals" },
+  { id: 'sec_26', title: "Power up your hygiene routine" },
+  { id: 'sec_27', title: "Take care of those you love" },
+  { id: 'sec_28', title: "Refreshing drinks for summer" },
+  { id: 'sec_29', title: "Set the scene for a movie night" },
+  { id: 'sec_30', title: "Cooking ideas" },
+  { id: 'sec_31', title: "Travel with comfort" },
+  { id: 'sec_32', title: "Study smarter at night" },
+  { id: 'sec_33', title: "Audio accessories for daily use" },
+  { id: 'sec_34', title: "Sudden hunger pangs?" },
+  { id: 'sec_35', title: "Daily moisturiser & SPF care" },
+  { id: 'sec_36', title: "Get rid of digestive discomfort" },
+  { id: 'sec_37', title: "Pamper yourself before bed" },
+  { id: 'sec_38', title: "For a good night sleep" },
+  { id: 'sec_39', title: "Stock up on crunchy snacks" },
+  { id: 'sec_40', title: "Get lost in the realm of music" },
+  { id: 'sec_41', title: "Lightning deals" },
+  { id: 'sec_42', title: "Create a relaxing ambiance" },
+  { id: 'sec_43', title: "Lose yourself in a world of love" },
+  { id: 'sec_44', title: "Elevate your bathroom essentials" },
+  { id: 'sec_45', title: "Sustainable menstrual solutions" },
+  { id: 'sec_46', title: "Hydrate and nourish your skin" },
+  { id: 'sec_47', title: "Beard styling made easy" },
+  { id: 'sec_48', title: "Instant Freshness Anytime" },
+  { id: 'sec_49', title: "Keep your bathroom fresh and germ-free" }
+];
+
+
+export default function App() {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  // Screens: 'auth' | 'main' | 'tracking' | 'orders' | 'profile' | 'support' | 'addresses'
+  const [currentScreen, setCurrentScreen] = useState<'auth' | 'main' | 'tracking' | 'orders' | 'profile' | 'support' | 'addresses'>('auth');
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
+
+  const [email, setEmail] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+  const [sessionUser, setSessionUser] = useState<any>(null);
+
+  const { cart, updateCart, clearCart, addresses, walletBalance, setWalletBalance, products, activeAddress, servingWarehouseId } = useMobileApp(sessionUser?.id || null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        verifyAndLoadProfile(session.user);
+      } else {
+        setIsLoadingSession(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        verifyAndLoadProfile(session.user);
+      } else {
+        setSessionUser(null);
+        setCurrentScreen('auth');
+        setIsLoadingSession(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const verifyAndLoadProfile = async (user: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (error || !data) {
+        Alert.alert('Error', 'Profile not found. Contact support.');
+        await supabase.auth.signOut();
+        setCurrentScreen('auth');
+        return;
+      }
+      
+      if (data.role !== 'customer') {
+        Alert.alert('Unauthorized', 'Access restricted to customers only.');
+        await supabase.auth.signOut();
+        setCurrentScreen('auth');
+        return;
+      }
+
+      if (data.is_suspended) {
+        Alert.alert('Suspended', 'Your account has been suspended.');
+        await supabase.auth.signOut();
+        setCurrentScreen('auth');
+        return;
+      }
+      
+      setSessionUser(user);
+      setCurrentScreen('main');
+    } catch (err) {
+      console.error(err);
+      setCurrentScreen('auth');
+    } finally {
+      setIsLoadingSession(false);
+    }
+  };
+  
+  const [isVip, setIsVip] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(0); 
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const [trackingStep, setTrackingStep] = useState<'placed' | 'picking' | 'packed' | 'shipping' | 'delivered'>('placed');
+  
+  const [riderProgress, setRiderProgress] = useState(0);
+  const [etaMinutes, setEtaMinutes] = useState(10);
+  
+  const cartAnim = useState(() => new Animated.Value(SCREEN_HEIGHT))[0];
+
+  useEffect(() => {
+    Animated.timing(cartAnim, {
+      toValue: isCartOpen ? 0 : SCREEN_HEIGHT,
+      duration: 350,
+      useNativeDriver: true
+    }).start();
+  }, [isCartOpen]);
+
+  useEffect(() => {
+    setIsVip(loyaltyPoints >= 200);
+  }, [loyaltyPoints]);
+
+  const handleSendOtp = async () => {
+    if (!email.includes('@')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return;
+    }
+    setIsAuthenticating(true);
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
+    setIsAuthenticating(false);
+    
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+    
+    setOtpSent(true);
+    setResendCooldown(60);
+    const interval = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      Alert.alert('Invalid OTP', 'Please enter the 6-digit code');
+      return;
+    }
+    setIsAuthenticating(true);
+    const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: otpCode, type: 'email' });
+    setIsAuthenticating(false);
+    if (error) { Alert.alert('Verification Failed', error.message); return; }
+    if (data.user) { await verifyAndLoadProfile(data.user); }
+  };
+
+  const handleUpdateCart = (id: string, delta: number) => {
+    const currentQty = cart[id] || 0;
+    const newQty = currentQty + delta;
+    updateCart(id, newQty);
+  };
+
+  const cartItemsCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const subtotal = Object.entries(cart).reduce((sum, [id, qty]) => {
+    const p = products.find(prod => prod.id === id);
+    return sum + (p ? p.price * qty : 0);
+  }, 0);
+
+  const discountAmount = subtotal * (appliedDiscount / 100);
+  const deliveryFee = subtotal > 15 ? 0 : 4.99; // Free delivery threshold
+  const totalBill = subtotal - discountAmount + deliveryFee;
+
+  const handleApplyCoupon = async () => {
+    try {
+      const coupons = await getCoupons();
+      const valid = coupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+      if (valid && subtotal >= valid.min_order_value) {
+        setAppliedDiscount(valid.discount_value);
+        Alert.alert('Coupon Applied', `Code ${valid.code} gives you ${valid.discount_value}% discount!`);
+      } else {
+        Alert.alert('Invalid Coupon', 'Coupon not found or minimum order value not met.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to validate coupon.');
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (walletBalance < totalBill) {
+      Alert.alert('Insufficient Balance', 'Please top up your wallet funds first!');
+      return;
+    }
+    
+    if (addresses.length === 0) {
+      Alert.alert('No Address', 'Please add an address before checkout.');
+      return;
+    }
+
+    try {
+      const items = Object.entries(cart).map(([productId, quantity]) => ({ productid: productId, quantity }));
+      
+      const payload = {
+        p_user_id: sessionUser.id,
+        p_address: addresses[0].address_line1 || 'Main Address',
+        p_lat: addresses[0].lat || 13.3427,
+        p_lng: addresses[0].lng || 74.7472,
+        p_items: items,
+        p_discount_val: appliedDiscount,
+        p_coupon_code: couponCode || null,
+        p_delivery_fee: deliveryFee,
+        p_delivery_speed: 'standard',
+        p_payment_method: 'wallet',
+        p_idempotency_key: Date.now().toString()
+      };
+
+      const orderId = await processCheckout(payload);
+      
+      // Clear cart on success
+      await clearCart();
+      setIsCartOpen(false);
+      
+      // Debit local balance for instant UI update, though real balance is updated in DB
+      setWalletBalance(prev => prev - totalBill);
+
+      setCurrentScreen('tracking');
+    } catch (err: any) {
+      Alert.alert('Checkout Failed', err.message);
+    }
+  };
+
+  // Filtered lists
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory ? p.category_id === selectedCategory : true;
+    return matchesSearch && matchesCategory;
+  });
+
+  const numCols = windowWidth >= 1024 ? Math.max(4, Math.floor((windowWidth - 32) / 180)) : windowWidth >= 768 ? Math.max(3, Math.floor((windowWidth - 32) / 160)) : 2;
+  const dynamicCardWidth = (windowWidth - 32 - (12 * (numCols - 1))) / numCols;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* -------------------- 1. AUTH SCREEN -------------------- */}
+      {currentScreen === 'auth' && (
+        <AuthScreen 
+          email={email} setEmail={setEmail}
+          otpCode={otpCode} setOtpCode={setOtpCode}
+          otpSent={otpSent} setOtpSent={setOtpSent}
+          isLoadingSession={isLoadingSession} isAuthenticating={isAuthenticating}
+          resendCooldown={resendCooldown}
+          handleSendOtp={handleSendOtp} handleVerifyOtp={handleVerifyOtp}
+        />
+      )}
+
+      {/* -------------------- DESKTOP HEADER -------------------- */}
+      {windowWidth >= 1024 && currentScreen !== 'auth' && (
+        <View style={styles.desktopHeader}>
+          <View style={styles.desktopHeaderLeft}>
+            <Text style={styles.desktopLogo}>FlashGO</Text>
+            <View style={styles.desktopLocation}>
+              <MapPin size={16} color={theme.colors.textMuted} />
+              <Text style={styles.desktopLocationText}>Delivering to <Text style={{fontWeight: 'bold', color: theme.colors.text}}>Home</Text></Text>
+            </View>
+          </View>
+          <View style={styles.desktopHeaderSearch}>
+            <Search size={20} color={theme.colors.textMuted} />
+            <TextInput 
+              style={styles.desktopSearchInput} 
+              placeholder="Search for groceries, vegetables, and more..." 
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+          <View style={styles.desktopHeaderRight}>
+            <TouchableOpacity style={styles.desktopIconBtn} onPress={() => setCurrentScreen('orders')}>
+              <Package size={20} color={theme.colors.text} />
+              <Text style={styles.desktopIconText}>Orders</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.desktopIconBtn} onPress={() => setCurrentScreen('support')}>
+              <HeadphonesIcon size={20} color={theme.colors.text} />
+              <Text style={styles.desktopIconText}>Support</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.desktopIconBtn} onPress={() => setCurrentScreen('profile')}>
+              <User size={20} color={theme.colors.text} />
+              <Text style={styles.desktopIconText}>Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.desktopCartBtn} onPress={() => setIsCartOpen(true)}>
+              <ShoppingBag size={20} color={theme.colors.surface} />
+              <Text style={styles.desktopCartText}>{cartItemsCount} Items</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* -------------------- 2. CUSTOMER PORTAL -------------------- */}
+      {currentScreen === 'profile' && <ProfileScreen sessionUser={sessionUser} onNavigate={(s) => setCurrentScreen(s as any)} />}
+      {currentScreen === 'orders' && <OrdersScreen onNavigateToTracking={(id) => { setTrackingOrderId(id); setCurrentScreen('tracking'); }} />}
+      {currentScreen === 'support' && <SupportScreen onBack={() => setCurrentScreen('main')} />}
+      {currentScreen === 'addresses' && <AddressesScreen onBack={() => setCurrentScreen('profile')} />}
+      {currentScreen === 'tracking' && <TrackingScreen route={{ params: { orderId: trackingOrderId } }} onBack={() => setCurrentScreen('orders')} />}
+
+      {currentScreen === 'main' && (
+        <View style={{ flex: 1 }}>
+          <HomeScreen 
+            products={products} categories={Object.keys(CATEGORY_ICONS)} categoryIcons={CATEGORY_ICONS}
+            activeCategory={selectedCategory} setActiveCategory={setSelectedCategory}
+            searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+            cart={cart} handleUpdateCart={handleUpdateCart}
+            handleLogout={async () => {
+              setIsLoadingSession(true);
+              await supabase.auth.signOut();
+              setCurrentScreen('auth');
+            }}
+          />
+
+          {cartItemsCount > 0 && (
+            <TouchableOpacity style={styles.floatingCart} onPress={() => setIsCartOpen(true)}>
+              <ShoppingBag size={20} color="#ffffff" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.floatingCartTitle}>{cartItemsCount} Items in Basket</Text>
+                <Text style={styles.floatingCartSub}>Fast delivery active</Text>
+              </View>
+              <Text style={styles.floatingCartTotal}>₹{totalBill.toFixed(2)}</Text>
+              <ChevronRight size={18} color="#ffffff" />
+            </TouchableOpacity>
+          )}
+
+          {/* FlashGO Bottom Navigation (Mobile Only) */}
+          {windowWidth < 1024 && (
+            <View style={styles.bottomNav}>
+              <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('main')}>
+                <HomeIcon size={24} color="#10b981" />
+                <Text style={[styles.navText, { color: '#10b981' }]}>Home</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('orders')}>
+                <Package size={24} color="#64748b" />
+                <Text style={styles.navText}>Orders</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('support')}>
+                <HeadphonesIcon size={24} color="#64748b" />
+                <Text style={styles.navText}>Support</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.navItem} onPress={() => setCurrentScreen('profile')}>
+                <User size={24} color="#64748b" />
+                <Text style={styles.navText}>Profile</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {isCartOpen && (
+            <CartSheet 
+              cart={cart} products={products}
+              subtotal={subtotal} deliveryFee={deliveryFee}
+              appliedDiscount={appliedDiscount} discountAmount={discountAmount} totalBill={totalBill}
+              walletBalance={walletBalance} couponCode={couponCode} setCouponCode={setCouponCode}
+              handleApplyCoupon={handleApplyCoupon} handleCheckout={handleCheckout}
+              setIsCartOpen={setIsCartOpen}
+            />
+          )}
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  blinkitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  headerLeft: {
+    flex: 1
+  },
+  deliveryTimeText: {
+    color: '#0f172a',
+    fontSize: 22,
+    fontWeight: '900'
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2
+  },
+  locationText: {
+    color: '#64748b',
+    fontSize: 13,
+    marginRight: 4
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center'
+  },
+  headerLogo: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 4
+  },
+  profileIconBtn: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 8,
+    borderRadius: 20
+  },
+  newSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 20
+  },
+  newSearchInput: {
+    flex: 1,
+    color: '#0f172a',
+    fontSize: 15,
+    marginLeft: 10,
+    padding: 0
+  },
+  searchDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: '#1e293b',
+    marginHorizontal: 12
+  },
+  categoryIconBtn: {
+    alignItems: 'center',
+    marginRight: 16
+  },
+  catIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6
+  },
+  
+  
+  welcomeBanner: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    marginTop: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#785b3b', // Brownish gold like the video
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+  },
+  welcomeBannerBg: {
+    paddingTop: 24,
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+  },
+  welcomeTitle: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 2
+  },
+  welcomeSub: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20
+  },
+  offersLabelRow: {
+    alignItems: 'center',
+    marginBottom: -10, // overlap effect
+    zIndex: 2,
+  },
+  offersLabelText: {
+    backgroundColor: '#fbbf24',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 20,
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: 1,
+    borderWidth: 2,
+    borderColor: '#785b3b'
+  },
+  offersRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingTop: 16,
+  },
+  offerCard: {
+    flex: 1,
+    backgroundColor: '#fcd34d', // Yellow like the video
+    borderRadius: 8,
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  offerIconText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  offerCardTitle: {
+    color: '#0f172a',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  offerCardSub: {
+    color: '#334155',
+    fontSize: 9,
+    fontWeight: '500',
+    marginTop: 2
+  },
+  blinkitSectionHeader: {
+    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 16,
+    marginBottom: 12
+  },
+  blinkitProductCard: {
+    width: 140,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    marginRight: 12,
+    overflow: 'hidden'
+  },
+  blinkitProductCardGrid: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    overflow: 'hidden'
+  },
+  blinkitGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 24
+  },
+  blinkitProductImage: {
+    height: 110,
+    width: '100%',
+    backgroundColor: '#f8fafc'
+  },
+  blinkitProductName: {
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: 'bold',
+    height: 36
+  },
+  counterGroupSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10b981',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4
+  },
+  counterBtnSmall: {
+    padding: 4
+  },
+  counterTextSmall: {
+    color: '#10b981',
+    fontWeight: 'bold',
+    fontSize: 12,
+    marginHorizontal: 8
+  },
+  addBtnSmall: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  addBtnTextSmall: {
+    color: '#10b981',
+    fontWeight: 'bold',
+    fontSize: 11
+  },
+
+
+  // Auth styles
+  authContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  logoText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    letterSpacing: 1,
+  },
+  authSubtitle: {
+    color: '#64748b',
+    fontSize: 14,
+    marginTop: 6,
+    marginBottom: 32,
+  },
+  authCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 24,
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  authHeader: {
+    color: '#0f172a',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  authMeta: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  inputField: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: '#0f172a',
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  otpTip: {
+    color: '#fbbf24',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  primaryBtn: {
+    backgroundColor: '#10b981',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  primaryBtnText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  // Main view styles
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f2937'
+  },
+  titleText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0f172a'
+  },
+  subText: {
+    fontSize: 12,
+    color: '#64748b'
+  },
+  walletHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(251, 191, 36, 0.12)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+    gap: 6
+  },
+  walletHeaderBalance: {
+    color: '#fbbf24',
+    fontWeight: 'bold',
+    fontSize: 13
+  },
+  mainScrollBody: {
+    padding: 16,
+    paddingBottom: 100
+  },
+  loyaltyCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16
+  },
+  loyaltyTitle: {
+    color: '#fbbf24',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5
+  },
+  loyaltyCount: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 2
+  },
+  progressContainer: {
+    height: 6,
+    backgroundColor: '#1e293b',
+    borderRadius: 3,
+    marginTop: 10,
+    overflow: 'hidden'
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#10b981',
+    borderRadius: 3
+  },
+  loyaltyMeta: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 8
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    marginBottom: 20
+  },
+  searchInput: {
+    flex: 1,
+    color: '#0f172a',
+    fontSize: 14,
+    padding: 0
+  },
+  sectionHeader: {
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginBottom: 12
+  },
+  categoryScroller: {
+    flexDirection: 'row',
+    marginBottom: 24
+  },
+  categoryBtn: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginRight: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8
+  },
+  categoryBtnActive: {
+    borderColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)'
+  },
+  categoryEmoji: {
+    fontSize: 16
+  },
+  categoryName: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  productCard: {
+    width: (SCREEN_WIDTH - 44) / 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    overflow: 'hidden'
+  },
+  productCardGrid: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    overflow: 'hidden'
+  },
+  productIcon: {
+    fontSize: 48,
+    textAlign: 'center',
+    paddingVertical: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)'
+  },
+  productName: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  productUnit: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 2
+  },
+  ratingText: {
+    color: '#64748b',
+    fontSize: 10
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10
+  },
+  productPrice: {
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  addBtn: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  addBtnText: {
+    color: '#0f172a',
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  counterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    borderRadius: 8,
+    padding: 2,
+    gap: 8
+  },
+  counterBtn: {
+    backgroundColor: '#10b981',
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  counterText: {
+    color: '#0f172a',
+    fontWeight: 'bold',
+    fontSize: 12
+  },
+  floatingCart: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    backgroundColor: '#10b981',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6
+  },
+  floatingCartTitle: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 14
+  },
+  floatingCartSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10
+  },
+  floatingCartTotal: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+    marginRight: 8
+  },
+  // Cart Sheet styles
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)'
+  },
+  cartSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    borderColor: '#f1f5f9',
+    maxHeight: SCREEN_HEIGHT * 0.85
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  sheetTitle: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: 'bold'
+  },
+  cartItemsScroll: {
+    paddingHorizontal: 20,
+    maxHeight: 200
+  },
+  cartItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  cartItemName: {
+    color: '#0f172a',
+    fontWeight: 'bold',
+    fontSize: 14
+  },
+  cartItemMeta: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 2
+  },
+  cartItemTotal: {
+    color: '#0f172a',
+    fontWeight: 'bold',
+    fontSize: 14
+  },
+  couponSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8
+  },
+  couponInput: {
+    flex: 1,
+    color: '#0f172a',
+    fontSize: 12,
+    padding: 0
+  },
+  couponBtn: {
+    backgroundColor: '#fbbf24',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  couponBtnText: {
+    color: '#030712',
+    fontSize: 11,
+    fontWeight: 'bold'
+  },
+  billBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    margin: 20,
+    padding: 16,
+    gap: 10
+  },
+  billRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  billLabel: {
+    color: '#64748b',
+    fontSize: 12
+  },
+  billValue: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#1e293b',
+    marginVertical: 4
+  },
+  checkoutBalanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 4
+  },
+  checkoutBtn: {
+    backgroundColor: '#10b981',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  checkoutBtnText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 15
+  },
+  // Live Tracking Styles
+  trackingContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff'
+  },
+  trackingHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  trackingTitle: {
+    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: 'bold'
+  },
+  trackingSub: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 2
+  },
+  mapViewport: {
+    height: SCREEN_HEIGHT * 0.32,
+    backgroundColor: '#0b0f19',
+    borderBottomWidth: 1,
+    borderColor: '#f1f5f9',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  mapNode: {
+    position: 'absolute',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    zIndex: 10
+  },
+  mapNodeText: {
+    color: '#ffffff',
+    fontSize: 8,
+    fontWeight: 'bold'
+  },
+  mapRoadLineVertical: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 6,
+    backgroundColor: '#1f2937',
+    opacity: 0.6
+  },
+  mapRoadLineHorizontal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '50%',
+    height: 6,
+    backgroundColor: '#1f2937',
+    opacity: 0.6
+  },
+  mapRoadLineDiagonal: {
+    position: 'absolute',
+    top: '25%',
+    left: '20%',
+    width: '70%',
+    height: 4,
+    backgroundColor: '#10b981',
+    transform: [{ rotate: '25deg' }],
+    opacity: 0.2
+  },
+  riderMarker: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fbbf24',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#fbbf24',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 5,
+    zIndex: 20
+  },
+  telemetryHud: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  hudTile: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  hudTileLabel: {
+    color: '#64748b',
+    fontSize: 8,
+    fontWeight: 'bold'
+  },
+  hudTileVal: {
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 2
+  },
+  otpAlertCard: {
+    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.25)',
+    borderRadius: 16,
+    margin: 16,
+    padding: 14
+  },
+  otpPinText: {
+    color: '#fbbf24',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 2,
+    fontFamily: 'monospace'
+  },
+  timelineContainer: {
+    position: 'relative',
+    paddingLeft: 20,
+    gap: 20,
+    paddingBottom: 40
+  },
+  timelineLine: {
+    position: 'absolute',
+    top: 5,
+    bottom: 5,
+    left: 4,
+    width: 2,
+    backgroundColor: '#1f2937'
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start'
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#374151',
+    borderWidth: 2,
+    borderColor: '#030712',
+    position: 'absolute',
+    left: -20,
+    top: 4
+  },
+  timelineDotDone: {
+    backgroundColor: '#10b981'
+  },
+  timelineNodeTitle: {
+    color: '#64748b',
+    fontSize: 13,
+    fontWeight: 'bold'
+  },
+  timelineNodeSub: {
+    color: '#4b5563',
+    fontSize: 11,
+    marginTop: 2
+  },
+  activeNodeText: {
+    color: '#0f172a'
+  },
+  // Review styles
+  reviewModalContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  reviewCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20
+  },
+  reviewHeader: {
+    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
+  reviewSub: {
+    color: '#64748b',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20
+  },
+  ratingTitleLabel: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 6
+  },
+  starRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginVertical: 12
+  },
+  productRatingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  }
+,
+  timeBadge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderBottomRightRadius: 4,
+    borderTopLeftRadius: 8,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderTopWidth: 0,
+    borderLeftWidth: 0
+  },
+  timeBadgeText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#0f172a'
+  },
+  catalogFooter: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc'
+  },
+  footerAppText: {
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 8
+  },
+  footerLogoText: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: -0.5
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 65,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingBottom: 10
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1
+  },
+  navText: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 4,
+    fontWeight: '500'
+  },
+  desktopHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    zIndex: 50,
+  },
+  desktopHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+  },
+  desktopLogo: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#10b981',
+    letterSpacing: -0.5,
+  },
+  desktopLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  desktopLocationText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  desktopHeaderSearch: {
+    flex: 1,
+    maxWidth: 600,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 24,
+    height: 48,
+  },
+  desktopSearchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#0f172a',
+    height: '100%',
+  },
+  desktopHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  desktopIconBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  desktopIconText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 4,
+  },
+  desktopCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  desktopCartText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
+});

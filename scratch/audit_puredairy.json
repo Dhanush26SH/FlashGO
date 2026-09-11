@@ -1,0 +1,83 @@
+{
+  "vendors": [
+    {
+      "id": "b0000000-0000-0000-0000-000000000002",
+      "name": "PureDairy Co.",
+      "contact_person": "Sarah Milk",
+      "email": "sarah@puredairy.com",
+      "phone": "+15550102",
+      "address": "Grasslands Dairy Valley",
+      "created_at": "2026-07-03T17:54:18.436741+00:00"
+    },
+    {
+      "id": "31b51e4f-46f3-4714-8f75-010a9e64432c",
+      "name": "PureDairy Co. (existing FlashGO demo Amul distributor)",
+      "contact_person": null,
+      "email": null,
+      "phone": null,
+      "address": null,
+      "created_at": "2026-09-09T03:13:47.336687+00:00"
+    }
+  ],
+  "po_179cfb_vendor_id": "b0000000-0000-0000-0000-000000000002",
+  "vendor_details": {
+    "b0000000-0000-0000-0000-000000000002": {
+      "name": "PureDairy Co.",
+      "vendor_products_count": 0,
+      "procurement_orders_count": 1,
+      "mapped_products": []
+    },
+    "31b51e4f-46f3-4714-8f75-010a9e64432c": {
+      "name": "PureDairy Co. (existing FlashGO demo Amul distributor)",
+      "vendor_products_count": 8,
+      "procurement_orders_count": 0,
+      "mapped_products": [
+        {
+          "product_id": "8f673a29-73a1-4380-8c47-7377cacd0811",
+          "name": "Amul Cheese Slices",
+          "sku": "FG-DBE-004"
+        },
+        {
+          "product_id": "1b3b37f7-c225-4b70-b99b-22ca597d0953",
+          "name": "Amul Salted Butter",
+          "sku": "FG-DBE-003"
+        },
+        {
+          "product_id": "f91d4d44-0eae-404e-8fa8-83bc1d9abb73",
+          "name": "Amul Taaza Toned Milk",
+          "sku": "FG-DBE-001"
+        },
+        {
+          "product_id": "b7bc63ec-c00b-452d-93b8-dbc0dbf6115d",
+          "name": "Amul Chocolate Magic Ice Cream Tub",
+          "sku": "FG-ICF-002"
+        },
+        {
+          "product_id": "0cf2eb3e-8979-4845-8961-94f5aae3890d",
+          "name": "Amul Vanilla Magic Ice Cream Tub",
+          "sku": "FG-ICF-001"
+        },
+        {
+          "product_id": "bc57a38e-da0b-4727-87ed-109dd94bdd59",
+          "name": "Amul Pure Ghee",
+          "sku": "FG-OGM-004"
+        },
+        {
+          "product_id": "dd69d4dd-2400-4bb2-a6ce-970fc8f9e6cd",
+          "name": "Amul Kool Kesar (TEST3)",
+          "sku": "SKU-JNZUK"
+        },
+        {
+          "product_id": "49bb5e2a-3211-4e9c-bab9-24581bc3d6ed",
+          "name": "Amul Kool Kesar Flavoured Milk",
+          "sku": "FG-TCM-006"
+        }
+      ]
+    }
+  },
+  "invariants_pre": {
+    "warehouse_stock": 474,
+    "product_batches": 478,
+    "stock_ledgers": 494
+  }
+}

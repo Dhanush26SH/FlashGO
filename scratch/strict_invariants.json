@@ -1,0 +1,78 @@
+{
+  "warehouse_stock": {
+    "row_count": 474,
+    "sum_quantity": 44473
+  },
+  "product_batches": {
+    "row_count": 478,
+    "sum_received_quantity": 44480,
+    "sum_available_quantity": 44473,
+    "count_available_gt_0": 478,
+    "count_available_eq_0": 0,
+    "count_linked_to_grn": 4,
+    "count_not_linked_to_grn": 474
+  },
+  "stock_ledgers": {
+    "row_count": 494
+  },
+  "inventory_reservations": {
+    "row_count": 15,
+    "sum_quantity": 18
+  },
+  "amul_gold_batches": [
+    {
+      "batch_number": "BAT-UDP-83c4b690",
+      "received_quantity": 100,
+      "available_quantity": 100,
+      "expiry_date": "2027-09-06",
+      "goods_receipt_item_id": null,
+      "warehouse_id": "9f4d3149-f3e4-432b-98b6-f17af77c9c33"
+    },
+    {
+      "batch_number": "BAT-MPL-a2de7ede",
+      "received_quantity": 100,
+      "available_quantity": 100,
+      "expiry_date": "2027-09-06",
+      "goods_receipt_item_id": null,
+      "warehouse_id": "76525a09-3fd1-4949-b45e-49c77255b4ce"
+    },
+    {
+      "batch_number": "AMUL-TEST-001",
+      "received_quantity": 3,
+      "available_quantity": 3,
+      "expiry_date": "2026-12-18",
+      "goods_receipt_item_id": "db6552d3-05b0-4831-89d7-1dbd8c936b21",
+      "warehouse_id": "9f4d3149-f3e4-432b-98b6-f17af77c9c33"
+    },
+    {
+      "batch_number": "AMUL-TEST-002",
+      "received_quantity": 2,
+      "available_quantity": 2,
+      "expiry_date": "2026-12-18",
+      "goods_receipt_item_id": "478a4848-e571-4c7b-8825-ff26ea42911c",
+      "warehouse_id": "9f4d3149-f3e4-432b-98b6-f17af77c9c33"
+    }
+  ],
+  "mapping_coverage": {
+    "total_vendor_products": 223,
+    "active_vendor_products": 223,
+    "distinct_active_product_id": 223,
+    "active_products_mapped": 223,
+    "active_products_unmapped": 0,
+    "duplicate_pairs": 0,
+    "mappings_to_inactive": 0,
+    "mappings_to_nonexistent": 0,
+    "distinct_vendors": 109
+  },
+  "po_179cfb": {
+    "id": "53ea865d-2b8f-44d0-a2b6-e249b4179cfb",
+    "vendor": "PureDairy Co.",
+    "total_cost": 125,
+    "ordered_quantity": 5,
+    "received_quantity": 5,
+    "status": "received",
+    "receipts_count": 2,
+    "batches_associated": 2,
+    "stock_ledgers_receipts": 0
+  }
+}

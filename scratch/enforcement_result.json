@@ -1,0 +1,5 @@
+{
+  "valid_po": "column \"created_by\" of relation \"procurement_orders\" does not exist",
+  "invalid_po": "Product 02bd6c6a-598e-4ed6-b7e1-0e81d2f806fd is not mapped to vendor 7ad7bb5c-f66c-425e-b90a-0fb467f6f255",
+  "rejected_po_rows_created": 0
+}

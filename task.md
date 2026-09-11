@@ -1,0 +1,26 @@
+# Page 12 Implementation Tasks
+
+- `[ ]` 1. **Migration for Schema & Constraints**
+  - `[ ]` Check existing target DB columns and data types
+  - `[ ]` Safely rename `issue_type` -> `category`, `order_id` -> `related_order_id`
+  - `[ ]` Add missing columns `subject`, `description`, `priority`, `updated_at`
+  - `[ ]` Map legacy data and add CHECK constraint for `status IN ('open', 'in_progress', 'resolved', 'closed')`
+  - `[ ]` Enforce finite categories and priorities
+- `[ ]` 2. **Security & RLS (support_tickets & support_ticket_messages)**
+  - `[ ]` Drop old RLS policies
+  - `[ ]` Recreate safe RLS for `support_tickets` (Customer reads own, inserts own, cannot alter Admin fields)
+  - `[ ]` Recreate safe RLS for `support_ticket_messages` (Enforce `sender_id = auth.uid()`, immutable messages)
+- `[ ]` 3. **Secure RPCs**
+  - `[ ]` Update `admin_update_ticket_status` RPC for status updates
+  - `[ ]` Check `process_wallet_transaction` security
+  - `[ ]` Check `suspendProfile` RPC usage
+- `[ ]` 4. **Frontend Modifications (Customer App)**
+  - `[ ]` Update `SupportCenterView.tsx` payload to match DB (category, description, related_order_id, subject)
+- `[ ]` 5. **Frontend Modifications (Admin App)**
+  - `[ ]` Remove `BlinkPass` mock functionality from `UserCouponWallet.tsx`
+  - `[ ]` Remove fake "Refund ₹50" button from `SupportSettings.tsx`
+  - `[ ]` Implement "View Order" genuine action
+  - `[ ]` Rename tab to "CRM & Promotions"
+- `[ ]` 6. **Testing & Verification**
+  - `[ ]` Build check
+  - `[ ]` Run NodeJS/REST runtime verification

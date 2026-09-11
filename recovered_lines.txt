@@ -1,0 +1,264 @@
+-- Indexes
+CREATE INDEX idx_admin_audit_logs_created_at ON public.admin_audit_logs(created_at DESC);
+CREATE INDEX idx_admin_audit_logs_admin_id ON public.admin_audit_logs(admin_id);
+CREATE INDEX idx_admin_audit_logs_action_type ON public.admin_audit_logs(action_type);
+CREATE INDEX idx_admin_audit_logs_entity_type ON public.admin_audit_logs(entity_type);
+CREATE INDEX idx_admin_audit_logs_entity_id ON public.admin_audit_logs(entity_id);
+
+-- Immutability Trigger
+CREATE OR REPLACE FUNCTION public.prevent_audit_log_mutation()
+RETURNS TRIGGER AS $BODY$
+BEGIN
+    RAISE EXCEPTION 'Audit logs are immutable. UPDATE and DELETE operations are forbidden.';
+END;
+$BODY$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_prevent_audit_log_mutation
+BEFORE UPDATE OR DELETE ON public.admin_audit_logs
+FOR EACH ROW
+EXECUTE FUNCTION public.prevent_audit_log_mutation();
+
+-- RLS
+ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can view audit logs" 
+ON public.admin_audit_logs 
+FOR SELECT 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+    )
+);
+
+-- No INSERT policy. Inserts are only allowed via SECURITY DEFINER functions.
+
+-- 2. Audit Helper Function
+CREATE OR REPLACE FUNCTION public.write_admin_audit_log(
+    p_action_type TEXT,
+    p_entity_type TEXT,
+    p_entity_id TEXT,
+    p_warehouse_id UUID DEFAULT NULL,
+    p_before_state JSONB DEFAULT NULL,
+    p_after_state JSONB DEFAULT NULL,
+    p_metadata JSONB DEFAULT NULL
+)
+RETURNS VOID AS $BODY$
+DECLARE
+    v_admin_id UUID;
+    v_role TEXT;
+BEGIN
+    v_admin_id := auth.uid();
+    IF v_admin_id IS NULL THEN
+        RAISE EXCEPTION 'Audit log failed: No authenticated user context.';
+    END IF;
+
+    SELECT role INTO v_role FROM public.profiles WHERE id = v_admin_id;
+    IF v_role != 'admin' THEN
+        RAISE EXCEPTION 'Audit log failed: User is not an admin.';
+    END IF;
+
+    INSERT INTO public.admin_audit_logs (
+        admin_id, action_type, entity_type, entity_id, warehouse_id, before_state, after_state, metadata
+    ) VALUES (
+        v_admin_id, p_action_type, p_entity_type, p_entity_id, p_warehouse_id, p_before_state, p_after_state, p_metadata
+    );
+END;
+$BODY$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Revoke execute from public to be safe
+REVOKE EXECUTE ON FUNCTION public.write_admin_audit_log FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.write_admin_audit_log FROM anon, authenticated;
+
+-- 3. Update Existing RPCs to use the helper (Example set)
+
+-- Refund RPC
+CREATE OR REPLACE FUNCTION public.admin_resolve_ticket_and_refund(
+    p_ticket_id UUID,
+    p_refund_amount DECIMAL,
+    p_refunded_quantity INTEGER,
+    p_resolution_note TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $BODY$
+DECLARE
+    v_role TEXT;
+    v_ticket RECORD;
+    v_order RECORD;
+    v_order_item RECORD;
+    v_total_refunded_amount DECIMAL(12,2) := 0;
+    v_total_refunded_qty INTEGER := 0;
+    v_max_refundable_qty INTEGER;
+    v_max_refundable_amount DECIMAL(12,2);
+    v_refund_id UUID;
+    v_order_total_refunded DECIMAL(12,2) := 0;
+    v_refund_status TEXT;
+BEGIN
+    SELECT role INTO v_role FROM public.profiles WHERE id = auth.uid();
+    IF v_role != 'admin' THEN RAISE EXCEPTION 'Unauthorized'; END IF;
+
+    SELECT * INTO v_ticket FROM public.support_tickets WHERE id = p_ticket_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Ticket not found'; END IF;
+    IF v_ticket.status = 'resolved' OR v_ticket.status = 'closed' THEN RAISE EXCEPTION 'Ticket is already resolved or closed'; END IF;
+
+    IF v_ticket.related_order_id IS NULL OR v_ticket.order_item_id IS NULL THEN RAISE EXCEPTION 'Ticket is not linked'; END IF;
+
+    SELECT * INTO v_order FROM public.orders WHERE id = v_ticket.related_order_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Linked order not found'; END IF;
+
+    SELECT * INTO v_order_item FROM public.order_items WHERE id = v_ticket.order_item_id AND order_id = v_ticket.related_order_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Order item not found'; END IF;
+
+    IF p_refunded_quantity > v_order_item.quantity THEN RAISE EXCEPTION 'Cannot refund more physical quantity than was purchased'; END IF;
+
+    SELECT COALESCE(SUM(amount), 0), COALESCE(SUM(refunded_quantity), 0)
+    INTO v_total_refunded_amount, v_total_refunded_qty
+    FROM public.refunds WHERE order_item_id = v_ticket.order_item_id AND status = 'completed';
+
+    v_max_refundable_qty := v_order_item.quantity - v_total_refunded_qty;
+    v_max_refundable_amount := (v_order_item.price * v_order_item.quantity) - v_total_refunded_amount;
+
+    IF p_refunded_quantity > v_max_refundable_qty THEN RAISE EXCEPTION 'Requested refund quantity exceeds remaining'; END IF;
+    IF p_refund_amount > v_max_refundable_amount THEN RAISE EXCEPTION 'Requested refund amount exceeds remaining'; END IF;
+    IF p_refund_amount <= 0 THEN RAISE EXCEPTION 'Refund amount must be strictly positive'; END IF;
+
+    IF v_order.payment_method IN ('wallet', 'cod') THEN
+        v_refund_status := 'completed';
+        UPDATE public.profiles SET wallet_balance = wallet_balance + p_refund_amount WHERE id = v_ticket.customer_id;
+        INSERT INTO public.wallet_transactions (user_id, amount, type, description)
+        VALUES (v_ticket.customer_id, p_refund_amount, 'credit', 'Refund for Ticket ' || SUBSTRING(p_ticket_id::text FROM 1 FOR 8));
+    ELSE
+        v_refund_status := 'pending_external';
+    END IF;
+
+    INSERT INTO public.refunds (
+        order_id, order_item_id, support_ticket_id, customer_id, amount, refunded_quantity, reason, status, idempotency_key
+    ) VALUES (
+        v_order.id, v_order_item.id, v_ticket.id, v_ticket.customer_id, p_refund_amount, p_refunded_quantity, p_resolution_note, v_refund_status, v_ticket.id::text
+    ) RETURNING id INTO v_refund_id;
+
+    SELECT COALESCE(SUM(amount), 0) INTO v_order_total_refunded FROM public.refunds WHERE order_id = v_order.id AND status = 'completed';
+    
+    IF v_order_total_refunded >= v_order.total_amount THEN
+        UPDATE public.orders SET payment_status = 'refunded', updated_at = now() WHERE id = v_order.id;
+    ELSIF v_order_total_refunded > 0 THEN
+        UPDATE public.orders SET payment_status = 'partially_refunded', updated_at = now() WHERE id = v_order.id;
+    END IF;
+
+    UPDATE public.support_tickets 
+    SET status = 'resolved', description = CASE WHEN description IS NULL THEN p_resolution_note ELSE description || CHR(10) || CHR(10) || 'Admin Note: ' || p_resolution_note END, updated_at = now()
+    WHERE id = p_ticket_id;
+
+    -- NEW: Audit Log
+    PERFORM public.write_admin_audit_log(
+        'REFUND_APPROVED', 
+        'refunds', 
+        v_refund_id::text,
+        NULL,
+        NULL,
+        jsonb_build_object('amount', p_refund_amount, 'quantity', p_refunded_quantity, 'status', v_refund_status),
+        jsonb_build_object('ticket_id', p_ticket_id, 'order_id', v_order.id)
+    );
+
+    RETURN v_refund_id;
+END;
+$BODY$;
+
+-- Product Price Update Hook
+CREATE OR REPLACE FUNCTION public.admin_update_product(
+    p_id TEXT,
+    p_price DECIMAL,
+    p_image_url TEXT,
+    p_is_active BOOLEAN,
+    p_category TEXT,
+    p_name TEXT DEFAULT NULL,
+    p_description TEXT DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $BODY$
+DECLARE
+    v_role TEXT;
+    v_old_product RECORD;
+BEGIN
+    SELECT role INTO v_role FROM public.profiles WHERE id = auth.uid();
+    IF v_role != 'admin' THEN
+        RAISE EXCEPTION 'Unauthorized';
+    END IF;
+
+    IF p_price < 0 THEN
+        RAISE EXCEPTION 'Price cannot be negative';
+    END IF;
+
+    SELECT * INTO v_old_product FROM public.products WHERE id = p_id;
+
+    UPDATE public.products
+    SET 
+        price = p_price,
+        image_url = p_image_url,
+        is_active = p_is_active,
+        category = p_category,
+        name = COALESCE(p_name, name),
+        description = COALESCE(p_description, description),
+        updated_at = now()
+    WHERE id = p_id;
+
+    IF v_old_product.price != p_price OR v_old_product.is_active != p_is_active OR v_old_product.category != p_category THEN
+        PERFORM public.write_admin_audit_log(
+            'PRODUCT_UPDATED',
+            'products',
+            p_id,
+            NULL,
+            jsonb_build_object('price', v_old_product.price, 'is_active', v_old_product.is_active, 'category', v_old_product.category),
+            jsonb_build_object('price', p_price, 'is_active', p_is_active, 'category', p_category),
+            NULL
+        );
+    END IF;
+END;
+$BODY$;
+
+-- We'll add a trigger for profiles to catch role changes / suspensions since they may not all use RPCs.
+CREATE OR REPLACE FUNCTION public.audit_profiles_trigger()
+RETURNS TRIGGER AS $BODY$
+DECLARE
+    v_admin_id UUID;
+    v_role TEXT;
+BEGIN
+    -- Only log if it's an admin doing it, and only if role or is_suspended changed
+    IF OLD.role != NEW.role OR OLD.is_suspended != NEW.is_suspended THEN
+        v_admin_id := auth.uid();
+        IF v_admin_id IS NOT NULL THEN
+            SELECT role INTO v_role FROM public.profiles WHERE id = v_admin_id;
+            IF v_role = 'admin' THEN
+                -- Insert using standard direct insert (not the helper, because helper is security definer but trigger is already superuser context if needed, wait, trigger runs as invoker unless security definer)
+                -- We'll just call the helper directly, but we need to temporarily allow trigger to execute it or just duplicate the insert since we are in trigger context.
+                INSERT INTO public.admin_audit_logs (
+                    admin_id, action_type, entity_type, entity_id, before_state, after_state
+                ) VALUES (
+                    v_admin_id,
+                    CASE WHEN OLD.role != NEW.role THEN 'STAFF_ROLE_CHANGED' ELSE 'USER_SUSPENSION_CHANGED' END,
+                    'profiles',
+                    NEW.id::text,
+                    jsonb_build_object('role', OLD.role, 'is_suspended', OLD.is_suspended),
+                    jsonb_build_object('role', NEW.role, 'is_suspended', NEW.is_suspended)
+                );
+            END IF;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$BODY$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_audit_profiles ON public.profiles;
+CREATE TRIGGER trg_audit_profiles
+AFTER UPDATE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.audit_profiles_trigger();
+
+-- Adding more RPC hooks for Audit Logs
+

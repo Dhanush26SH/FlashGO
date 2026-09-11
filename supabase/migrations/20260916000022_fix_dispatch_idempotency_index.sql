@@ -1,0 +1,37 @@
+-- Migration: 20260916000022_fix_dispatch_idempotency_index.sql
+-- Description:
+--   Drop the incorrect UNIQUE index added in migration 20260916000021.
+--
+-- Why it was wrong:
+--   idx_orders_single_active_trip was created as UNIQUE ON orders(trip_id) WHERE trip_id IS NOT NULL.
+--   This would prevent multiple orders from referencing the same trip_id, which is exactly
+--   what batch/multi-order deliveries require (multiple orders per trip).
+--   The constraint was inverting the correct direction: it enforced "one ORDER per trip"
+--   instead of "one TRIP per order".
+--
+-- Why the index is not needed:
+--   The relationship is: orders.trip_id → logistics_trips.id (FK, scalar column).
+--   A single order row can store exactly ONE trip_id value — the FK column itself already
+--   enforces "at most one trip per order" at the data-model level with zero extra constraints.
+--
+-- How concurrency is handled (no index needed):
+--   1. Postgres serializes concurrent UPDATE statements on the same row via row-level locking.
+--      If two sessions both try to UPDATE the same order row to 'packed' simultaneously,
+--      the second session blocks until the first commits. After the first commits,
+--      the second session sees trip_id IS NOT NULL and the trigger's early-return guard fires.
+--
+--   2. The FOR UPDATE re-read guard added in handle_auto_dispatch (migration 021) further
+--      protects the trigger body: it re-reads the authoritative trip_id inside the
+--      transaction after acquiring the row lock, ensuring no duplicate trip is created even
+--      in MVCC edge cases where OLD/NEW snapshots differ from committed state.
+--
+-- Batch delivery compatibility:
+--   With this index dropped, two different orders CAN reference the same trip_id (batch trip),
+--   which is the correct multi-order delivery model.
+
+DROP INDEX IF EXISTS public.idx_orders_single_active_trip;
+
+-- Explicit verification comment (no-op SQL, documents the invariant for future developers):
+-- The invariant "one trip per order" is enforced by the orders.trip_id scalar column itself.
+-- The invariant "one concurrent dispatch per order" is enforced by Postgres row locking + trigger guard.
+-- No additional UNIQUE constraint is needed or appropriate here.
