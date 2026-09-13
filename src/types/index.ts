@@ -53,6 +53,7 @@ export interface Product {
   discount_price?: number | null;
   sku: string;
   barcode: string;
+  internal_barcode?: string | null;
 
   manufacturer_barcode?: string | null;
   manufacturer_barcode_verified?: boolean;

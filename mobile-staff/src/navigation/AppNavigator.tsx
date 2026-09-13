@@ -32,6 +32,7 @@ import DriverReachDropScreen from '../screens/Rider/DriverReachDropScreen';
 import DriverDropOrderScreen from '../screens/Rider/DriverDropOrderScreen';
 import DriverDeliveryCompleteScreen from '../screens/Rider/DriverDeliveryCompleteScreen';
 import DriverReturnToStoreScreen from '../screens/Rider/DriverReturnToStoreScreen';
+import WarehouseStaffQRScreen from '../screens/Warehouse/WarehouseStaffQRScreen';
 import { View, Text } from 'react-native';
 
 const Stack = createNativeStackNavigator();
@@ -85,6 +86,7 @@ export default function AppNavigator() {
         return (
           <>
             <Stack.Screen name="WarehouseMainTabs" component={WarehouseMainTabs} />
+            <Stack.Screen name="WarehouseStaffQRScreen" component={WarehouseStaffQRScreen} />
             <Stack.Screen name="Scanner" component={ScannerScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />
           </>

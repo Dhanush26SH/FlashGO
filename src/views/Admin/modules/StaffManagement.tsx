@@ -120,10 +120,19 @@ export const StaffManagement: React.FC = () => {
   const pendingStaff = profiles
     .filter(p => (p as any).is_pending_staff === true);
 
-  const handleApproveStaff = async (staffId: string, name: string) => {
+    const handleApproveStaff = async (staffId: string, name: string) => {
     try {
-      const selectedRole = pendingRoleAssignments[staffId] || pendingStaff.find(p => p.id === staffId)?.role || 'picker';
+      // FIX: Use requested_role as fallback, NOT current role (which is usually 'customer')
+      const targetStaff = pendingStaff.find(p => p.id === staffId);
+      const selectedRole = pendingRoleAssignments[staffId] || (targetStaff as any)?.requested_role || 'picker';
       const selectedWarehouseId = pendingWarehouseAssignments[staffId];
+
+      console.log("[DEV] STAFF_APPROVAL_REQUEST", {
+        staffId,
+        selectedRole,
+        selectedWarehouseId,
+        name
+      });
 
       if (!selectedWarehouseId) {
         addToast('Please assign a warehouse before approving', 'error');
@@ -133,14 +142,17 @@ export const StaffManagement: React.FC = () => {
       const cleanName = name;
       
       if (supabase) {
+        console.log("[DEV] STAFF_APPROVAL_PAYLOAD", { p_user_id: staffId, p_role: selectedRole, p_clean_name: cleanName, p_warehouse_id: selectedWarehouseId });
         await UsersService.approveStaffRole(staffId, selectedRole, cleanName, selectedWarehouseId);
+        console.log("[DEV] STAFF_APPROVAL_RESULT: Success");
         loadData(); // Re-fetch to get the server-generated employee_id
       }
       
       addToast(`Approved ${cleanName}`, 'success');
-    } catch (err) {
-      console.error("Failed to approve staff:", err);
-      addToast('Failed to approve staff member', 'error');
+    } catch (err: any) {
+      console.error("[DEV] STAFF_APPROVAL_ERROR", err);
+      // Show backend error message directly so it's not swallowed by generic toast
+      addToast(`Failed to approve: ${err.message || 'Unknown error'}`, 'error');
     }
   };
 

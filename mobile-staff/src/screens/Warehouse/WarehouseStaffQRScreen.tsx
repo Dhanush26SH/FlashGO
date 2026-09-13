@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import SharedWarehouseQRScanner from '../../components/SharedWarehouseQRScanner';
 
-export default function WarehouseQRVerificationScreen() {
+export default function WarehouseStaffQRScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const shiftId = route.params?.shiftId;
@@ -12,7 +12,7 @@ export default function WarehouseQRVerificationScreen() {
   const handleScan = async (data: string) => {
     if (!data) throw new Error('Invalid QR code format');
 
-    const { data: rpcData, error } = await supabase.rpc('picker_shift_check_in', {
+    const { data: rpcData, error } = await supabase.rpc('warehouse_staff_shift_check_in', {
       p_shift_id: shiftId,
       p_qr_token: data
     });
@@ -26,17 +26,21 @@ export default function WarehouseQRVerificationScreen() {
       throw error;
     }
     
-    // Success - go back to Dashboard which will now see the shift as active
-    navigation.goBack();
+    // On success, reset navigation so we don't leave the scanner in the back stack.
+    // The WarehouseTaskScreen will fetch the newly active shift.
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'WarehouseMainTabs' }]
+    });
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <SharedWarehouseQRScanner 
         onScan={handleScan} 
-        title="Warehouse Verification"
-        subtitle="Scan the QR code displayed at your warehouse"
-        loadingMessage="Verifying shift..."
+        title="Check-In"
+        subtitle="Scan the QR code to start your shift"
+        loadingMessage="Checking in..."
       />
     </View>
   );
