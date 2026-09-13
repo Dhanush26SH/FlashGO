@@ -40,7 +40,7 @@ serve(async (req) => {
       .from("logistics_trips")
       .select(`
         id, warehouse_id, 
-        warehouses ( latitude, longitude ),
+        warehouses ( lat, lng ),
         orders ( delivery_lat, delivery_lng )
       `)
       .eq("id", trip_id)
@@ -52,35 +52,41 @@ serve(async (req) => {
       });
     }
 
-    const whLat = trip.warehouses?.latitude;
-    const whLng = trip.warehouses?.longitude;
+    const whLat = trip.warehouses?.lat;
+    const whLng = trip.warehouses?.lng;
     // Assuming single order per trip for now
     const order = Array.isArray(trip.orders) ? trip.orders[0] : trip.orders;
     const delLat = order?.delivery_lat;
     const delLng = order?.delivery_lng;
 
-    if (!whLat || !whLng || !delLat || !delLng) {
-      return new Response(JSON.stringify({ success: false, error: "Missing coordinates" }), {
+    console.log("ROUTE_DISTANCE_WAREHOUSE_COORDS", { hasLat: !!whLat, hasLng: !!whLng });
+    console.log("ROUTE_DISTANCE_CUSTOMER_COORDS", { hasLat: !!delLat, hasLng: !!delLng });
+
+    if (!whLat || !whLng || !delLat || !delLng || !Number.isFinite(whLat) || !Number.isFinite(whLng) || !Number.isFinite(delLat) || !Number.isFinite(delLng)) {
+      console.log("ROUTE_DISTANCE_ERROR", "Invalid or missing coordinates");
+      return new Response(JSON.stringify({ success: false, error: "Missing or invalid coordinates" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // 2. Call OSRM
     const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${whLng},${whLat};${delLng},${delLat}?overview=false`;
+    console.log("ROUTE_DISTANCE_OSRM_REQUEST");
     
     let distanceMeters = 0;
     try {
       const osrmResponse = await fetch(osrmUrl);
       if (!osrmResponse.ok) {
-        throw new Error("OSRM API failed");
+        throw new Error("OSRM API failed with status: " + osrmResponse.status);
       }
       const osrmData = await osrmResponse.json();
       if (osrmData.code !== "Ok" || !osrmData.routes || osrmData.routes.length === 0) {
-        throw new Error("Invalid OSRM response");
+        throw new Error("Invalid OSRM response code: " + osrmData.code);
       }
       distanceMeters = osrmData.routes[0].distance;
-    } catch (e) {
-      console.error("OSRM Error:", e);
+      console.log("ROUTE_DISTANCE_OSRM_RESULT", { success: true });
+    } catch (e: any) {
+      console.error("ROUTE_DISTANCE_ERROR", "OSRM Error:", e.message);
       return new Response(JSON.stringify({ success: false, error: "ROUTE_DISTANCE_UNAVAILABLE" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -1,0 +1,93 @@
+-- Migration: Add session metrics to staff_shifts and create picker_shift_check_in RPC
+
+-- 1. Add slot-specific metrics
+ALTER TABLE public.staff_shifts 
+ADD COLUMN IF NOT EXISTS started_at timestamptz,
+ADD COLUMN IF NOT EXISTS items_picked integer DEFAULT 0,
+ADD COLUMN IF NOT EXISTS earnings numeric DEFAULT 0,
+ADD COLUMN IF NOT EXISTS complaints integer DEFAULT 0;
+
+-- 2. Create RPC for QR verification and shift check-in
+CREATE OR REPLACE FUNCTION public.picker_shift_check_in(
+    p_shift_id UUID,
+    p_qr_token TEXT
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_shift RECORD;
+    v_profile RECORD;
+    v_slot RECORD;
+    v_existing_token TEXT;
+BEGIN
+    -- 1. Get profile and verify it's the current user
+    SELECT * INTO v_profile FROM public.profiles WHERE id = auth.uid();
+    IF v_profile IS NULL OR v_profile.is_suspended = true THEN
+        RAISE EXCEPTION 'Worker is inactive or suspended';
+    END IF;
+
+    IF v_profile.role NOT IN ('picker', 'warehouse_staff') THEN
+        RAISE EXCEPTION 'Worker role not permitted to start picker shifts';
+    END IF;
+
+    -- 2. Lock and retrieve the shift
+    SELECT * INTO v_shift FROM public.staff_shifts WHERE id = p_shift_id FOR UPDATE;
+    IF v_shift IS NULL THEN
+        RAISE EXCEPTION 'Shift not found';
+    END IF;
+
+    IF v_shift.staff_id != auth.uid() THEN
+        RAISE EXCEPTION 'Unauthorized: Shift does not belong to you';
+    END IF;
+
+    IF v_shift.status = 'cancelled' OR v_shift.status = 'completed' THEN
+        RAISE EXCEPTION 'Shift cannot be started in state: %', v_shift.status;
+    END IF;
+
+    -- Retrieve the associated work_slot for time validation
+    SELECT * INTO v_slot FROM public.work_slots WHERE id = v_shift.work_slot_id;
+    IF v_slot IS NULL THEN
+        RAISE EXCEPTION 'Associated work slot not found';
+    END IF;
+
+    -- 3. Verify QR Token
+    -- Check that the QR token belongs to the shift's warehouse and is not expired
+    SELECT raw_token INTO v_existing_token
+    FROM public.warehouse_qr_challenges
+    WHERE warehouse_id = v_shift.warehouse_id
+      AND raw_token = p_qr_token
+      AND expires_at > NOW()
+    ORDER BY created_at DESC
+    LIMIT 1;
+
+    IF v_existing_token IS NULL THEN
+        RAISE EXCEPTION 'This QR does not belong to your booked store or is expired.';
+    END IF;
+
+    -- 4. Time Validation
+    IF now() < (v_slot.start_time - interval '5 minutes') THEN
+        RAISE EXCEPTION 'Shift cannot be started yet. Available 5 minutes before scheduled start.';
+    END IF;
+
+    IF now() >= v_slot.end_time THEN
+        RAISE EXCEPTION 'Shift has already ended.';
+    END IF;
+
+    -- 5. Activate Shift (Idempotent)
+    IF v_shift.status != 'active' THEN
+        UPDATE public.staff_shifts
+        SET 
+            status = 'active', 
+            started_at = COALESCE(v_shift.started_at, now()), 
+            updated_at = now()
+        WHERE id = p_shift_id;
+    END IF;
+
+    -- 6. Set online status atomically
+    PERFORM set_config('app.driver_status_update_allowed', 'true', true);
+    UPDATE public.profiles SET is_online = true WHERE id = auth.uid();
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;

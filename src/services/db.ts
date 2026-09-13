@@ -58,6 +58,8 @@ export interface Product {
   image_url: string;
   is_active?: boolean;
   stock_quantity: number;
+  manufacturer_barcode?: string | null;
+  manufacturer_barcode_verified?: boolean;
   warehouse_location: string;
   rating_avg: number;
   rating_count: number;

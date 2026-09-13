@@ -51,7 +51,7 @@ export default function SlotDetailsScreen() {
           .from('staff_shifts')
           .select('work_slot_id')
           .eq('staff_id', profile.id)
-          .eq('status', 'booked');
+          .neq('status', 'cancelled');
 
         if (bookingsError) throw bookingsError;
         myBookingsData = data || [];
@@ -118,9 +118,14 @@ export default function SlotDetailsScreen() {
       setSelectedSlots([]);
       setIsConfirmModalVisible(false);
       setActiveTab('booked');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error booking slots:', error);
-      alert('Failed to book slots. They might be full.');
+      if (error.message?.includes('Worker already booked this slot')) {
+        alert('You have already booked this slot.');
+        setActiveTab('booked');
+      } else {
+        alert(error.message || 'Failed to book slots. They might be full.');
+      }
     } finally {
       setIsBooking(false);
     }

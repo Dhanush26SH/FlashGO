@@ -45,14 +45,18 @@ export interface AdminUpdateProductPayload {
   barcode?: string;
   image_url?: string;
   is_active?: boolean;
+  manufacturer_barcode?: string | null;
+  manufacturer_barcode_verified?: boolean;
 }
 
 export class ProductsService {
 
   // ── READ: All products (Admin view — includes inactive) ─────────────────
+  // IMPORTANT: This method MUST only return authoritative Supabase data.
+  // The FlashGoDB local-mock fallback has been intentionally removed to prevent
+  // stale localStorage products from silently inflating the authoritative catalog count.
+  // If supabase is null (not configured), an error will propagate to the caller.
   static async getProducts(): Promise<Product[]> {
-    if (!supabase) return FlashGoDB.getProducts();
-
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -62,9 +66,11 @@ export class ProductsService {
 
     return (data || []).map((p: any) => ({
       ...p,
-      image_url: imageMap[p.image_url] || p.image_url
+      image_url: imageMap[p.image_url] || p.image_url,
+      manufacturer_barcode: p.manufacturer_barcode === '8901234567890' ? null : p.manufacturer_barcode
     }));
   }
+
 
   // ── READ: Single product ─────────────────────────────────────────────────
   static async getProduct(id: string): Promise<Product | null> {
@@ -142,6 +148,8 @@ export class ProductsService {
       p_barcode: updates.barcode ?? null,
       p_image_url: updates.image_url ?? null,
       p_is_active: updates.is_active ?? null,
+      p_manufacturer_barcode: updates.manufacturer_barcode ?? null,
+      p_manufacturer_barcode_verified: updates.manufacturer_barcode_verified ?? null,
     });
 
     if (error) throw new Error(error.message);

@@ -253,39 +253,40 @@ export const OrderManagement: React.FC = () => {
 
               {/* Order Timeline Visual Flow */}
               <div className="timeline-container">
-                <div className="timeline-header">Order Lifecycle Timeline</div>
-                <div className="timeline-track">
-                  {[
-                    { label: 'Placed', status: 'placed' },
-                    { label: 'Picking', status: 'picking' },
-                    { label: 'Packed', status: 'packed' },
-                    { label: 'Transit', status: 'out_for_delivery' },
-                    { label: 'Delivered', status: 'delivered' }
-                  ].map((step, idx) => {
-                    const statuses = ['placed', 'picking', 'packed', 'out_for_delivery', 'delivered'];
-                    const currentIdx = statuses.indexOf(selectedOrder.status);
-                    const stepIdx = statuses.indexOf(step.status);
-                    const isActive = stepIdx <= currentIdx && selectedOrder.status !== 'cancelled';
-                    return (
-                      <div key={idx} className="timeline-step">
-                        <div style={stepCircleStyle(isActive)}>{idx + 1}</div>
-                        <span style={stepLabelStyle(isActive)}>{step.label}</span>
+                <div className="timeline-header">Event Lifecycle Timeline</div>
+                <div className="timeline-track" style={{ overflowX: 'auto', paddingBottom: '8px' }}>
+                  {selectedOrder.events && selectedOrder.events.length > 0 ? (
+                    selectedOrder.events.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((evt: any, idx: number) => (
+                      <div key={idx} className="timeline-step" style={{ minWidth: '80px', flexShrink: 0 }}>
+                        <div style={stepCircleStyle(true)}>{idx + 1}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: '4px' }}>
+                          <span style={stepLabelStyle(true)}>{evt.event_type.replace(/_/g, ' ').toUpperCase()}</span>
+                          <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>{new Date(evt.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
                       </div>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', padding: '12px 0' }}>No lifecycle events available.</div>
+                  )}
                 </div>
               </div>
 
               {/* Items Summary list */}
               <div className="items-list-card">
-                <div className="timeline-header">Items Checklist</div>
+                <div className="timeline-header">Items Snapshot Checklist</div>
                 <div style={{ maxHeight: '140px', overflowY: 'auto' }}>
                   {selectedOrder.items?.map((item, idx) => (
                     <div key={idx} className="item-row">
-                      <div>
-                        <div style={{ fontWeight: 700 }}>{item.product?.name || 'Loading product...'}</div>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                          SKU: {item.product?.sku} | Loc: {item.product?.warehouse_location}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {item.product_image_snapshot && (
+                          <img src={item.product_image_snapshot} alt="product" style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
+                        )}
+                        <div>
+                          <div style={{ fontWeight: 700 }}>{item.product_name_snapshot || item.product?.name || 'Unknown product'}</div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                            SKU: {item.sku_snapshot || item.product?.sku}
+                            {item.manufacturer_barcode_snapshot && ` | EAN: ${item.manufacturer_barcode_snapshot}`}
+                          </div>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>

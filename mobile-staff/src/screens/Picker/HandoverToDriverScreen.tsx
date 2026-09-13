@@ -1,80 +1,128 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  ActivityIndicator, Alert, ScrollView
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ChevronLeft, Truck, PackageCheck, User } from 'lucide-react-native';
+import { Truck, User, Phone, Hash, Package, ChevronLeft, CheckCircle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
+interface OrderData {
+  id: string;
+  status: string;
+  driver_id: string | null;
+  trip_id: string | null;
+  bag_number: string | null;
+  order_number: string | null;
+  driver: DriverProfile | null;
+}
+
+interface DriverProfile {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  employee_id: string | null;
+}
+
 export default function HandoverToDriverScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const orderId = route.params?.orderId;
+  const orderId: string = route.params?.orderId;
   const { profile } = useAuth() as any;
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [order, setOrder] = useState<any>(null);
-  const [driver, setDriver] = useState<any>(null);
+  const [order, setOrder] = useState<OrderData | null>(null);
 
-  const fetchOrderAndDriver = async () => {
+  // ─── Fetch order + driver profile (called on mount and on realtime updates) ───
+  const fetchOrder = useCallback(async () => {
+    if (!orderId) return;
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          id, status, driver_id, trip_id,
-          driver:profiles!orders_driver_id_fkey(id, full_name, phone_number)
-        `)
-        .eq('id', orderId)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('get_order_handover_context', {
+        p_order_id: orderId,
+      });
 
       if (error) throw error;
-      setOrder(data);
-      if (data?.driver) {
-        setDriver(data.driver);
-      }
+      
+      const formattedData: OrderData = {
+        id: orderId,
+        status: data.order_status,
+        driver_id: data.driver_id,
+        trip_id: data.trip_status === 'accepted' || data.trip_status === 'in_transit' ? 'trip' : null,
+        bag_number: data.bag_number,
+        order_number: data.order_number,
+        driver: data.driver_id ? {
+          id: data.driver_id,
+          full_name: data.full_name,
+          phone: data.phone,
+          employee_id: data.employee_id
+        } : null
+      };
+
+      setOrder(formattedData);
     } catch (e: any) {
-      console.error(e);
+      console.error('[HandoverToDriverScreen] fetchOrder error:', e.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchOrderAndDriver();
   }, [orderId]);
 
-  // Realtime subscription for driver assignment
+  // ─── Initial load ───
+  useEffect(() => {
+    fetchOrder();
+  }, [fetchOrder]);
+
+  // ─── Realtime: watch for driver_id and status changes on this order ───
   useEffect(() => {
     if (!orderId) return;
-    const channel = supabase.channel('handover-order')
+
+    const channel = supabase
+      .channel(`handover-order-${orderId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
-        () => { fetchOrderAndDriver(); }
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`,
+        },
+        () => {
+          // Immediately refetch so driver card always reflects authoritative backend state
+          fetchOrder();
+        }
       )
       .subscribe();
-      
-    return () => { supabase.removeChannel(channel); };
-  }, [orderId]);
 
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId, fetchOrder]);
+
+  // ─── Handover action ───
   const handleHandover = async () => {
-    if (!driver || !order?.trip_id) {
-      Alert.alert('Error', 'No driver assigned yet.');
+    if (!order?.driver_id) {
+      Alert.alert('Not Ready', 'Driver has not been assigned yet.');
       return;
     }
+    if (submitting) return;
     setSubmitting(true);
     try {
       const { error } = await supabase.rpc('execute_worker_handover', {
         p_order_id: orderId,
-        p_picker_id: profile.id
+        p_picker_id: profile.id,
       });
       if (error) throw error;
-      
-      // Successfully handed off, return to picker dashboard
+
+      // Picker is now FREE — return to the main Picker tab dashboard (Task tab → PickerDashboard).
+      // Use reset so back-press cannot return to the handover screen for a completed order.
+      // IMPORTANT: navigate to 'MainTabs' (the bottom-tab root), NOT 'PickerShift' (a bare stack
+      // screen without tabs). MainTabs renders PickerDashboard as the Task tab, which correctly
+      // reconciles shift state via its focus effect and shows the idle state within the full tab UI.
       navigation.reset({
         index: 0,
-        routes: [{ name: 'PickerShift' }],
+        routes: [{ name: 'MainTabs' }],
       });
     } catch (e: any) {
       Alert.alert('Handover Failed', e.message);
@@ -82,84 +130,159 @@ export default function HandoverToDriverScreen() {
     }
   };
 
+  // ─── Derived display values ───
+  const driver = order?.driver ?? null;
+  const driverAssigned = !!(order?.driver_id && driver);
+  const handoverReady = driverAssigned && order?.status === 'packed';
+
+  const displayOrderId = order?.order_number
+    ? `#${order.order_number}`
+    : orderId
+    ? `#${orderId.substring(0, 8).toUpperCase()}`
+    : '#—';
+
+  const displayDriverId = driver?.employee_id
+    ? `FGDRV-${driver.employee_id}`
+    : driver?.id
+    ? `FGDRV-${driver.id.substring(0, 8).toUpperCase()}`
+    : '—';
+
+  // ─── Loading skeleton ───
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10b981" />
+        <Text style={styles.loadingText}>Loading handover details...</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft color="#fff" size={28} />
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}
+        >
+          <ChevronLeft color="#fff" size={26} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Handover bag to driver</Text>
-        <View style={{ width: 44 }} />
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Handover order to rider</Text>
+          <Text style={styles.headerOrderId}>{displayOrderId}</Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.orderIdBadge}>
-          <Text style={styles.orderIdText}>Order #{orderId?.substring(0, 8).toUpperCase()}</Text>
-        </View>
-
-        {/* Counter Info - We don't have this in DB currently, so showing unassigned */}
-        <View style={styles.counterCard}>
-          <Text style={styles.counterLabel}>Handover location not assigned</Text>
-        </View>
-
-        {/* Driver Info */}
-        <View style={styles.driverCard}>
-          <View style={styles.driverHeader}>
-            <Truck color="#60a5fa" size={24} />
-            <Text style={styles.driverTitle}>Assigned Driver</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Driver card ── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Truck color="#10b981" size={20} />
+            <Text style={styles.cardTitle}>Assigned Rider</Text>
           </View>
-          
-          {driver ? (
-            <View style={styles.driverDetails}>
-              <View style={styles.driverAvatar}>
-                <User color="#9ca3af" size={32} />
+
+          {driverAssigned ? (
+            <View style={styles.driverGrid}>
+              {/* Driver ID row */}
+              <View style={styles.driverRow}>
+                <View style={styles.driverIconWrap}>
+                  <Hash color="#6b7280" size={16} />
+                </View>
+                <View style={styles.driverRowContent}>
+                  <Text style={styles.driverRowLabel}>Driver ID</Text>
+                  <Text style={styles.driverRowValue}>{displayDriverId}</Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.driverName}>{driver.full_name || 'Driver'}</Text>
-                <Text style={styles.driverPhone}>{driver.phone_number || 'No phone number'}</Text>
-                <Text style={styles.tripId}>Trip ID: {order.trip_id?.substring(0,8).toUpperCase()}</Text>
+
+              {/* Name row */}
+              <View style={styles.driverRow}>
+                <View style={styles.driverIconWrap}>
+                  <User color="#6b7280" size={16} />
+                </View>
+                <View style={styles.driverRowContent}>
+                  <Text style={styles.driverRowLabel}>Driver Name</Text>
+                  <Text style={styles.driverRowValue}>
+                    {driver?.full_name || '—'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Phone row */}
+              <View style={[styles.driverRow, { borderBottomWidth: 0 }]}>
+                <View style={styles.driverIconWrap}>
+                  <Phone color="#6b7280" size={16} />
+                </View>
+                <View style={styles.driverRowContent}>
+                  <Text style={styles.driverRowLabel}>Phone</Text>
+                  <Text style={styles.driverRowValue}>
+                    {driver?.phone || '—'}
+                  </Text>
+                </View>
               </View>
             </View>
           ) : (
-            <View style={styles.noDriverContainer}>
-              <ActivityIndicator color="#60a5fa" style={{ marginBottom: 12 }} />
-              <Text style={styles.noDriverText}>Waiting for driver assignment...</Text>
-              <Text style={styles.noDriverSubText}>Please pack the items and wait.</Text>
+            <View style={styles.waitingContainer}>
+              <ActivityIndicator color="#10b981" style={{ marginBottom: 12 }} />
+              <Text style={styles.waitingTitle}>Finding delivery partner...</Text>
+              <Text style={styles.waitingSubtitle}>
+                A driver is being automatically assigned. This updates live.
+              </Text>
             </View>
           )}
         </View>
 
-        {/* Package Info */}
-        <View style={styles.packageCard}>
-          <PackageCheck color="#10b981" size={24} />
-          <Text style={styles.packageText}>Packages ready for handover</Text>
-        </View>
-      </View>
+        {/* ── Bag card — only if bag_number is non-null ── */}
+        {order?.bag_number ? (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Package color="#10b981" size={20} />
+              <Text style={styles.cardTitle}>Bag Information</Text>
+            </View>
+            <View style={styles.bagRow}>
+              <Text style={styles.bagLabel}>Bag Number</Text>
+              <Text style={styles.bagValue}>{order.bag_number}</Text>
+            </View>
+          </View>
+        ) : null}
 
-      {/* Footer */}
+        {/* ── Status indicator ── */}
+        {driverAssigned && (
+          <View style={styles.statusRow}>
+            <CheckCircle color="#10b981" size={18} />
+            <Text style={styles.statusText}>
+              Driver accepted — ready for handover
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Bottom CTA ── */}
       <View style={styles.footer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.handoverButton, 
-            (!driver || submitting) && styles.handoverButtonDisabled
+            styles.handoverButton,
+            (!handoverReady || submitting) && styles.handoverButtonDisabled,
           ]}
           onPress={handleHandover}
-          disabled={!driver || submitting}
+          disabled={!handoverReady || submitting}
+          activeOpacity={0.8}
         >
           {submitting ? (
             <ActivityIndicator color="#000" />
           ) : (
-            <Text style={styles.handoverButtonText}>
-              {driver ? 'Handover' : 'Waiting...'}
+            <Text
+              style={[
+                styles.handoverButtonText,
+                (!handoverReady) && styles.handoverButtonTextDisabled,
+              ]}
+            >
+              {driverAssigned ? 'Handover Order' : 'Waiting for Driver...'}
             </Text>
           )}
         </TouchableOpacity>
@@ -179,149 +302,190 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingText: {
+    color: '#9ca3af',
+    fontSize: 15,
+    marginTop: 12,
+  },
+
+  // ── Header ──
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    backgroundColor: '#059669',        // FlashGO green header
     borderBottomWidth: 1,
-    borderBottomColor: '#1f2937',
+    borderBottomColor: '#047857',
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  orderIdBadge: {
-    alignSelf: 'center',
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginBottom: 24,
-  },
-  orderIdText: {
-    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  counterCard: {
-    backgroundColor: '#111827',
-    borderRadius: 12,
+  headerOrderId: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+
+  // ── Scroll ──
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
     padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderStyle: 'dashed',
+    paddingBottom: 24,
+    gap: 14,
   },
-  counterLabel: {
-    color: '#9ca3af',
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  driverCard: {
+
+  // ── Cards ──
+  card: {
     backgroundColor: '#111827',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#1f2937',
   },
-  driverHeader: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 16,
   },
-  driverTitle: {
-    color: '#60a5fa',
-    fontSize: 16,
-    fontWeight: '600',
+  cardTitle: {
+    color: '#e5e7eb',
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  driverDetails: {
+
+  // ── Driver rows ──
+  driverGrid: {
+    gap: 0,
+  },
+  driverRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f2937',
+    gap: 12,
   },
-  driverAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#374151',
+  driverIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#1f2937',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  driverName: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  driverRowContent: {
+    flex: 1,
   },
-  driverPhone: {
-    color: '#9ca3af',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  tripId: {
+  driverRowLabel: {
     color: '#6b7280',
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
-  noDriverContainer: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  noDriverText: {
-    color: '#9ca3af',
+  driverRowValue: {
+    color: '#f9fafb',
     fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
+    fontWeight: '600',
   },
-  noDriverSubText: {
+
+  // ── Waiting state ──
+  waitingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  waitingTitle: {
+    color: '#e5e7eb',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  waitingSubtitle: {
+    color: '#6b7280',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // ── Bag card ──
+  bagRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bagLabel: {
     color: '#6b7280',
     fontSize: 14,
+    fontWeight: '500',
   },
-  packageCard: {
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    padding: 16,
+  bagValue: {
+    color: '#f9fafb',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  // ── Status indicator ──
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    backgroundColor: '#052e16',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#065f46',
   },
-  packageText: {
-    color: '#fff',
-    fontSize: 16,
+  statusText: {
+    color: '#10b981',
+    fontSize: 14,
     fontWeight: '500',
   },
+
+  // ── Footer ──
   footer: {
     padding: 16,
+    paddingBottom: 20,
     backgroundColor: '#111827',
     borderTopWidth: 1,
     borderTopColor: '#1f2937',
   },
   handoverButton: {
     backgroundColor: '#10b981',
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 14,
     alignItems: 'center',
   },
   handoverButtonDisabled: {
-    backgroundColor: '#374151',
+    backgroundColor: '#1f2937',
   },
   handoverButtonText: {
     color: '#000',
     fontSize: 18,
-    fontWeight: 'bold',
-  }
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  handoverButtonTextDisabled: {
+    color: '#4b5563',
+  },
 });

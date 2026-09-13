@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TouchableWithoutF
 import { X, Search, MapPin, Navigation, Home as HomeIcon, Briefcase, ChevronRight } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { theme } from '../theme';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { searchPlaces, PhotonLocation, reverseGeocode } from '../services/locationService';
@@ -12,6 +12,8 @@ import { useMobileAppContext } from '../context/MobileAppContext';
 export default function LocationSelectorSheet() {
   const { addresses: savedAddresses, activeAddress, setActiveAddress } = useMobileAppContext();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'LocationSelector'>>();
+
   const [isLocating, setIsLocating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -59,23 +61,21 @@ export default function LocationSelectorSheet() {
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [geocode] = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude
-      });
+      console.log('Requesting fresh GPS...');
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      console.log('Raw GPS:', location.coords.latitude, location.coords.longitude);
 
-      if (geocode) {
-        if (navigation.canGoBack()) navigation.goBack();
-        navigation.navigate('ConfirmLocation', {
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-          name: geocode.name || 'Current Location',
-          address: geocode.street || geocode.city || geocode.region || 'Current Location'
-        });
-      } else {
-        Alert.alert('Error', 'Could not determine your address from GPS.');
-      }
+      const locationDetail = await reverseGeocode(location.coords.latitude, location.coords.longitude);
+      console.log('Reverse Geocode:', locationDetail?.name, locationDetail?.formattedAddress);
+
+      if (navigation.canGoBack()) navigation.goBack();
+      navigation.navigate('ConfirmLocation', {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+        name: locationDetail?.name || 'Current Location',
+        address: locationDetail?.formattedAddress || 'Unknown address',
+        origin: route.params?.origin
+      });
     } catch (err: any) {
       Alert.alert('Location Error', err.message);
     } finally {
@@ -94,7 +94,8 @@ export default function LocationSelectorSheet() {
       lat: result.lat,
       lng: result.lng,
       name: result.name,
-      address: result.formattedAddress
+      address: result.formattedAddress,
+      origin: route.params?.origin
     });
   };
 

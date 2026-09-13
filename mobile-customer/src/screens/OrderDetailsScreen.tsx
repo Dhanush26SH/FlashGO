@@ -80,7 +80,7 @@ export default function OrderDetailsScreen() {
                 <Text style={styles.itemName}>{item.products?.name || 'Unknown Item'}</Text>
                 <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
               </View>
-              <Text style={styles.itemPrice}>₹{(item.price_at_time * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.itemPrice}>₹{(item.price * item.quantity).toFixed(2)}</Text>
             </View>
           ))}
         </View>

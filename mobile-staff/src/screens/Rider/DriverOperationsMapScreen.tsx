@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Switch, Platform, Animated, Easing } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Switch, Platform, Animated, Easing, AppState, AppStateStatus } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { MapPin, Navigation, ExternalLink, ChevronLeft, AlertTriangle, HelpCircle, User, LogOut } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,8 +26,44 @@ export default function DriverOperationsMapScreen() {
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [isAccepting, setIsAccepting] = useState(false);
   const slideAnim = useState(new Animated.Value(300))[0]; // Bottom sheet slide up animation
+  
+  const isFocused = useIsFocused();
+  const expiryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchActiveSession = async () => {
+  const performShiftExpiry = useCallback(async () => {
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
+    try {
+      const { data, error } = await supabase.rpc('driver_expire_shift');
+      if (error) throw error;
+      
+      if (data?.code === 'ACTIVE_DELIVERY_IN_PROGRESS' || data?.code === 'RETURN_TASK_IN_PROGRESS') {
+        // Driver gets to finish their active trip. We don't kick them out.
+        console.log('Shift expired, but allowing driver to finish active delivery.');
+      } else {
+        // Shift fully expired and driver set offline. Return to main tabs.
+        navigation.reset({ index: 0, routes: [{ name: 'DriverMainTabs' }] });
+      }
+    } catch (e) {
+      console.error('driver_expire_shift RPC failed', e);
+    }
+  }, [navigation]);
+
+  const scheduleExpiryTimer = useCallback((shiftEndIso: string) => {
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
+    const msUntilExpiry = new Date(shiftEndIso).getTime() - Date.now();
+    if (msUntilExpiry <= 0) return; 
+    expiryTimerRef.current = setTimeout(() => {
+      performShiftExpiry();
+    }, msUntilExpiry);
+  }, [performShiftExpiry]);
+
+  const fetchActiveSession = useCallback(async () => {
     try {
       if (!profile?.id) return;
 
@@ -39,6 +75,7 @@ export default function DriverOperationsMapScreen() {
           staff_shifts (
             id,
             status,
+            shift_end,
             warehouses (
               id,
               name,
@@ -60,6 +97,18 @@ export default function DriverOperationsMapScreen() {
         throw sessionErr;
       }
 
+      const shiftData = activeSession?.staff_shifts as any;
+      if (shiftData) {
+        const shiftEndTime = new Date(shiftData.shift_end).getTime();
+        const now = Date.now();
+        if (now >= shiftEndTime) {
+          await performShiftExpiry();
+          // If we weren't kicked out, we have an active delivery and can continue rendering ops
+        } else {
+          scheduleExpiryTimer(shiftData.shift_end);
+        }
+      }
+
       setSessionData(activeSession);
       
       // We read actual online status from the DB to be authoritative
@@ -77,13 +126,14 @@ export default function DriverOperationsMapScreen() {
       if (testData?.success && testData?.flags?.bypass_geofence) {
         setIsTesterGeofenceAccount(true);
       }
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as any;
       console.error(err);
       setErrorMsg(err.message || 'Failed to fetch session.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile?.id, navigation, performShiftExpiry, scheduleExpiryTimer]);
 
   const fetchLocation = async () => {
     try {
@@ -101,7 +151,7 @@ export default function DriverOperationsMapScreen() {
     }
   };
 
-  const fetchTrips = async () => {
+  const fetchTrips = useCallback(async () => {
     if (!profile?.id) return;
     
     try {
@@ -125,9 +175,9 @@ export default function DriverOperationsMapScreen() {
             navigation.navigate('DriverPickup');
           } else if (data.active_trip.status === 'in_transit') {
             if (data.active_trip.arrived_at) {
-              navigation.navigate('DriverDropOrder');
+              navigation.navigate('DriverDropOrderScreen');
             } else {
-              navigation.navigate('DriverReachDrop');
+              navigation.navigate('DriverReachDropScreen');
             }
           } else if (data.active_trip.status === 'completed') {
             if (!data.active_trip.completion_acknowledged_at) {
@@ -181,10 +231,11 @@ export default function DriverOperationsMapScreen() {
         setPendingTrip(null);
         Animated.timing(slideAnim, { toValue: 300, duration: 300, useNativeDriver: true }).start();
       }
-    } catch (err) {
+    } catch (error) {
+      const err = error as any;
       console.error('Feed error:', err);
     }
-  };
+  }, [profile?.id, navigation, slideAnim]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -219,7 +270,8 @@ export default function DriverOperationsMapScreen() {
       
       // On success, refetch feed to sync active trip
       await fetchTrips();
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as any;
       console.error(err);
       if (err.message?.includes('EXPIRED_OFFER') || err.message?.includes('already claimed')) {
          Alert.alert('Offer Expired', 'Order no longer available.');
@@ -256,7 +308,37 @@ export default function DriverOperationsMapScreen() {
     }
   }, [profile?.id]);
 
+  // Focus-based refresh
   useEffect(() => {
+    if (isFocused) {
+      fetchActiveSession();
+      fetchTrips();
+    }
+  }, [isFocused, fetchActiveSession, fetchTrips]);
+
+  // AppState foreground refresh
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        fetchActiveSession();
+        fetchTrips();
+      }
+    });
+    return () => subscription.remove();
+  }, [fetchActiveSession, fetchTrips]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (expiryTimerRef.current) {
+        clearTimeout(expiryTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    // Only subscribe to trips if we didn't just remount via focus
+    if (!isFocused) return;
     fetchTrips();
     if (profile?.id) {
       const channel = supabase.channel('operations_trips_feed')
@@ -291,7 +373,8 @@ export default function DriverOperationsMapScreen() {
       if (!data.success) {
         throw new Error(data.code || 'Failed to update status');
       }
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as any;
       console.error('Toggle Error:', err);
       // Revert on failure
       setIsOnline(previousState);
@@ -331,7 +414,8 @@ export default function DriverOperationsMapScreen() {
               }
               
               navigation.reset({ index: 0, routes: [{ name: 'DriverMainTabs' }] });
-            } catch (err: any) {
+            } catch (error) {
+              const err = error as any;
               console.error('End Shift Error:', err);
               if (err.message?.includes('ACTIVE_DELIVERY_IN_PROGRESS')) {
                 Alert.alert('Cannot end shift', 'You have an active delivery in progress.');

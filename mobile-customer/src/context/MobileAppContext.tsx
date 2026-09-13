@@ -10,6 +10,7 @@ interface MobileAppContextProps {
   cart: Record<string, number>;
   updateCart: (productId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  refreshServerCart: () => Promise<void>;
   products: any[];
   categories: any[];
   subcategories: any[];
@@ -17,6 +18,8 @@ interface MobileAppContextProps {
   addresses: any[];
   activeAddress: any | null;
   setActiveAddress: (addr: any) => void;
+  checkoutAddress: any | null;
+  setCheckoutAddress: (addr: any) => void;
   walletBalance: number;
   setWalletBalance: React.Dispatch<React.SetStateAction<number>>;
   refreshAddresses: () => Promise<void>;
@@ -106,6 +109,7 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       cart: mobileApp.cart,
       updateCart: mobileApp.updateCart,
       clearCart: mobileApp.clearCart,
+      refreshServerCart: mobileApp.refreshServerCart,
       products: mobileApp.products,
       categories: mobileApp.categories,
       subcategories: mobileApp.subcategories,
@@ -113,6 +117,8 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       addresses: mobileApp.addresses,
       activeAddress: mobileApp.activeAddress,
       setActiveAddress: mobileApp.setActiveAddress,
+      checkoutAddress: mobileApp.checkoutAddress,
+      setCheckoutAddress: mobileApp.setCheckoutAddress,
       walletBalance: mobileApp.walletBalance,
       setWalletBalance: mobileApp.setWalletBalance,
       refreshAddresses: mobileApp.refreshAddresses,

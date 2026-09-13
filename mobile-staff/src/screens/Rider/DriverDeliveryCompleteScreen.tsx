@@ -66,7 +66,10 @@ export default function DriverDeliveryCompleteScreen() {
     } catch (err) {
       console.error(err);
       // Fallback to Ops Map if we can't load data
-      navigation.replace('DriverOperationsMapScreen');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'DriverOperationsMapScreen' }]
+      });
     } finally {
       setLoading(false);
     }
@@ -82,9 +85,15 @@ export default function DriverDeliveryCompleteScreen() {
       if (error) throw error;
       
       if (data?.returnTask) {
-        navigation.replace('DriverReturnToStoreScreen');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'DriverReturnToStoreScreen' }]
+        });
       } else {
-        navigation.replace('DriverOperationsMapScreen');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'DriverOperationsMapScreen' }]
+        });
       }
     } catch (err: any) {
       Alert.alert('Error', err.message);

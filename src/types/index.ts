@@ -53,6 +53,9 @@ export interface Product {
   discount_price?: number | null;
   sku: string;
   barcode: string;
+
+  manufacturer_barcode?: string | null;
+  manufacturer_barcode_verified?: boolean;
   image_url: string;
   is_active?: boolean;
   stock_quantity: number;
@@ -82,6 +85,12 @@ export interface OrderItem {
   price: number;
   picked_quantity: number;
   status: 'pending' | 'picked' | 'out_of_stock';
+  product_name_snapshot?: string | null;
+  product_image_snapshot?: string | null;
+  sku_snapshot?: string | null;
+  manufacturer_barcode_snapshot?: string | null;
+  cancelled_quantity?: number;
+  substituted_quantity?: number;
   // Extra joined product info for UI
   product?: Product;
 }
@@ -137,8 +146,28 @@ export interface Order {
   delivery_speed?: 'express' | 'eco';
   payment_method?: 'wallet' | 'cod' | 'upi' | 'card';
   cod_collected?: boolean;
+  
+  customer_snapshot_name?: string | null;
+  customer_snapshot_phone?: string | null;
+  customer_snapshot_email?: string | null;
+  warehouse_name_snapshot?: string | null;
+  address_snapshot_formatted?: string | null;
+  address_snapshot_flat?: string | null;
+  address_snapshot_floor?: string | null;
+  address_snapshot_landmark?: string | null;
+  address_snapshot_locality?: string | null;
+  address_snapshot_state?: string | null;
+  address_snapshot_postcode?: string | null;
+  address_snapshot_instructions?: string | null;
+  subtotal_amount?: number;
+  handling_fee?: number;
+  tax_amount?: number;
+  wallet_applied_amount?: number;
+  refunded_amount?: number;
+
   // Extra joined items
   items?: OrderItem[];
+  events?: any[];
   customer_name?: string;
   customer_phone?: string;
   picker_name?: string;

@@ -42,7 +42,7 @@ export default function FeedScreen({ navigation }: any) {
             navigation.reset({ index: 0, routes: [{ name: 'DriverOperationsMapScreen' }] });
           } else if (isExpired) {
             // Actively clean up stale session on backend
-            await supabase.rpc('cleanup_expired_driver_shifts');
+            await supabase.rpc('driver_expire_shift');
             setIsOnline(false);
           }
         }
@@ -75,7 +75,14 @@ export default function FeedScreen({ navigation }: any) {
       Alert.alert('Location Unavailable', 'Store location is not configured.');
       return;
     }
-    navigation.navigate('NavigationScreen', { gig });
+    navigation.navigate('NavigationScreen', { 
+      mode: 'warehouse',
+      destLat: lat,
+      destLng: lng,
+      destinationName: gig?.warehouses?.name || 'Warehouse',
+      destinationAddress: gig?.warehouses?.address,
+      gig: gig
+    });
   };
 
   const fetchTripsAndMetrics = async () => {

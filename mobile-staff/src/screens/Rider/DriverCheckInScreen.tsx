@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Lin
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
+import { useIsFocused } from '@react-navigation/native';
 import { Camera as LucideCamera, CheckCircle, ArrowLeft, MapPin, Camera as CameraIcon } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -10,7 +11,8 @@ import { useAuth } from '../../context/AuthContext';
 export default function DriverCheckInScreen({ route, navigation }: any) {
   const { shift } = route.params;
   const { profile } = useAuth() as any;
-  const [step, setStep] = useState<'PERMISSIONS' | 'SELFIE' | 'QR' | 'SUBMITTING'>('PERMISSIONS');
+  const isFocused = useIsFocused();
+  const [step, setStep] = useState<'PERMISSIONS' | 'SELFIE' | 'TRANSITION' | 'QR' | 'SUBMITTING'>('PERMISSIONS');
   
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null);
@@ -67,22 +69,46 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
 
         const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, base64: true });
         
+        console.log('DRIVER_SELFIE_CAPTURE_RESULT', photo ? 'Success' : 'Failed');
+        
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('DRIVER_CHECKIN_AUTH', sessionData?.session?.user?.id ? 'Authenticated' : 'No Session', sessionError ? sessionError.message : null);
+        console.log('DRIVER_CHECKIN_PROFILE', profile?.id || null);
+        console.log('DRIVER_CHECKIN_SHIFT', shift?.id || null);
+
         if (!profile?.id) {
           Alert.alert('Session unavailable', 'Your login session is not available right now. Please sign in again and retry check-in.');
+          return;
+        }
+        
+        if (!shift?.id) {
+          Alert.alert('Shift unavailable', 'Your gig information could not be found. Please go back to the feed and try again.');
           return;
         }
 
         const ext = photo.uri.substring(photo.uri.lastIndexOf('.'));
         const fileName = `${profile.id}/${shift.id}/${Date.now()}${ext}`;
         
+        console.log('DRIVER_SELFIE_UPLOAD_START', fileName);
+        
         const { error: uploadError } = await supabase.storage
           .from('driver_check_ins')
           .upload(fileName, decode(photo.base64), { contentType: 'image/jpeg' });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.log('DRIVER_SELFIE_UPLOAD_RESULT', 'Failed');
+          console.log('DRIVER_SELFIE_CHECKIN_ERROR', uploadError.message);
+          throw uploadError;
+        }
+        
+        console.log('DRIVER_SELFIE_UPLOAD_RESULT', 'Success');
 
         setSelfiePath(fileName);
-        setStep('QR');
+        setStep('TRANSITION');
+        setTimeout(() => {
+          setStep('QR');
+        }, 500);
       } catch (err: any) {
         Alert.alert('Upload Failed', err.message);
       }
@@ -322,7 +348,7 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
               <Text style={styles.stepSubtitle}>Take a clear photo of your face.</Text>
             </View>
             <View style={styles.cameraFrame}>
-              <CameraView style={styles.camera} facing="front" ref={cameraRef} />
+              {isFocused && <CameraView style={styles.camera} facing="front" ref={cameraRef} />}
             </View>
             <TouchableOpacity style={styles.primaryBtn} onPress={takeSelfie}>
               <LucideCamera color="#fff" size={20} />
@@ -341,13 +367,22 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
               <Text style={styles.stepSubtitle}>Scan the rotating QR displayed at the FlashGO store.</Text>
             </View>
             <View style={styles.cameraFrame}>
-              <CameraView
-                style={styles.camera}
-                facing="back"
-                onBarcodeScanned={scannedQR ? undefined : handleBarCodeScanned}
-                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              />
+              {isFocused && (
+                <CameraView
+                  style={styles.camera}
+                  facing="back"
+                  onBarcodeScanned={scannedQR ? undefined : handleBarCodeScanned}
+                  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                />
+              )}
             </View>
+          </View>
+        )}
+
+        {step === 'TRANSITION' && (
+          <View style={styles.submittingContainer}>
+            <ActivityIndicator size="large" color="#10b981" />
+            <Text style={styles.submittingText}>Switching to scanner...</Text>
           </View>
         )}
 

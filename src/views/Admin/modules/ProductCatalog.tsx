@@ -4,6 +4,7 @@ import { DataTable } from '../../../components/Admin/DataTable';
 import { useApp } from '../../../context/AppContext';
 import type { Category } from '../../../types';
 import { ProductsService } from '../../../services/api/ProductsService';
+import ReactBarcode from 'react-barcode';
 import {
   Plus, Check, Tag, AlertCircle, Edit2, Search,
   RefreshCw, ShieldAlert, X, FileSpreadsheet, Barcode,
@@ -111,12 +112,15 @@ export const ProductCatalog: React.FC = () => {
 
   // Inline edit states (catalog metadata only — no stock/location)
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<any>(null);
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editDiscountPrice, setEditDiscountPrice] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editSku, setEditSku] = useState('');
   const [editBarcode, setEditBarcode] = useState('');
+  const [editManufacturerBarcode, setEditManufacturerBarcode] = useState('');
+  const [editManufacturerBarcodeVerified, setEditManufacturerBarcodeVerified] = useState(false);
 
   // Bulk Discount states
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -197,6 +201,18 @@ export const ProductCatalog: React.FC = () => {
     setEditCategory(p.category_id);
     setEditSku(p.sku || '');
     setEditBarcode(p.barcode || '');
+    setEditManufacturerBarcode(p.manufacturer_barcode || '');
+    setEditManufacturerBarcodeVerified(p.manufacturer_barcode_verified || false);
+  };
+
+  const isValidEAN13 = (ean: string): boolean => {
+    if (!/^\d{13}$/.test(ean)) return false;
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      sum += parseInt(ean[i], 10) * (i % 2 === 0 ? 1 : 3);
+    }
+    const checkDigit = (10 - (sum % 10)) % 10;
+    return checkDigit === parseInt(ean[12], 10);
   };
 
   const handleSaveProductEdit = async (productId: string) => {
@@ -212,11 +228,14 @@ export const ProductCatalog: React.FC = () => {
     }
     if (editSku && editSku !== original.sku) updates.sku = editSku;
     if (editBarcode && editBarcode !== original.barcode) updates.barcode = editBarcode;
+    if (editManufacturerBarcode !== (original.manufacturer_barcode || '')) updates.manufacturer_barcode = editManufacturerBarcode;
+    if (editManufacturerBarcodeVerified !== !!original.manufacturer_barcode_verified) updates.manufacturer_barcode_verified = editManufacturerBarcodeVerified;
 
     if (Object.keys(updates).length === 0) {
       setEditingProductId(null);
       return;
     }
+
 
     // Client-side validation
     if (updates.price !== undefined && updates.price < 0) {
@@ -226,6 +245,11 @@ export const ProductCatalog: React.FC = () => {
       const basePrice = updates.price ?? original.price;
       if (updates.discount_price > basePrice) {
         addToast('Discount price cannot exceed base price', 'error'); return;
+      }
+    }
+    if (updates.manufacturer_barcode && updates.manufacturer_barcode_verified) {
+      if (!isValidEAN13(updates.manufacturer_barcode)) {
+        addToast('Invalid EAN-13: Must be 13 digits with correct check digit', 'error'); return;
       }
     }
 
@@ -571,7 +595,13 @@ export const ProductCatalog: React.FC = () => {
                   {
                     key: 'image', header: 'IMG',
                     render: p => (
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <div 
+                        style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedBarcodeProduct(p);
+                        }}
+                      >
                         <img src={p.image_url} alt="" style={{ width: '32px', height: '32px', borderRadius: '4px', opacity: p.is_active === false ? 0.4 : 1 }} />
                         {p.is_active === false && (
                           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -599,21 +629,49 @@ export const ProductCatalog: React.FC = () => {
                       )
                   },
                   {
-                    key: 'sku', header: 'SKU / BARCODE', sortable: true,
+                    key: 'sku', header: 'IDENTIFIERS', sortable: true,
                     render: p => editingProductId === p.id
                       ? (
-                        <div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <input type="text" value={editSku} onChange={e => setEditSku(e.target.value)}
-                            className="small-input-field" placeholder="SKU" style={{ padding: '4px', width: '90px', marginBottom: '3px' }} />
-                          <br />
-                          <input type="text" value={editBarcode} onChange={e => setEditBarcode(e.target.value)}
-                            className="small-input-field" placeholder="Barcode" style={{ padding: '4px', width: '90px' }} />
+                            className="small-input-field" placeholder="Product Code (e.g. FG-ARD-008)" style={{ padding: '4px', width: '200px' }} />
+                          <input type="text" value={editManufacturerBarcode} onChange={e => setEditManufacturerBarcode(e.target.value)}
+                            className="small-input-field" placeholder="Manufacturer EAN-13" style={{ padding: '4px', width: '200px' }} />
+                          <input type="text" value={p.internal_barcode || ''} readOnly
+                            className="small-input-field" placeholder="FlashGO Barcode" style={{ padding: '4px', width: '200px', backgroundColor: '#f3f4f6', cursor: 'not-allowed' }} title="FlashGO Barcode is auto-generated and immutable" />
+                          <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-primary)' }}>
+                            <input type="checkbox" checked={editManufacturerBarcodeVerified} onChange={e => setEditManufacturerBarcodeVerified(e.target.checked)} />
+                            Mfg Verified
+                          </label>
                         </div>
                       ) : (
-                        <div>
-                          <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.78rem' }}>{p.sku}</div>
-                          <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Barcode size={10} /> {p.barcode}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
+                          <div>
+                            <div style={{ color: '#9ca3af', fontSize: '0.65rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Product Code</div>
+                            <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem', marginBottom: '8px' }}>{p.sku || 'N/A'}</div>
+                            {p.internal_barcode && (
+                              <div>
+                                <div style={{ color: '#9ca3af', fontSize: '0.65rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>FlashGO Barcode</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: '#fff', padding: '4px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                                  <ReactBarcode value={p.internal_barcode} format="CODE128" width={1.2} height={30} fontSize={12} margin={0} background="#ffffff" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            {p.manufacturer_barcode && p.manufacturer_barcode_verified ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: '#fff', padding: '4px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                                <span style={{color: '#6b7280', fontSize: '0.6rem', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px'}}>Manufacturer EAN-13</span>
+                                <ReactBarcode value={p.manufacturer_barcode} format="EAN13" width={1.2} height={30} fontSize={12} margin={0} background="#ffffff" />
+                              </div>
+                            ) : (
+                              <div>
+                                <div style={{ color: '#9ca3af', fontSize: '0.65rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Manufacturer EAN-13</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                  {(p.manufacturer_barcode === '8901234567890' ? null : p.manufacturer_barcode) || 'N/A'} <span style={{ fontSize: '0.65rem', marginLeft: '4px' }}>{p.manufacturer_barcode_verified ? '(✓)' : '(Not verified)'}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )
@@ -813,6 +871,62 @@ export const ProductCatalog: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Barcode Preview Modal */}
+          {selectedBarcodeProduct && (
+            <div 
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }} 
+              onClick={() => setSelectedBarcodeProduct(null)}
+            >
+              <div 
+                className="form-container glass-panel animate-slide-up" 
+                style={{ padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '420px', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }} 
+                onClick={e => e.stopPropagation()}
+              >
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Barcode size={20} />
+                    FlashGO Barcode
+                  </div>
+                  <button onClick={() => setSelectedBarcodeProduct(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    <X size={22} />
+                  </button>
+                </div>
+                
+                <img 
+                  src={selectedBarcodeProduct.image_url} 
+                  alt="" 
+                  style={{ width: '80px', height: '80px', borderRadius: '8px', objectFit: 'cover' }} 
+                />
+                
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    {selectedBarcodeProduct.name}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Product Code / SKU: {selectedBarcodeProduct.sku || 'N/A'}
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e5e7eb', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  {selectedBarcodeProduct.internal_barcode ? (
+                    <ReactBarcode 
+                      value={selectedBarcodeProduct.internal_barcode} 
+                      format="CODE128" 
+                      width={2} 
+                      height={80} 
+                      fontSize={16} 
+                      margin={0} 
+                      background="#ffffff" 
+                    />
+                  ) : (
+                    <div style={{ color: 'var(--accent-red)', fontWeight: 600 }}>No internal barcode assigned</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 

@@ -25,6 +25,9 @@ export default function ConfirmLocationScreen() {
   const [currentLng, setCurrentLng] = useState(route.params.lng);
   const [currentName, setCurrentName] = useState(route.params.name);
   const [currentAddress, setCurrentAddress] = useState(route.params.address);
+
+  // DEBUG LOG
+  console.log(`CONFIRM_ROUTE ${route.params.lat} ${route.params.lng} ${route.params.origin}`);
   
   const [isResolving, setIsResolving] = useState(false);
   const [isServiceable, setIsServiceable] = useState<boolean | null>(null);
@@ -34,7 +37,9 @@ export default function ConfirmLocationScreen() {
   const latestRequestRef = useRef<number>(0);
 
   // Memoize HTML content for Leaflet map to prevent remounts
-  const mapHtml = React.useMemo(() => `
+  const mapHtml = React.useMemo(() => {
+    console.log(`MAP_COORDS ${route.params.lat} ${route.params.lng}`);
+    return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -66,14 +71,22 @@ export default function ConfirmLocationScreen() {
           </svg>
         </div>
         <script>
-          var map = L.map('map', { zoomControl: false, attributionControl: true }).setView([${route.params.lat}, ${route.params.lng}], 15);
+          var map = L.map('map', { zoomControl: false, attributionControl: true });
+          let isProgrammatic = true;
+          
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap contributors'
           }).addTo(map);
 
+          map.setView([${route.params.lat}, ${route.params.lng}], 15);
+
           let moveTimeout;
           map.on('moveend', function() {
+            if (isProgrammatic) {
+              isProgrammatic = false;
+              return;
+            }
             clearTimeout(moveTimeout);
             moveTimeout = setTimeout(() => {
               var center = map.getCenter();
@@ -87,13 +100,14 @@ export default function ConfirmLocationScreen() {
               } else {
                 window.parent.postMessage(msg, '*');
               }
-            }, 500); // 500ms debounce within the webview
+            }, 600); // 600ms debounce within the webview
           });
           
           window.addEventListener('message', (event) => {
             try {
               const data = JSON.parse(event.data);
               if (data.type === 'setLocation') {
+                isProgrammatic = true;
                 map.setView([data.lat, data.lng], 15);
               }
             } catch (e) {}
@@ -101,7 +115,8 @@ export default function ConfirmLocationScreen() {
         </script>
       </body>
     </html>
-  `, [route.params.lat, route.params.lng]);
+  `;
+  }, [route.params.lat, route.params.lng]);
 
   const webviewSource = React.useMemo(() => ({ html: mapHtml }), [mapHtml]);
 
@@ -138,6 +153,12 @@ export default function ConfirmLocationScreen() {
       if (data.type === 'onRegionChangeComplete') {
         const { lat, lng } = data;
         
+        // Skip if coordinates are practically identical (prevent redundant API calls)
+        const isSame = Math.abs(currentLat - lat) < 0.00001 && Math.abs(currentLng - lng) < 0.00001;
+        if (isSame && currentName !== 'Unknown address' && currentName !== 'Unknown Place') {
+          return; // Already resolved these coordinates
+        }
+        
         // Debounce external checks
         if (resolveDebounceRef.current) clearTimeout(resolveDebounceRef.current);
         
@@ -147,8 +168,11 @@ export default function ConfirmLocationScreen() {
           latestRequestRef.current = reqId;
           
           // Reverse geocode
+          console.log(`REVERSE_GEOCODE_INPUT ${lat} ${lng}`);
           const locationDetail = await reverseGeocode(lat, lng);
           if (latestRequestRef.current !== reqId) return;
+
+          console.log(`REVERSE_GEOCODE_RESULT ${locationDetail?.name} ${locationDetail?.city} ${locationDetail?.state} ${locationDetail?.formattedAddress}`);
 
           if (locationDetail) {
             setCurrentLat(lat);
@@ -161,6 +185,7 @@ export default function ConfirmLocationScreen() {
           }
 
           // Check serviceability
+          console.log(`SERVICEABILITY_INPUT ${lat} ${lng}`);
           try {
             const { data: svcData, error } = await supabase.rpc('get_serving_warehouse', {
               p_lat: lat,
@@ -254,25 +279,34 @@ export default function ConfirmLocationScreen() {
   };
 
   const handleConfirmLocation = () => {
-    // Persist active address to central context
-    const finalAddress = {
-      id: `custom_loc_${Date.now()}`,
-      street_address: currentAddress || currentName,
-      locality: currentName,
-      city: '',
-      state: '',
-      postal_code: '',
-      lat: currentLat,
-      lng: currentLng,
-      label: 'Selected Location',
-      is_default: false
-    };
+    if (route.params.origin === 'checkout_address') {
+      navigation.navigate('AddressDetails', {
+        lat: currentLat,
+        lng: currentLng,
+        name: currentName,
+        address: currentAddress
+      });
+    } else {
+      // Persist active address to central context for home browsing
+      const finalAddress = {
+        id: `custom_loc_${Date.now()}`,
+        street_address: currentAddress || currentName,
+        locality: currentName,
+        city: '',
+        state: '',
+        postal_code: '',
+        lat: currentLat,
+        lng: currentLng,
+        label: 'Selected Location',
+        is_default: false
+      };
 
-    setActiveAddress(finalAddress);
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs' as any }],
-    });
+      setActiveAddress(finalAddress);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' as any }],
+      });
+    }
   };
 
   return (
@@ -353,14 +387,16 @@ export default function ConfirmLocationScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity 
-            style={styles.useCurrentBtn} 
-            onPress={handleUseCurrentLocation}
-            disabled={isResolving}
-          >
-            <Navigation size={18} color={theme.colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.useCurrentBtnText}>Use current location</Text>
-          </TouchableOpacity>
+          {route.params.origin !== 'checkout_address' && (
+            <TouchableOpacity 
+              style={styles.useCurrentBtn} 
+              onPress={handleUseCurrentLocation}
+              disabled={isResolving}
+            >
+              <Navigation size={18} color={theme.colors.primary} style={{ marginRight: 8 }} />
+              <Text style={styles.useCurrentBtnText}>Use current location</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>

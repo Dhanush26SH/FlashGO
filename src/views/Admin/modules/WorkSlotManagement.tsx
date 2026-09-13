@@ -15,6 +15,11 @@ export const WorkSlotManagement: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
+  // Bookings view states
+  const [expandedSlotId, setExpandedSlotId] = useState<string | null>(null);
+  const [slotBookings, setSlotBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  
   const [warehouseId, setWarehouseId] = useState('');
   const [targetRole, setTargetRole] = useState<'picker' | 'driver' | 'warehouse_staff'>('picker');
   const [startTime, setStartTime] = useState('');
@@ -53,10 +58,45 @@ export const WorkSlotManagement: React.FC = () => {
     try {
       const data = await WorkSlotService.adminGetWorkSlots();
       setSlots(data);
+      if (expandedSlotId) {
+        loadSlotBookings(expandedSlotId);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSlotBookings = async (slotId: string) => {
+    setLoadingBookings(true);
+    try {
+      const { data, error } = await supabase!
+        .from('staff_shifts')
+        .select(`
+          id, shift_start, shift_end, status,
+          profiles ( id, full_name, email, phone )
+        `)
+        .eq('work_slot_id', slotId)
+        .neq('status', 'cancelled');
+      
+      if (error) throw error;
+      setSlotBookings(data || []);
+    } catch (e) {
+      console.error(e);
+      addToast('Failed to load bookings', 'error');
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  const toggleBookings = (slotId: string) => {
+    if (expandedSlotId === slotId) {
+      setExpandedSlotId(null);
+      setSlotBookings([]);
+    } else {
+      setExpandedSlotId(slotId);
+      loadSlotBookings(slotId);
     }
   };
 
@@ -234,8 +274,9 @@ export const WorkSlotManagement: React.FC = () => {
           const wName = slot.warehouse_name || warehouses.find(w => w.id === slot.warehouse_id)?.name || 'Unknown Warehouse';
           const isFull = slot.booked_count >= slot.capacity;
           return (
-            <div key={slot.id} className="glass-panel" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
+            <div key={slot.id} className="glass-panel">
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                   <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{new Date(slot.start_time).toLocaleDateString()}</h4>
                   <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
@@ -261,6 +302,12 @@ export const WorkSlotManagement: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
+                  onClick={() => toggleBookings(slot.id)}
+                  style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--primary)', background: expandedSlotId === slot.id ? 'var(--primary)' : 'transparent', color: expandedSlotId === slot.id ? '#fff' : 'var(--primary)', cursor: 'pointer' }}
+                >
+                  {expandedSlotId === slot.id ? 'Hide Bookings' : 'View Bookings'}
+                </button>
+                <button 
                   onClick={() => handleEdit(slot)}
                   style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
                 >
@@ -275,6 +322,33 @@ export const WorkSlotManagement: React.FC = () => {
                   </button>
                 )}
               </div>
+            </div>
+            
+            {/* Expanded Bookings Section */}
+            {expandedSlotId === slot.id && (
+              <div style={{ padding: '16px', borderTop: '1px solid var(--border-light)', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                <h5 style={{ margin: '0 0 12px 0', fontSize: '0.95rem' }}>Booked Workers ({slot.booked_count})</h5>
+                {loadingBookings ? (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading workers...</div>
+                ) : slotBookings.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {slotBookings.map(b => (
+                      <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{b.profiles?.full_name || 'Unknown Worker'}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>ID: {b.profiles?.id?.substring(0,8)} | Status: {b.status}</div>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
+                          <div>{new Date(b.shift_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(b.shift_end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No workers booked yet.</div>
+                )}
+              </div>
+            )}
             </div>
           )
         })}

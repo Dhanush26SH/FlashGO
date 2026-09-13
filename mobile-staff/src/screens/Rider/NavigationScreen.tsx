@@ -1,14 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import { MapPin, Navigation, ExternalLink, ChevronLeft } from 'lucide-react-native';
+import { MapPin, Navigation, ExternalLink, ChevronLeft, CheckCircle2 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 export default function NavigationScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { gig } = route.params;
+  const { profile } = useAuth() as any;
+  const { 
+    mode, 
+    destLat: routeDestLat, 
+    destLng: routeDestLng, 
+    destinationName, 
+    destinationAddress,
+    isReturn
+  } = route.params || {};
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
@@ -16,15 +26,85 @@ export default function NavigationScreen() {
   const [eta, setEta] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isTestMode, setIsTestMode] = useState(false);
+  
+  const destLat = Number(routeDestLat);
+  const destLng = Number(routeDestLng);
+  
+  const warehouseLat = Number(route.params?.warehouseLat);
+  const warehouseLng = Number(route.params?.warehouseLng);
+  const canEnableTestMode = mode === 'customer' && Number.isFinite(warehouseLat) && Number.isFinite(warehouseLng);
 
-  const whLat = gig?.warehouses?.lat;
-  const whLng = gig?.warehouses?.lng;
+  const hasValidDestination = Number.isFinite(destLat) && Number.isFinite(destLng);
 
-  const fetchRouteAndLocation = async () => {
+  // Refs to track last calculation point to prevent over-querying OSRM
+  const lastCalcCoords = useRef<{ lat: number, lng: number } | null>(null);
+  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+  const isMountedRef = useRef(true);
+
+  // Haversine distance in meters
+  const getDistanceFromLatLonInM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // Radius of the earth in m
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; 
+  };
+
+  const calculateRoute = async (loc: Location.LocationObject) => {
+    if (!hasValidDestination) return;
+    
+    // Check if we moved > 50m since last calculation
+    if (lastCalcCoords.current) {
+      const movedM = getDistanceFromLatLonInM(
+        loc.coords.latitude, loc.coords.longitude,
+        lastCalcCoords.current.lat, lastCalcCoords.current.lng
+      );
+      if (movedM < 50) return; // Skip recalculation
+    }
+
+    try {
+      // If test mode is on, override the origin coordinates sent to OSRM
+      const calcLat = isTestMode && canEnableTestMode ? warehouseLat : loc.coords.latitude;
+      const calcLng = isTestMode && canEnableTestMode ? warehouseLng : loc.coords.longitude;
+      
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${calcLng},${calcLat};${destLng},${destLat}?geometries=geojson&overview=full`;
+      const response = await fetch(osrmUrl);
+      const data = await response.json();
+
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        const routeData = data.routes[0];
+        
+        // Calculate friendly distance
+        const distKm = routeData.distance / 1000;
+        const distText = distKm < 1 ? `${Math.round(routeData.distance)} m` : `${distKm.toFixed(1)} km`;
+        
+        // Calculate ETA
+        const durSec = routeData.duration;
+        const durMin = Math.round(durSec / 60);
+        const durText = durMin < 60 ? `${durMin} min` : `${Math.floor(durMin/60)} hr ${durMin%60} min`;
+
+        if (isMountedRef.current) {
+          setDistance(distText);
+          setEta(durText);
+          setRouteGeoJSON(routeData.geometry);
+          lastCalcCoords.current = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        }
+      }
+    } catch (err) {
+      console.error('OSRM route fetch failed:', err);
+    }
+  };
+
+  const startLiveTracking = async () => {
     setLoading(true);
     setErrorMsg('');
-    if (!whLat || !whLng) {
-      setErrorMsg('Warehouse coordinates are missing.');
+    if (!hasValidDestination) {
+      setErrorMsg('Destination coordinates are missing or invalid.');
       setLoading(false);
       return;
     }
@@ -35,65 +115,97 @@ export default function NavigationScreen() {
         throw new Error('Location permission denied.');
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced
-      });
+      // Initial fast fix
+      const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (isMountedRef.current) setLocation(initialLoc);
+      await calculateRoute(initialLoc);
       
-      setLocation(loc);
+      if (isMountedRef.current) setLoading(false);
 
-      // Fetch OSRM route
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${loc.coords.longitude},${loc.coords.latitude};${whLng},${whLat}?geometries=geojson&overview=full`;
-      
-      const response = await fetch(osrmUrl);
-      const data = await response.json();
-
-      if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-        throw new Error('OSRM routing failed to find a valid route.');
-      }
-
-      const routeData = data.routes[0];
-      
-      // Calculate friendly distance
-      const distKm = routeData.distance / 1000;
-      const distText = distKm < 1 ? `${Math.round(routeData.distance)} m` : `${distKm.toFixed(1)} km`;
-      
-      // Calculate ETA
-      const durSec = routeData.duration;
-      const durMin = Math.round(durSec / 60);
-      const durText = durMin < 60 ? `${durMin} min` : `${Math.floor(durMin/60)} hr ${durMin%60} min`;
-
-      setDistance(distText);
-      setEta(durText);
-      setRouteGeoJSON(routeData.geometry);
-      setLoading(false);
+      // Subscribe to continuous live location updates
+      locationSubRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 20, // Fire every 20m of movement
+          timeInterval: 5000,   // Or every 5 seconds
+        },
+        async (loc) => {
+          if (!isMountedRef.current) return;
+          setLocation(loc);
+          await calculateRoute(loc);
+          
+          // Publish telemetry to backend if we are a logged-in driver
+          if (profile?.id) {
+            try {
+               await supabase.from('driver_sessions').update({
+                  latest_lat: loc.coords.latitude,
+                  latest_lng: loc.coords.longitude,
+                  updated_at: new Date().toISOString(),
+               }).eq('driver_id', profile.id);
+            } catch (telemetryErr) {
+               console.warn('Failed to publish telemetry:', telemetryErr);
+            }
+          }
+        }
+      );
 
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || 'Failed to initialize navigation.');
-      setLoading(false);
+      if (isMountedRef.current) {
+        setErrorMsg(err.message || 'Failed to initialize navigation.');
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchRouteAndLocation();
-  }, [whLat, whLng]);
+    isMountedRef.current = true;
+    startLiveTracking();
+    return () => {
+      isMountedRef.current = false;
+      if (locationSubRef.current) {
+        locationSubRef.current.remove();
+      }
+    };
+  }, [destLat, destLng]);
+
+  // Recalculate route when test mode toggles
+  useEffect(() => {
+    if (location) {
+      lastCalcCoords.current = null; // Force recalculation
+      calculateRoute(location);
+    }
+  }, [isTestMode]);
 
   const handleOpenExternalMaps = () => {
-    if (!whLat || !whLng) return;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${whLat},${whLng}`;
+    if (!hasValidDestination) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}`;
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Failed to open maps.'));
   };
 
-  const handleCheckIn = () => {
-    navigation.replace('DriverCheckInScreen', { shift: gig });
+  const handlePrimaryAction = () => {
+    if (mode === 'customer') {
+      navigation.goBack(); // DriverReachDropScreen will handle the check-in / drop verification
+    } else {
+      if (isReturn) {
+         navigation.replace('DriverReturnToStoreScreen');
+      } else {
+         navigation.replace('DriverCheckInScreen', { shift: route.params?.gig });
+      }
+    }
   };
 
   const generateMapHTML = () => {
-    if (!location || !whLat || !whLng) return '';
+    if (!location || !hasValidDestination) return '';
 
-    const driverLat = location.coords.latitude;
-    const driverLng = location.coords.longitude;
+    const driverLat = (isTestMode && canEnableTestMode) ? warehouseLat : location.coords.latitude;
+    const driverLng = (isTestMode && canEnableTestMode) ? warehouseLng : location.coords.longitude;
     const geoJSONString = routeGeoJSON ? JSON.stringify(routeGeoJSON) : 'null';
+
+    // Different colors based on mode
+    const isCustomer = mode === 'customer';
+    const destColor = isCustomer ? '#f59e0b' : '#10b981'; // Amber for customer, Green for warehouse
+    const destIconSize = isCustomer ? 20 : 24;
 
     return `
       <!DOCTYPE html>
@@ -110,9 +222,10 @@ export default function NavigationScreen() {
                   border: 3px solid #fff;
                   border-radius: 50%;
                   box-shadow: 0 0 10px rgba(0,0,0,0.5);
+                  transition: transform 0.2s;
               }
-              .wh-div-icon {
-                  background-color: #10b981;
+              .dest-div-icon {
+                  background-color: ${destColor};
                   border: 3px solid #fff;
                   border-radius: 50%;
                   box-shadow: 0 0 10px rgba(0,0,0,0.5);
@@ -122,7 +235,7 @@ export default function NavigationScreen() {
       <body>
           <div id="map"></div>
           <script>
-              const map = L.map('map', { zoomControl: false }).setView([${driverLat}, ${driverLng}], 13);
+              const map = L.map('map', { zoomControl: false }).setView([${driverLat}, ${driverLng}], 15);
               
               L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                   attribution: '&copy; OpenStreetMap contributors',
@@ -130,28 +243,25 @@ export default function NavigationScreen() {
               }).addTo(map);
 
               const driverIcon = L.divIcon({ className: 'custom-div-icon', iconSize: [20, 20], iconAnchor: [10, 10] });
-              const whIcon = L.divIcon({ className: 'wh-div-icon', iconSize: [24, 24], iconAnchor: [12, 12] });
+              const destIcon = L.divIcon({ className: 'dest-div-icon', iconSize: [${destIconSize}, ${destIconSize}], iconAnchor: [${destIconSize/2}, ${destIconSize/2}] });
 
-              L.marker([${driverLat}, ${driverLng}], { icon: driverIcon }).addTo(map).bindPopup('You').openPopup();
-              L.marker([${whLat}, ${whLng}], { icon: whIcon }).addTo(map).bindPopup('${gig?.warehouses?.name || 'Warehouse'}');
+              // Driver Marker
+              const driverMarker = L.marker([${driverLat}, ${driverLng}], { icon: driverIcon, zIndexOffset: 1000 }).addTo(map).bindPopup('You').openPopup();
+              L.marker([${destLat}, ${destLng}], { icon: destIcon }).addTo(map).bindPopup('${destinationName || 'Destination'}');
 
               const routeGeometry = ${geoJSONString};
               if (routeGeometry) {
                   const geoJsonLayer = L.geoJSON(routeGeometry, {
                       style: { color: '#3b82f6', weight: 5, opacity: 0.8 }
                   }).addTo(map);
-                  map.fitBounds(geoJsonLayer.getBounds(), { padding: [40, 40] });
-              } else {
-                  map.fitBounds([
-                      [${driverLat}, ${driverLng}],
-                      [${whLat}, ${whLng}]
-                  ], { padding: [40, 40] });
               }
           </script>
       </body>
       </html>
     `;
   };
+
+  const isCustomer = mode === 'customer';
 
   return (
     <View style={styles.container}>
@@ -160,13 +270,31 @@ export default function NavigationScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ChevronLeft color="#fff" size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Navigation</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle}>{isCustomer ? 'Delivery Route' : 'Navigation'}</Text>
+        <View style={styles.headerRight}>
+          {canEnableTestMode && (
+             <TouchableOpacity 
+               style={[styles.testModeBtn, isTestMode && styles.testModeBtnActive]}
+               onPress={() => setIsTestMode(!isTestMode)}
+             >
+               <Text style={[styles.testModeText, isTestMode && styles.testModeTextActive]}>
+                 {isTestMode ? 'TEST ON' : 'TEST OFF'}
+               </Text>
+             </TouchableOpacity>
+          )}
+        </View>
       </View>
+
+      {/* Test Mode Warning */}
+      {isTestMode && (
+        <View style={styles.testModeWarning}>
+          <Text style={styles.testModeWarningText}>TEST ROUTE - Simulated origin: warehouse</Text>
+        </View>
+      )}
 
       {/* Map Area */}
       <View style={styles.mapContainer}>
-        {loading ? (
+        {loading && !routeGeoJSON ? (
           <View style={styles.centerBox}>
             <ActivityIndicator size="large" color="#3b82f6" />
             <Text style={styles.loadingText}>Calculating route...</Text>
@@ -174,7 +302,7 @@ export default function NavigationScreen() {
         ) : errorMsg ? (
           <View style={styles.centerBox}>
             <Text style={styles.errorText}>{errorMsg}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchRouteAndLocation}>
+            <TouchableOpacity style={styles.retryBtn} onPress={startLiveTracking}>
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -203,13 +331,32 @@ export default function NavigationScreen() {
           </View>
         </View>
 
-        <Text style={styles.destinationText} numberOfLines={1}>
-          <MapPin color="#10b981" size={16} /> {gig?.warehouses?.name || 'Warehouse'}
-        </Text>
+        <View style={styles.destinationBox}>
+          <View style={styles.destIconWrapper}>
+            <MapPin color={isCustomer ? "#f59e0b" : "#10b981"} size={20} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.destinationName} numberOfLines={1}>
+              {destinationName || (isCustomer ? 'Customer' : 'Warehouse')}
+            </Text>
+            {destinationAddress && (
+              <Text style={styles.destinationAddress} numberOfLines={1}>
+                {destinationAddress}
+              </Text>
+            )}
+          </View>
+        </View>
         
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleCheckIn}>
-            <Text style={styles.primaryBtnText}>Arrived / Check In</Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handlePrimaryAction}>
+            {isCustomer ? (
+               <View style={styles.btnContent}>
+                  <CheckCircle2 color="#030712" size={20} />
+                  <Text style={styles.primaryBtnText}>Reached drop</Text>
+               </View>
+            ) : (
+               <Text style={styles.primaryBtnText}>Arrived / Check In</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.externalBtn} onPress={handleOpenExternalMaps}>
             <ExternalLink color="#fff" size={20} />
@@ -234,6 +381,13 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 8 },
   headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  headerRight: { minWidth: 60, alignItems: 'flex-end' },
+  testModeBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, backgroundColor: '#262626' },
+  testModeBtnActive: { backgroundColor: '#fef08a' },
+  testModeText: { color: '#9ca3af', fontSize: 10, fontWeight: 'bold' },
+  testModeTextActive: { color: '#854d0e' },
+  testModeWarning: { backgroundColor: '#fef08a', padding: 8, alignItems: 'center' },
+  testModeWarningText: { color: '#854d0e', fontSize: 12, fontWeight: 'bold' },
   mapContainer: { flex: 1, backgroundColor: '#1c1c1e' },
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   loadingText: { color: '#9ca3af', marginTop: 12 },
@@ -259,7 +413,10 @@ const styles = StyleSheet.create({
   infoDivider: { width: 1, height: 30, backgroundColor: '#404040' },
   infoLabel: { color: '#a3a3a3', fontSize: 12, fontWeight: '600', marginBottom: 4 },
   infoValue: { color: '#fff', fontSize: 24, fontWeight: '800' },
-  destinationText: { color: '#e5e5e5', fontSize: 16, fontWeight: '500', marginBottom: 20 },
+  destinationBox: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  destIconWrapper: { marginRight: 12, padding: 8, backgroundColor: '#171717', borderRadius: 8 },
+  destinationName: { color: '#e5e5e5', fontSize: 16, fontWeight: '600' },
+  destinationAddress: { color: '#9ca3af', fontSize: 14, marginTop: 2 },
   actionsRow: { flexDirection: 'row', gap: 12 },
   primaryBtn: {
     flex: 1,
@@ -269,6 +426,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  btnContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   primaryBtnText: { color: '#030712', fontSize: 16, fontWeight: '700' },
   externalBtn: {
     backgroundColor: '#262626',

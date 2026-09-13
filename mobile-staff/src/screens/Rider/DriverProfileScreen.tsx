@@ -40,41 +40,45 @@ export default function ProfileScreen() {
           ? supabase.from('warehouses').select('name').eq('id', profile.warehouse_id).single()
           : Promise.resolve({ data: null });
 
-        // Fetch Onboarding Status & Selfie
-        const onboardingPromise = supabase
-          .from('driver_onboarding')
-          .select('status, selfie_url, vehicle_type')
-          .eq('id', profile.id)
-          .maybeSingle();
+        // Driver-specific fetches
+        let onboardingPromise: any = Promise.resolve({ data: null });
+        let nomineePromise: any = Promise.resolve({ data: null });
+        let payoutPromise: any = Promise.resolve({ data: null });
+        let agreementPromise: any = Promise.resolve({ data: null });
+        let vehiclePromise: any = Promise.resolve({ data: null });
 
-        // Check if Nominee exists
-        const nomineePromise = supabase
-          .from('driver_nominee_details')
-          .select('driver_id')
-          .eq('driver_id', profile.id)
-          .maybeSingle();
+        if (profile.role === 'driver') {
+          onboardingPromise = supabase
+            .from('driver_onboarding')
+            .select('status, selfie_url, vehicle_type')
+            .eq('id', profile.id)
+            .maybeSingle();
 
-        // Check if Payout exists
-        const payoutPromise = supabase
-          .from('driver_payout_details')
-          .select('driver_id')
-          .eq('driver_id', profile.id)
-          .maybeSingle();
+          nomineePromise = supabase
+            .from('driver_nominee_details')
+            .select('driver_id')
+            .eq('driver_id', profile.id)
+            .maybeSingle();
 
-        // Check if Agreement exists
-        const agreementPromise = supabase
-          .from('driver_agreement_acceptances')
-          .select('driver_id')
-          .eq('driver_id', profile.id)
-          .maybeSingle();
+          payoutPromise = supabase
+            .from('driver_payout_details')
+            .select('driver_id')
+            .eq('driver_id', profile.id)
+            .maybeSingle();
 
-        // Check if Vehicle exists
-        const vehiclePromise = supabase
-          .from('vehicles')
-          .select('license_plate, status')
-          .eq('owner_driver_id', profile.id)
-          .eq('ownership_type', 'driver_owned')
-          .maybeSingle();
+          agreementPromise = supabase
+            .from('driver_agreement_acceptances')
+            .select('driver_id')
+            .eq('driver_id', profile.id)
+            .maybeSingle();
+
+          vehiclePromise = supabase
+            .from('vehicles')
+            .select('license_plate, status')
+            .eq('owner_driver_id', profile.id)
+            .eq('ownership_type', 'driver_owned')
+            .maybeSingle();
+        }
 
         const [whRes, onbRes, nomRes, payRes, agrRes, vehRes] = await Promise.allSettled([
           warehousePromise,
@@ -216,96 +220,102 @@ export default function ProfileScreen() {
         </View>
 
         {/* Quick Actions (Visual placehoder / Disabled for now) */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
-            <View style={styles.actionIconBg}><Map size={24} color="#64748b" /></View>
-            <Text style={styles.actionText}>Trips History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
-            <View style={styles.actionIconBg}><PackageOpen size={24} color="#64748b" /></View>
-            <Text style={styles.actionText}>Gigs History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
-            <View style={styles.actionIconBg}><Award size={24} color="#64748b" /></View>
-            <Text style={styles.actionText}>Your Offers</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Documents & Verification */}
-        <Text style={styles.sectionHeader}>Documents & Verification</Text>
-        <View style={styles.sectionCard}>
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <ShieldCheck size={20} color="#94a3b8" />
-              <Text style={styles.rowTitle}>Verification Status</Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: `${statusConfig.color}15`, borderColor: `${statusConfig.color}30` }]}>
-              <StatusIcon size={12} color={statusConfig.color} style={{marginRight: 4}} />
-              <Text style={[styles.statusText, {color: statusConfig.color}]}>{statusConfig.label}</Text>
-            </View>
-          </View>
-          <View style={styles.divider} />
-          
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <FileText size={20} color="#94a3b8" />
-              <Text style={styles.rowTitle}>Nominee Details</Text>
-            </View>
-            <Text style={[styles.statusTextValue, nomineeStatus === 'Completed' ? styles.textSuccess : styles.textWarning]}>
-              {nomineeStatus}
-            </Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <CreditCard size={20} color="#94a3b8" />
-              <Text style={styles.rowTitle}>Payout Details</Text>
-            </View>
-            <Text style={[styles.statusTextValue, payoutStatus === 'Completed' ? styles.textSuccess : styles.textWarning]}>
-              {payoutStatus}
-            </Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <FileText size={20} color="#94a3b8" />
-              <Text style={styles.rowTitle}>Agreement</Text>
-            </View>
-            <Text style={[styles.statusTextValue, agreementStatus === 'Accepted' ? styles.textSuccess : styles.textWarning]}>
-              {agreementStatus}
-            </Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={[styles.row, { alignItems: 'flex-start' }]}>
-            <View style={styles.rowLeft}>
-              <FileText size={20} color="#94a3b8" style={{ marginTop: 2 }} />
-              <View>
-                <Text style={styles.rowTitle}>Vehicle Details</Text>
-                {vehicleDetails && (
-                  <>
-                    <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
-                      {vehicleDetails.label} • {vehicleDetails.plate}
-                    </Text>
-                    <Text style={{ 
-                      color: vehicleDetails.status === 'Approved' ? '#10b981' : vehicleDetails.status === 'Rejected' ? '#ef4444' : '#f59e0b', 
-                      fontSize: 12, 
-                      marginTop: 2,
-                      fontWeight: '600'
-                    }}>
-                      {vehicleDetails.status}
-                    </Text>
-                  </>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity onPress={() => navigation.navigate('VehicleType')} style={{ paddingVertical: 2 }}>
-              <Text style={{color: '#3b82f6', fontWeight: 'bold'}}>{vehicleDetails ? 'Edit' : 'Update'}</Text>
+        {profile?.role === 'driver' && (
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
+              <View style={styles.actionIconBg}><Map size={24} color="#64748b" /></View>
+              <Text style={styles.actionText}>Trips History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
+              <View style={styles.actionIconBg}><PackageOpen size={24} color="#64748b" /></View>
+              <Text style={styles.actionText}>Gigs History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
+              <View style={styles.actionIconBg}><Award size={24} color="#64748b" /></View>
+              <Text style={styles.actionText}>Your Offers</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        )}
+
+        {/* Documents & Verification */}
+        {profile?.role === 'driver' && (
+          <>
+            <Text style={styles.sectionHeader}>Documents & Verification</Text>
+            <View style={styles.sectionCard}>
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <ShieldCheck size={20} color="#94a3b8" />
+                  <Text style={styles.rowTitle}>Verification Status</Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: `${statusConfig.color}15`, borderColor: `${statusConfig.color}30` }]}>
+                  <StatusIcon size={12} color={statusConfig.color} style={{marginRight: 4}} />
+                  <Text style={[styles.statusText, {color: statusConfig.color}]}>{statusConfig.label}</Text>
+                </View>
+              </View>
+              <View style={styles.divider} />
+              
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <FileText size={20} color="#94a3b8" />
+                  <Text style={styles.rowTitle}>Nominee Details</Text>
+                </View>
+                <Text style={[styles.statusTextValue, nomineeStatus === 'Completed' ? styles.textSuccess : styles.textWarning]}>
+                  {nomineeStatus}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <CreditCard size={20} color="#94a3b8" />
+                  <Text style={styles.rowTitle}>Payout Details</Text>
+                </View>
+                <Text style={[styles.statusTextValue, payoutStatus === 'Completed' ? styles.textSuccess : styles.textWarning]}>
+                  {payoutStatus}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <FileText size={20} color="#94a3b8" />
+                  <Text style={styles.rowTitle}>Agreement</Text>
+                </View>
+                <Text style={[styles.statusTextValue, agreementStatus === 'Accepted' ? styles.textSuccess : styles.textWarning]}>
+                  {agreementStatus}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={[styles.row, { alignItems: 'flex-start' }]}>
+                <View style={styles.rowLeft}>
+                  <FileText size={20} color="#94a3b8" style={{ marginTop: 2 }} />
+                  <View>
+                    <Text style={styles.rowTitle}>Vehicle Details</Text>
+                    {vehicleDetails && (
+                      <>
+                        <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
+                          {vehicleDetails.label} • {vehicleDetails.plate}
+                        </Text>
+                        <Text style={{ 
+                          color: vehicleDetails.status === 'Approved' ? '#10b981' : vehicleDetails.status === 'Rejected' ? '#ef4444' : '#f59e0b', 
+                          fontSize: 12, 
+                          marginTop: 2,
+                          fontWeight: '600'
+                        }}>
+                          {vehicleDetails.status}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => navigation.navigate('VehicleType')} style={{ paddingVertical: 2 }}>
+                  <Text style={{color: '#3b82f6', fontWeight: 'bold'}}>{vehicleDetails ? 'Edit' : 'Update'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
 
         {/* App Settings */}
         <Text style={styles.sectionHeader}>App Settings</Text>

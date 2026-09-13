@@ -312,7 +312,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       let failedModules: string[] = [];
       const [cats, ords, profs, coups, vends, procs, ltrips, liveBatches] = await Promise.all([
-        CategoriesService.getCategories().catch(e => { console.warn('Categories fallback', e); failedModules.push('Categories'); return FlashGoDB.getCategories(); }),
+        // IMPORTANT: Do NOT fall back to FlashGoDB.getCategories() on failure when Supabase is configured.
+        // Mock category UUIDs (c1, c2...) do not match real Supabase product category_ids,
+        // causing all category filters (e.g., Baby Care) to return 0 results incorrectly.
+        CategoriesService.getCategories().catch(e => { console.warn('Categories Supabase fetch failed', e); failedModules.push('Categories'); return []; }),
         OrdersService.getOrders().catch(e => { console.warn('Orders fallback', e); failedModules.push('Orders'); return FlashGoDB.getOrders(); }),
         UsersService.getProfiles().catch(e => { console.warn('Profiles fallback', e); failedModules.push('Profiles'); return FlashGoDB.getProfiles(); }),
         CouponsService.getCoupons().catch(e => { console.warn('Coupons fallback', e); failedModules.push('Coupons'); return FlashGoDB.getCoupons(); }),
@@ -337,9 +340,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       let loadedProducts = [] as any[];
       if (authenticatedProfile?.warehouse_id) {
-        loadedProducts = await InventoryService.getWarehouseStock(authenticatedProfile.warehouse_id).catch((e: any) => { console.warn('Inventory fallback', e); failedModules.push('WarehouseStock'); return FlashGoDB.getProducts(); });
+        // Warehouse staff: load stock for their warehouse from Supabase.
+        // On failure, do NOT fall back to stale localStorage — keep empty and surface error.
+        loadedProducts = await InventoryService.getWarehouseStock(authenticatedProfile.warehouse_id).catch((e: any) => {
+          console.warn('WarehouseStock Supabase fetch failed', e);
+          failedModules.push('WarehouseStock');
+          return []; // Do NOT fall back to FlashGoDB.getProducts() — that would merge stale local data
+        });
       } else {
-        loadedProducts = await ProductsService.getProducts().catch((e: any) => { console.warn('Products fallback', e); failedModules.push('Products'); return FlashGoDB.getProducts(); });
+        // Admin / unauthenticated: load the full authoritative catalog from Supabase.
+        // On failure, do NOT fall back to stale localStorage — keep empty and surface error.
+        loadedProducts = await ProductsService.getProducts().catch((e: any) => {
+          console.warn('Products Supabase fetch failed', e);
+          failedModules.push('Products');
+          return []; // Do NOT fall back to FlashGoDB.getProducts() — that would mix stale local data into the authoritative catalog
+        });
       }
 
       // Check if critical endpoints failed which would constitute a full fallback

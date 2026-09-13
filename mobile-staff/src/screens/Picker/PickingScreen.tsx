@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  Alert, Image, Modal, ScrollView, TextInput
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ChevronLeft, Maximize, AlertTriangle, Check } from 'lucide-react-native';
+import { Check, X, Camera as CameraIcon, Keyboard } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import Barcode from 'react-native-barcode-svg';
 
 export default function PickingScreen() {
   const navigation = useNavigation<any>();
@@ -15,67 +20,79 @@ export default function PickingScreen() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [pickedQty, setPickedQty] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch Items
+  // Timer state
+  const [orderData, setOrderData] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date().getTime());
+
+  // Barcode Scanning State
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScanning, setIsScanning] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [processingScan, setProcessingScan] = useState(false);
+  const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
+
+  // Manual entry state
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualBarcode, setManualBarcode] = useState('');
+
+  useEffect(() => {
+    fetchOrderData();
+    const interval = setInterval(() => setCurrentTime(new Date().getTime()), 1000);
+    return () => clearInterval(interval);
+  }, [orderId]);
+
   const fetchOrderData = async () => {
     try {
       setLoading(true);
-      const { data: orderItems, error } = await supabase
-        .from('order_items')
-        .select(`
-          id, quantity, status,
-          product:products (
-            id, name, image_url, barcode, sku,
-            warehouse_locations ( location_code )
-          )
-        `)
-        .eq('order_id', orderId)
-        .order('id', { ascending: true });
 
-      if (error) throw error;
-      
-      // Need to find which items are already fully picked
-      const { data: ledgers, error: ledgerError } = await supabase
-        .from('stock_ledgers')
-        .select('product_id, quantity_change')
-        .eq('order_id', orderId)
-        .in('reason', ['picking', 'picking_undo']);
-        
-      if (ledgerError) throw ledgerError;
-      
-      const pickedMap: Record<string, number> = {};
-      ledgers?.forEach(l => {
-        pickedMap[l.product_id] = (pickedMap[l.product_id] || 0) + Math.abs(l.quantity_change);
+      // Fetch timer info
+      console.log('PICKING_SCREEN_ORDER', { orderId });
+      const { data: order } = await supabase
+        .from('orders')
+        .select('status, picker_assigned_at, warehouse_id')
+        .eq('id', orderId)
+        .single();
+      setOrderData(order);
+
+      // Recovery: If order is already packed or further along, go straight to Handover
+      if (order && order.status !== 'picking' && order.status !== 'placed') {
+        navigation.replace('HandoverToDriver', { orderId });
+        return;
+      }
+
+      console.log('PICKING_PICK_LINES_REQUEST', { orderId });
+      const { data: pickLines, error } = await supabase.rpc('get_pick_lines_for_order', {
+        p_order_id: orderId
       });
+      console.log('PICKING_PICK_LINES_RESULT', { linesCount: pickLines?.length, error });
+      if (error) throw error;
 
-      const processedItems = orderItems.map((item: any) => ({
+      const processedItems = (pickLines || []).map((item: any) => ({
         ...item,
-        picked_quantity: pickedMap[item.product?.id] || 0
+        picked_quantity: 0,
+        quantity: item.allocated_quantity
       }));
 
       setItems(processedItems);
-      
-      // Find first unpicked
-      const firstUnpicked = processedItems.findIndex(i => i.picked_quantity < i.quantity && i.status !== 'out_of_stock');
-      if (firstUnpicked !== -1) {
-        setCurrentIndex(firstUnpicked);
-        setPickedQty(processedItems[firstUnpicked].picked_quantity);
+
+      if (processedItems.length > 0) {
+        setCurrentIndex(0);
+        setIsVerified(false);
+        setScannedBarcode(null);
+        setManualBarcode('');
+        setShowManualEntry(false);
       } else {
-        // All picked! Finish.
         await finishPicking();
       }
     } catch (e: any) {
+      console.log('PICKING_LOAD_ERROR', e);
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchOrderData();
-  }, [orderId]);
 
   const finishPicking = async () => {
     setSubmitting(true);
@@ -85,383 +102,421 @@ export default function PickingScreen() {
         p_picker_id: profile.id
       });
       if (error) throw error;
-      
-      navigation.navigate('HandoverToDriver', { orderId });
+      navigation.replace('HandoverToDriver', { orderId });
     } catch (e: any) {
       Alert.alert('Completion Error', e.message);
       setSubmitting(false);
     }
   };
 
-  const currentItem = items[currentIndex];
+  // Authoritative barcode validation via resolve_product_barcode → pick_fefo_location_item
+  const handleBarcodeScanned = async ({ data }: any) => {
+    if (processingScan) return;
+    setProcessingScan(true);
 
-  const handlePickIncrement = (amount: number) => {
-    if (!currentItem) return;
-    const newQty = Math.max(0, Math.min(currentItem.quantity, pickedQty + amount));
-    setPickedQty(newQty);
-  };
-
-  const confirmPick = async () => {
-    if (!currentItem || pickedQty === 0) return;
-    
-    // We only want to pick the remaining unpicked amount up to what the user selected.
-    // If they selected full quantity, we pick (pickedQty - already picked)
-    const qtyToPick = pickedQty - currentItem.picked_quantity;
-    
-    if (qtyToPick <= 0) {
-      // Move to next item
-      fetchOrderData();
-      return;
-    }
-
-    setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('pick_fefo_item', {
-        p_warehouse_id: profile.warehouse_id,
-        p_product_id: currentItem.product.id,
-        p_quantity: qtyToPick,
-        p_order_id: orderId,
-        p_user_id: profile.id
-      });
-
-      if (error) throw error;
+      const currentItem = items[currentIndex];
       
-      // Fetch again to update state
-      await fetchOrderData();
+      setSubmitting(true);
+      const { error } = await supabase.rpc('pick_fefo_location_item', {
+        p_warehouse_id: profile.warehouse_id,
+        p_product_id: currentItem.product_id,
+        p_location_id: currentItem.location_id,
+        p_quantity: 1, // Only increment 1 unit per scan
+        p_order_id: orderId,
+        p_user_id: profile.id,
+        p_scanned_barcode: data
+      });
+      
+      if (error) {
+        // Handle specific server-side errors
+        if (error.message.includes('not match the expected product')) {
+            Alert.alert('Wrong product scanned', `Please scan the barcode for ${currentItem.product_name}.`);
+        } else if (error.message.includes('not recognized')) {
+            Alert.alert('Barcode not recognized', 'This barcode does not match any product in our system.');
+        } else {
+            throw error;
+        }
+      } else {
+        // Backend succeeded — refresh pick lines
+        await fetchOrderData();
+        // Do not close the scanner, allow subsequent scans if more items are needed
+      }
     } catch (e: any) {
-      Alert.alert('FEFO Pick Error', e.message);
+      Alert.alert('Pick Error', e.message, [{ text: 'OK' }]);
     } finally {
       setSubmitting(false);
+      setProcessingScan(false);
     }
+  };
+
+  const submitManualBarcode = async () => {
+    if (!manualBarcode.trim() || processingScan) return;
+    setIsScanning(false);
+    await handleBarcodeScanned({ data: manualBarcode.trim() });
+  };
+
+  // Timer display
+  const getTimerStrings = () => {
+    if (!orderData?.picker_assigned_at) return { mStr: '02', sStr: '30' };
+    const targetTime = new Date(orderData.picker_assigned_at).getTime() + 150000;
+    const remainingMs = Math.max(0, targetTime - currentTime);
+    const m = Math.floor(remainingMs / 60000);
+    const s = Math.floor((remainingMs % 60000) / 1000);
+    return {
+      mStr: m < 10 ? `0${m}` : `${m}`,
+      sStr: s < 10 ? `0${s}` : `${s}`
+    };
   };
 
   if (loading && items.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10b981" />
-      </View>
+        <Text style={styles.loadingText}>Loading pick route...</Text>
+      </SafeAreaView>
     );
+  }
+
+  const currentItem = items[currentIndex];
+  
+  if (currentItem) {
+    console.log('PICKING_LINE_RENDER_DATA', {
+      product_id: currentItem.product_id,
+      product_name: currentItem.product_name,
+      required_quantity: currentItem.quantity, // this is allocated_quantity from the API, mapped to quantity
+      allocated_remaining_quantity: currentItem.quantity,
+      internal_barcode: currentItem.internal_barcode,
+      location_code: currentItem.location_code
+    });
+
+    if (currentItem.internal_barcode) {
+      console.log('PICKING_BARCODE_RENDER_DATA', {
+        internal_barcode: currentItem.internal_barcode,
+        format: "CODE128",
+        maxWidth: 300,
+        height: 60,
+        singleBarWidth: 2,
+        lineColor: "#000000",
+        backgroundColor: "#FFFFFF"
+      });
+    }
   }
 
   if (!currentItem) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10b981" />
-        <Text style={{color: '#fff', marginTop: 16}}>Finalizing order...</Text>
-      </View>
+        <Text style={styles.loadingText}>Finalizing order...</Text>
+      </SafeAreaView>
     );
   }
 
-  const locationCode = currentItem.product?.warehouse_locations?.[0]?.location_code;
+  const { mStr, sStr } = getTimerStrings();
+  const shortOrderId = orderId.substring(0, 8).toUpperCase();
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* ── HEADER ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft color="#fff" size={28} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitle}>Order #{orderId.substring(0, 8).toUpperCase()}</Text>
-          <Text style={styles.timerText}>05:00</Text>
-        </View>
-        <TouchableOpacity style={styles.iconBtn}>
-          <AlertTriangle color="#9ca3af" size={24} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Item Progress */}
-      <View style={styles.progressContainer}>
-        {items.map((item, idx) => {
-          const isCompleted = item.picked_quantity >= item.quantity;
-          const isCurrent = idx === currentIndex;
-          return (
-            <View 
-              key={item.id} 
-              style={[
-                styles.progressDot, 
-                isCompleted ? styles.dotCompleted : isCurrent ? styles.dotCurrent : styles.dotPending
-              ]}
-            >
-              {isCompleted ? <Check color="#fff" size={12} /> : null}
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.headerLabel}>Order ID</Text>
+            <Text style={styles.headerOrderId}>#{shortOrderId}</Text>
+          </View>
+          <View style={styles.timerContainer}>
+            <View style={styles.timerBox}>
+              <Text style={styles.timerBoxText}>{mStr} MIN</Text>
             </View>
-          );
-        })}
+            <View style={styles.timerBox}>
+              <Text style={styles.timerBoxText}>{sStr} SEC</Text>
+            </View>
+            <Text style={styles.timerDots}>⋮</Text>
+          </View>
+        </View>
+
+        {/* Product thumbnail strip */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailScroll}>
+          {items.map((item, index) => (
+            <View key={index} style={[styles.thumbnailWrapper, index === currentIndex && styles.thumbnailActive]}>
+              {item.image_url ? (
+                <Image source={{ uri: item.image_url }} style={styles.thumbnailImage} resizeMode="contain" />
+              ) : (
+                <View style={styles.thumbnailPlaceholder} />
+              )}
+            </View>
+          ))}
+        </ScrollView>
       </View>
 
-      <View style={styles.content}>
-        {/* Location Info */}
+      <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
+        {/* ── LOCATION STRIP ── */}
         <View style={styles.locationContainer}>
-          <Text style={styles.locationLabel}>Location</Text>
-          {locationCode ? (
-            <View style={styles.locationBadge}>
-              <Text style={styles.locationText}>{locationCode}</Text>
-            </View>
-          ) : (
-            <Text style={styles.locationMissingText}>Location not mapped</Text>
-          )}
+          <Text style={styles.locationText}>{currentItem.location_code || 'UNAVAILABLE'}</Text>
+          <Text style={styles.locationMore}>More</Text>
         </View>
 
-        {/* Product Card */}
+        {/* ── PRODUCT AREA ── */}
         <View style={styles.productCard}>
-          <View style={styles.productImageContainer}>
-            {currentItem.product.image_url ? (
-              <Image source={{ uri: currentItem.product.image_url }} style={styles.productImage} />
-            ) : (
-              <View style={styles.productPlaceholder} />
-            )}
-            <TouchableOpacity style={styles.scanButton}>
-              <Maximize color="#fff" size={20} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.productName}>{currentItem.product.name}</Text>
-          <Text style={styles.productSku}>SKU: {currentItem.product.sku}</Text>
-        </View>
-
-        {/* Quantity Controls */}
-        <View style={styles.quantitySection}>
-          <Text style={styles.reqQuantityText}>Required: {currentItem.quantity}</Text>
-          <View style={styles.quantityControls}>
-            <TouchableOpacity 
-              style={styles.qtyBtn} 
-              onPress={() => handlePickIncrement(-1)}
-              disabled={pickedQty <= 0}
-            >
-              <Text style={styles.qtyBtnText}>-</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.qtyDisplay}>
-              <Text style={styles.qtyDisplayText}>
-                <Text style={{color: '#fff', fontSize: 32}}>{pickedQty}</Text>
-                <Text style={{color: '#9ca3af', fontSize: 24}}> / {currentItem.quantity}</Text>
-              </Text>
+          <View style={styles.productLayoutRow}>
+            {/* Left: product image */}
+            <View style={styles.productImageContainer}>
+              {currentItem.image_url ? (
+                <Image source={{ uri: currentItem.image_url }} style={styles.productImageLarge} resizeMode="contain" />
+              ) : (
+                <View style={[styles.productImageLarge, styles.placeholderImage]} />
+              )}
+              {isVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Check color="#fff" size={14} strokeWidth={3} />
+                </View>
+              )}
             </View>
 
-            <TouchableOpacity 
-              style={styles.qtyBtn} 
-              onPress={() => handlePickIncrement(1)}
-              disabled={pickedQty >= currentItem.quantity}
-            >
-              <Text style={styles.qtyBtnText}>+</Text>
-            </TouchableOpacity>
+            {/* Right: metrics */}
+            <View style={styles.productDetailsContainer}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Quantity</Text>
+                <Text style={styles.detailValueLarge}>{currentItem.quantity}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Weight</Text>
+                <Text style={styles.detailValue}>{currentItem.weight || 'N/A'}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Price</Text>
+                <Text style={styles.detailValue}>₹{currentItem.price ?? 0}</Text>
+              </View>
+            </View>
           </View>
-        </View>
-      </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[
-            styles.confirmButton, 
-            (pickedQty === 0 || submitting) && { opacity: 0.5 }
-          ]}
-          onPress={confirmPick}
-          disabled={pickedQty === 0 || submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#000" />
+          <Text style={styles.productNameTitle}>{currentItem.product_name}</Text>
+          {currentItem.internal_barcode ? (
+            <View style={{ marginTop: 12, alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#3f3f46', marginBottom: 4 }}>
+                FlashGO Barcode
+              </Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#18181b', marginBottom: 8 }}>
+                {currentItem.internal_barcode}
+              </Text>
+              <View style={{ backgroundColor: '#fff', padding: 8, borderRadius: 4, width: '100%', alignItems: 'center' }}>
+                <Barcode 
+                  value={currentItem.internal_barcode} 
+                  format="CODE128" 
+                  maxWidth={300} 
+                  height={60} 
+                  singleBarWidth={2}
+                  lineColor="#000000"
+                  backgroundColor="#FFFFFF"
+                />
+              </View>
+            </View>
+          ) : currentItem.manufacturer_barcode_verified ? (
+            <Text style={styles.productCodeText}>UPC/EAN: {currentItem.manufacturer_barcode}</Text>
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm Pick</Text>
+            <Text style={styles.productCodeText}>
+              Product Code: {currentItem.product_id ? currentItem.product_id.substring(0, 8).toUpperCase() : 'N/A'}
+            </Text>
           )}
-        </TouchableOpacity>
-      </View>
+        </View>
+
+        {/* ── BARCODE / SCANNER SECTION ── */}
+        <View style={styles.scannerSection}>
+          {showManualEntry ? (
+            <View style={styles.manualEntryContainer}>
+              <Text style={styles.manualEntryTitle}>Enter UPC Manually</Text>
+              <TextInput
+                style={styles.barcodeInput}
+                placeholder="Enter UPC / barcode..."
+                value={manualBarcode}
+                onChangeText={setManualBarcode}
+                autoCapitalize="none"
+                autoFocus
+                keyboardType="default"
+              />
+              <View style={styles.manualActions}>
+                <TouchableOpacity
+                  style={[styles.manualBtn, styles.manualBtnCancel]}
+                  onPress={() => { setShowManualEntry(false); setManualBarcode(''); }}
+                >
+                  <Text style={styles.manualBtnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.manualBtn, styles.manualBtnSubmit, (!manualBarcode.trim() || processingScan) && styles.manualBtnDisabled]}
+                  onPress={submitManualBarcode}
+                  disabled={!manualBarcode.trim() || processingScan || submitting}
+                >
+                  {processingScan || submitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.manualBtnSubmitText}>Verify & Pick</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.scanCameraBtn, isVerified && styles.scanCameraBtnVerified]}
+                onPress={() => {
+                  if (!permission?.granted) { requestPermission(); return; }
+                  setIsScanning(true);
+                }}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : isVerified ? (
+                  <>
+                    <Check color="#fff" size={20} strokeWidth={3} />
+                    <Text style={styles.scanCameraBtnText}>Verified — Scan next</Text>
+                  </>
+                ) : (
+                  <>
+                    <CameraIcon color="#fff" size={20} />
+                    <Text style={styles.scanCameraBtnText}>Scan Barcode</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.manualLinkBtn}
+                onPress={() => setShowManualEntry(true)}
+              >
+                <Keyboard size={16} color="#10b981" style={{ marginRight: 6 }} />
+                <Text style={styles.manualLinkText}>Enter UPC manually</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* ── FULLSCREEN CAMERA SCANNER MODAL ── */}
+      <Modal visible={isScanning} animationType="slide" transparent={false}>
+        <View style={styles.scannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            barcodeScannerSettings={{
+              barcodeTypes: ['ean13', 'upc_a', 'upc_e', 'ean8', 'qr', 'code39', 'code128'],
+            }}
+            onBarcodeScanned={processingScan ? undefined : handleBarcodeScanned}
+          />
+          <SafeAreaView style={styles.scannerOverlay}>
+            <View style={styles.scannerHeader}>
+              <TouchableOpacity
+                style={styles.scannerCloseBtn}
+                onPress={() => { setIsScanning(false); setProcessingScan(false); }}
+              >
+                <X color="#fff" size={28} />
+              </TouchableOpacity>
+              <Text style={styles.scannerTitle}>Scan Product Barcode</Text>
+              <View style={{ width: 44 }} />
+            </View>
+
+            <View style={styles.scannerTarget}>
+              <View style={styles.targetCornerTL} />
+              <View style={styles.targetCornerTR} />
+              <View style={styles.targetCornerBL} />
+              <View style={styles.targetCornerBR} />
+              {processingScan && (
+                <View style={styles.scannerLoadingBox}>
+                  <ActivityIndicator color="#10b981" size="large" />
+                  <Text style={styles.scannerLoadingText}>Verifying...</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.scannerFooter}>
+              <Text style={styles.scannerHelpText}>Align the barcode within the frame.</Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#030712',
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#030712',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1f2937',
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleBox: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  timerText: {
-    color: '#ef4444',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  iconBtn: {
-    padding: 4,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  progressDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dotCompleted: {
-    backgroundColor: '#10b981',
-  },
-  dotCurrent: {
-    backgroundColor: '#3b82f6',
-    borderWidth: 2,
-    borderColor: '#60a5fa',
-  },
-  dotPending: {
-    backgroundColor: '#374151',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  locationContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  locationLabel: {
-    color: '#9ca3af',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  locationBadge: {
-    backgroundColor: '#1e3a8a',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-  },
-  locationText: {
-    color: '#60a5fa',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  locationMissingText: {
-    color: '#9ca3af',
-    fontSize: 16,
-    fontStyle: 'italic',
-  },
-  productCard: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  productImageContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 12,
-    backgroundColor: '#1f2937',
-    marginBottom: 16,
-    position: 'relative',
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 12,
-  },
-  productPlaceholder: {
-    flex: 1,
-  },
-  scanButton: {
-    position: 'absolute',
-    bottom: -16,
-    right: -16,
-    backgroundColor: '#374151',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#111827',
-  },
-  productName: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  productSku: {
-    color: '#9ca3af',
-    fontSize: 14,
-  },
-  quantitySection: {
-    alignItems: 'center',
-  },
-  reqQuantityText: {
-    color: '#9ca3af',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  quantityControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 24,
-  },
-  qtyBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#374151',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  qtyBtnText: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: '300',
-  },
-  qtyDisplay: {
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  qtyDisplayText: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  footer: {
-    padding: 16,
-    backgroundColor: '#111827',
-    borderTopWidth: 1,
-    borderTopColor: '#1f2937',
-  },
-  confirmButton: {
-    backgroundColor: '#10b981',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  confirmButtonText: {
-    color: '#000',
-    fontSize: 18,
-    fontWeight: 'bold',
-  }
+  container: { flex: 1, backgroundColor: '#ffffff' },
+  loadingContainer: { flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 16, fontSize: 16, color: '#4b5563', fontWeight: '500' },
+
+  // Header
+  header: { backgroundColor: '#ffffff', paddingTop: 16, paddingBottom: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  headerLabel: { fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', fontWeight: '700', marginBottom: 2, letterSpacing: 0.5 },
+  headerOrderId: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+
+  // Timer amber pill boxes
+  timerContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  timerBox: { backgroundColor: '#fef3c7', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: '#fde68a' },
+  timerBoxText: { fontSize: 13, fontWeight: 'bold', color: '#b45309' },
+  timerDots: { fontSize: 18, color: '#9ca3af', fontWeight: 'bold', marginLeft: 2 },
+
+  // Product thumbnail strip
+  thumbnailScroll: { flexDirection: 'row', marginTop: 4 },
+  thumbnailWrapper: { width: 46, height: 46, borderRadius: 8, borderWidth: 1.5, borderColor: '#e5e7eb', marginRight: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb', overflow: 'hidden' },
+  thumbnailActive: { borderColor: '#10b981', borderWidth: 2.5, backgroundColor: '#f0fdf4' },
+  thumbnailImage: { width: '85%', height: '85%' },
+  thumbnailPlaceholder: { width: '60%', height: '60%', backgroundColor: '#e5e7eb', borderRadius: 4 },
+
+  // Scroll body
+  scrollContent: { padding: 16, paddingBottom: 40 },
+
+  // Location strip (yellow-tinted, reference-style)
+  locationContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fef9c3', paddingVertical: 13, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#fef08a', marginBottom: 20 },
+  locationText: { color: '#854d0e', fontSize: 17, fontWeight: 'bold', letterSpacing: 0.5 },
+  locationMore: { color: '#ca8a04', fontSize: 14, fontWeight: '600' },
+
+  // Product area
+  productCard: { backgroundColor: '#ffffff', marginBottom: 20 },
+  productLayoutRow: { flexDirection: 'row', marginBottom: 14, alignItems: 'flex-start' },
+  productImageContainer: { flex: 1.1, marginRight: 16, position: 'relative' },
+  productImageLarge: { width: '100%', aspectRatio: 1, borderRadius: 12 },
+  placeholderImage: { backgroundColor: '#f3f4f6' },
+  verifiedBadge: { position: 'absolute', bottom: 8, right: 8, backgroundColor: '#10b981', borderRadius: 12, padding: 4 },
+  productDetailsContainer: { flex: 1 },
+  detailRow: { marginBottom: 14 },
+  detailLabel: { fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', fontWeight: '700', marginBottom: 2, letterSpacing: 0.5 },
+  detailValueLarge: { fontSize: 32, fontWeight: 'bold', color: '#111827', lineHeight: 36 },
+  detailValue: { fontSize: 16, fontWeight: '600', color: '#374151' },
+  productNameTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
+  productCodeText: { fontSize: 13, color: '#9ca3af', fontWeight: '500' },
+
+  // Scanner / barcode section
+  scannerSection: { marginTop: 4 },
+  scanCameraBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#111827', paddingVertical: 16, borderRadius: 10, marginBottom: 12 },
+  scanCameraBtnVerified: { backgroundColor: '#059669' },
+  scanCameraBtnText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
+  manualLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, backgroundColor: '#ffffff', borderRadius: 8, borderWidth: 1.5, borderColor: '#10b981' },
+  manualLinkText: { color: '#10b981', fontSize: 15, fontWeight: 'bold' },
+
+  // Manual entry form
+  manualEntryContainer: { padding: 16, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+  manualEntryTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827', marginBottom: 16, textAlign: 'center' },
+  barcodeInput: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 16, textAlign: 'center' },
+  manualActions: { flexDirection: 'row', gap: 12 },
+  manualBtn: { flex: 1, paddingVertical: 13, borderRadius: 8, alignItems: 'center' },
+  manualBtnCancel: { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db' },
+  manualBtnCancelText: { color: '#374151', fontWeight: 'bold', fontSize: 15 },
+  manualBtnSubmit: { backgroundColor: '#10b981' },
+  manualBtnSubmitText: { color: '#ffffff', fontWeight: 'bold', fontSize: 15 },
+  manualBtnDisabled: { backgroundColor: '#9ca3af' },
+
+  // Fullscreen scanner modal
+  scannerContainer: { flex: 1, backgroundColor: '#000' },
+  scannerOverlay: { flex: 1, justifyContent: 'space-between', backgroundColor: 'transparent' },
+  scannerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.5)' },
+  scannerCloseBtn: { padding: 8 },
+  scannerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  scannerTarget: { alignSelf: 'center', width: 280, height: 280, position: 'relative', justifyContent: 'center', alignItems: 'center' },
+  targetCornerTL: { position: 'absolute', top: 0, left: 0, width: 40, height: 40, borderTopWidth: 4, borderLeftWidth: 4, borderColor: '#10b981' },
+  targetCornerTR: { position: 'absolute', top: 0, right: 0, width: 40, height: 40, borderTopWidth: 4, borderRightWidth: 4, borderColor: '#10b981' },
+  targetCornerBL: { position: 'absolute', bottom: 0, left: 0, width: 40, height: 40, borderBottomWidth: 4, borderLeftWidth: 4, borderColor: '#10b981' },
+  targetCornerBR: { position: 'absolute', bottom: 0, right: 0, width: 40, height: 40, borderBottomWidth: 4, borderRightWidth: 4, borderColor: '#10b981' },
+  scannerLoadingBox: { backgroundColor: 'rgba(0,0,0,0.7)', padding: 24, borderRadius: 12, alignItems: 'center' },
+  scannerLoadingText: { color: '#10b981', marginTop: 12, fontWeight: 'bold' },
+  scannerFooter: { padding: 32, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  scannerHelpText: { color: '#fff', fontSize: 14, textAlign: 'center' },
 });

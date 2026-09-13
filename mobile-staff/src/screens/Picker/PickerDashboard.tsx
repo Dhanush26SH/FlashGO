@@ -1,55 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert } from 'react-native';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { Bell } from 'lucide-react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert, AppState, AppStateStatus } from 'react-native';
+import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { Bell, ArrowRight } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
-// Helper component for Assigned Order Card
-const AssignedOrderCard = ({ order, onStartPicking }: { order: any, onStartPicking: () => void }) => {
-  const [starting, setStarting] = useState(false);
-  
-  // FIXED QUANTITY CALCULATION: SUM of physical items
-  const totalQty = order.order_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
-
-  const handlePress = async () => {
-    setStarting(true);
-    await onStartPicking();
-    setStarting(false);
-  };
-
-  return (
-    <View style={styles.orderCard}>
-      <View style={styles.newBadge}>
-        <Text style={styles.newBadgeText}>NEW ORDER</Text>
-      </View>
-      <Text style={styles.orderCardTitle}>Order Picking</Text>
-      <View style={styles.qtyContainer}>
-        <Text style={styles.qtyLabel}>Items</Text>
-        <Text style={styles.qtyValue}>{totalQty}</Text>
-      </View>
-      <Text style={styles.orderId}>Order #{order.id.substring(0, 8).toUpperCase()}</Text>
-      
-      <TouchableOpacity 
-        style={[styles.startButton, starting && { opacity: 0.7 }]} 
-        onPress={handlePress}
-        disabled={starting}
-      >
-        {starting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.startButtonText}>
-            {order.status === 'picking' ? 'Resume Picking' : 'Start Picking'}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
-};
-
 export default function PickerDashboard() {
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+  console.log('PICKER_RENDER_COUNT', renderCount.current);
   const navigation = useNavigation<any>();
   const { profile } = useAuth() as any;
   const isFocused = useIsFocused();
@@ -57,12 +18,46 @@ export default function PickerDashboard() {
   const [isOnline, setIsOnline] = useState(profile?.is_online || false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [shiftDetails, setShiftDetails] = useState<any>(null);
-  const [nextSlot, setNextSlot] = useState<any>(null);
-  const [elapsedTime, setElapsedTime] = useState('0h 0m');
   const [loading, setLoading] = useState(true);
+  
+  const [currentTime, setCurrentTime] = useState(new Date().getTime());
+  const [activeTimeStr, setActiveTimeStr] = useState('0h 0m');
   
   const soundRef = useRef<Audio.Sound | null>(null);
   const notifiedOrders = useRef<Set<string>>(new Set());
+  const expiryTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update current time every 1s for the SLA Timer & Next Slot button
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('TIMER_TICK');
+      setCurrentTime(new Date().getTime());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Live active time ticker — capped at shift_end
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (shiftDetails?.status === 'active' && isOnline && shiftDetails?.started_at) {
+      const updateActiveTime = () => {
+        const start = new Date(shiftDetails.started_at).getTime();
+        const shiftEnd = new Date(shiftDetails.shift_end).getTime();
+        // effectiveEnd = min(now, shift_end) — never accrue time past the slot boundary
+        const effectiveEnd = Math.min(new Date().getTime(), shiftEnd);
+        const diffMins = Math.floor(Math.max(0, effectiveEnd - start) / 60000);
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        console.log('SET_ACTIVE_TIME', `${hours}h ${mins}m`);
+        setActiveTimeStr(`${hours}h ${mins}m`);
+      };
+      updateActiveTime();
+      interval = setInterval(updateActiveTime, 60000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [shiftDetails, isOnline]);
 
   // 1. Play Sound Logic
   const playNewOrderSound = async () => {
@@ -89,7 +84,7 @@ export default function PickerDashboard() {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          id, status, 
+          id, status, picker_assigned_at,
           order_items(quantity, status)
         `)
         .eq('picker_id', profile.id)
@@ -100,7 +95,6 @@ export default function PickerDashboard() {
 
       if (error) throw error;
       
-      // If we got a new order that we haven't notified for yet
       if (data && ['placed', 'picking'].includes(data.status)) {
         if (!notifiedOrders.current.has(data.id)) {
           notifiedOrders.current.add(data.id);
@@ -110,67 +104,231 @@ export default function PickerDashboard() {
         }
       }
 
+      console.log('SET_ACTIVE_ORDER', data?.id);
       setActiveOrder(data);
     } catch (err) {
       console.error("Fetch Active Order Error:", err);
     } finally {
+      console.log('SET_LOADING', false);
       setLoading(false);
     }
   };
 
   // 3. Toggle Online
   const toggleOnlineStatus = async (value: boolean) => {
+    console.log('SET_IS_ONLINE', value);
     setIsOnline(value);
     if (profile?.id) {
       try {
-        const { error } = await supabase.from('profiles').update({ is_online: value }).eq('id', profile.id);
+        const { data, error } = await supabase.rpc('picker_toggle_online', { p_is_online: value });
         if (error) throw error;
+        if (data && data.success === false) {
+          throw new Error(data.code || 'Failed to update online status');
+        }
       } catch (e: any) {
+        console.log('SET_IS_ONLINE', !value);
         setIsOnline(!value);
-        Alert.alert("Update Failed", "Failed to update online status");
+        Alert.alert("Update Failed", e.message || "Failed to update online status");
       }
     }
   };
 
-  // 4. Fetch Shift
-  const fetchShift = async () => {
-    if (!profile?.id) return;
-    const nowIso = new Date().toISOString();
+  // 4a. Perform server-authoritative shift expiry (called when shift_end has passed)
+  const performShiftExpiry = useCallback(async (staleShift?: any) => {
+    // Clear any pending timer
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
     
+    if (staleShift) {
+      console.log('STALE_ACTIVE_SHIFT', {
+        id: staleShift.id,
+        status: staleShift.status,
+        shift_start: staleShift.shift_start,
+        shift_end: staleShift.shift_end,
+        now: new Date().toISOString(),
+      });
+    }
+
+    try {
+      console.log('PICKER_EXPIRE_RPC_BEFORE');
+
+      const { data, error } = await supabase.rpc('picker_expire_shift');
+
+      console.log('PICKER_EXPIRE_RPC_AFTER', {
+        data,
+        error,
+      });
+
+      if (error) {
+        console.error('PICKER_EXPIRE_RPC_ERROR', error);
+      }
+    } catch (e) {
+      console.error('PICKER_EXPIRE_RPC_THROWN', e);
+    }
+    // Do NOT automatically recursively call fetchShiftAndStatus here!
+    // It creates an infinite loop if the RPC fails or doesn't clear the active state.
+  }, [profile?.id]);
+
+  // 4b. Schedule a one-shot timer to fire exactly at shift_end
+  const scheduleExpiryTimer = useCallback((shiftEndIso: string) => {
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
+    const msUntilExpiry = new Date(shiftEndIso).getTime() - Date.now();
+    if (msUntilExpiry <= 0) return; // Already expired — caller should have handled it
+    expiryTimerRef.current = setTimeout(() => {
+      performShiftExpiry();
+    }, msUntilExpiry);
+  }, [performShiftExpiry]);
+
+  // 4c. Fetch Shift & Online Status
+  const fetchShiftAndStatus = useCallback(async () => {
+    console.log('LOAD_PICKER_DATA_ENTERED');
+    if (!profile?.id) {
+      console.log('FOCUS_EARLY_RETURN_REASON', '!profile?.id');
+      return;
+    }
+    
+    // Fetch authoritative online status from DB (context is often stale after navigation)
+    const { data: dbProfile } = await supabase
+      .from('profiles')
+      .select('is_online')
+      .eq('id', profile.id)
+      .single();
+      
+    const currentIsOnline = dbProfile?.is_online ?? false;
+    console.log('SET_IS_ONLINE', currentIsOnline);
+    setIsOnline(currentIsOnline);
+
     // First try to find an active shift
     const { data: activeData } = await supabase
       .from('staff_shifts')
-      .select('id, shift_start, shift_end, status')
+      .select('id, shift_start, shift_end, status, started_at, items_picked, earnings, complaints, warehouses(name)')
       .eq('staff_id', profile.id)
       .eq('status', 'active')
       .maybeSingle();
       
     if (activeData) {
-      setShiftDetails(activeData);
-      setNextSlot(null);
+      const shiftEndTime = new Date(activeData.shift_end).getTime();
+      const now = Date.now();
+
+      if (now >= shiftEndTime) {
+        console.log('FOCUS_EARLY_RETURN_REASON', 'now >= shiftEndTime for active shift (initiating expiry)');
+        // Shift is already expired in wall-clock time but DB may not have reconciled yet.
+        // Break the infinite loop by expiring but NOT automatically re-fetching in a loop.
+        console.log('SET_SHIFT_DETAILS', null);
+        setShiftDetails(null);
+        await performShiftExpiry(activeData);
+        return; // Stops here for this render cycle. User can pull-to-refresh or navigation handles it.
+      } else {
+        console.log('FOCUS_EARLY_RETURN_REASON', 'active shift is valid');
+        console.log('SET_SHIFT_DETAILS', activeData?.id);
+        setShiftDetails(activeData);
+        // Schedule the expiry timer precisely
+        scheduleExpiryTimer(activeData.shift_end);
+      }
     } else {
-      // Find the next booked slot
-      const { data: bookedData } = await supabase
+      // Clear any stale expiry timer
+      if (expiryTimerRef.current) {
+        clearTimeout(expiryTimerRef.current);
+        expiryTimerRef.current = null;
+      }
+
+      const nowIso = new Date().toISOString();
+      
+      console.log('PICKER_AUTH_CONTEXT', {
+        profileId: profile?.id,
+        profileRole: profile?.role,
+      });
+
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      console.log('PICKER_SESSION', {
+        userId: sessionData?.session?.user?.id,
+        sessionError,
+      });
+
+      console.log('PICKER_SHIFT_QUERY_START');
+
+      const { data: nextData, error: nextError } = await supabase
         .from('staff_shifts')
-        .select('id, shift_start, shift_end, status')
+        .select('id, shift_start, shift_end, status, started_at, items_picked, earnings, complaints, warehouses(name)')
         .eq('staff_id', profile.id)
-        .eq('status', 'booked')
-        .gte('shift_end', nowIso)
+        .eq('status', 'scheduled')
+        .gt('shift_end', nowIso)
         .order('shift_start', { ascending: true })
         .limit(1)
         .maybeSingle();
-        
-      setShiftDetails(null);
-      setNextSlot(bookedData);
-    }
-  };
 
-  useEffect(() => {
-    if (isFocused) {
-      fetchShift();
-      fetchActiveOrder();
+      console.log('PICKER_SHIFT_QUERY_RESULT', {
+        data: nextData,
+        error: nextError,
+      });
+
+      console.log('--- RUNTIME INSTRUMENTATION ---');
+      console.log('session.user.id:', sessionData?.session?.user?.id || 'NO_SESSION');
+      console.log('profile.id:', profile?.id);
+      console.log('nowIso:', nowIso);
+      console.log('query data:', nextData);
+      console.log('query error:', nextError);
+      console.log('selected shift:', nextData || null);
+
+      if (nextError) console.error("Error fetching next shift:", nextError);
+
+      console.log('SET_SHIFT_DETAILS', nextData?.id || null);
+      setShiftDetails(nextData || null);
+
+      // Reconcile: if picker is online in DB but has no active shift, force them offline securely.
+      if (currentIsOnline) {
+         try {
+           await supabase.rpc('picker_toggle_online', { p_is_online: false });
+           console.log('SET_IS_ONLINE', false);
+           setIsOnline(false);
+         } catch(e) {
+           console.error("Failed to force offline on reconciliation", e);
+         }
+      }
     }
-  }, [isFocused]);
+  }, [profile?.id, performShiftExpiry, scheduleExpiryTimer]);
+
+  // Focus-based refresh
+  useFocusEffect(
+    useCallback(() => {
+      console.log('PICKER_TASK_FOCUS_EFFECT_ENTERED');
+      console.log('FOCUS_STEP_1', {
+        profileExists: !!profile,
+        profileId: profile?.id,
+        profileRole: profile?.role,
+      });
+      console.log('FOCUS_CALLING_LOAD');
+      fetchShiftAndStatus();
+      fetchActiveOrder();
+    }, [fetchShiftAndStatus])
+  );
+
+  // AppState: handle foreground re-entry (app backgrounded while shift active)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      console.log('APPSTATE_EVENT', nextState);
+      if (nextState === 'active') {
+        fetchShiftAndStatus();
+      }
+    });
+    return () => subscription.remove();
+  }, [fetchShiftAndStatus]);
+
+  // Cleanup expiry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (expiryTimerRef.current) {
+        clearTimeout(expiryTimerRef.current);
+      }
+    };
+  }, []);
 
   // Realtime subscription
   useEffect(() => {
@@ -195,25 +353,21 @@ export default function PickerDashboard() {
     };
   }, []);
 
-  // Update Timer
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (shiftDetails?.shift_start && shiftDetails?.status === 'active') {
-        const diff = new Date().getTime() - new Date(shiftDetails.shift_start).getTime();
-        const hrs = Math.floor(diff / 3600000);
-        const mins = Math.floor((diff % 3600000) / 60000);
-        setElapsedTime(`${Math.max(0, hrs)}h ${Math.max(0, mins)}m`);
-      }
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [shiftDetails]);
-
   const handleStartPicking = async () => {
     if (!activeOrder) return;
+    
+    // Check if the order is already in a state that should bypass picking
     if (activeOrder.status === 'picking') {
       navigation.navigate('Picking', { orderId: activeOrder.id });
       return;
     }
+    
+    // Handover flow routing
+    if (['waiting_for_packing', 'packing', 'packed', 'staged'].includes(activeOrder.status)) {
+       navigation.navigate('HandoverToDriver', { orderId: activeOrder.id });
+       return;
+    }
+
     try {
       const { error } = await supabase.rpc('start_picking', {
         p_order_id: activeOrder.id,
@@ -228,100 +382,282 @@ export default function PickerDashboard() {
     }
   };
 
-  // Format shift time
-  const formatTime = (isoString: string) => {
-    if (!isoString) return '';
-    return new Date(isoString).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const formatDate = (isoStr: string) => {
+    const d = new Date(isoStr);
+    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const dayStr = d.toLocaleDateString('en-GB', { weekday: 'long' });
+    return `${dateStr}, ${dayStr}`;
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>Hi, {profile?.full_name || 'Picker'}</Text>
-            <Text style={styles.userDetails}>ID: {profile?.id?.substring(0,8) || '----'}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.toggleContainer}>
-              <Switch
-                trackColor={{ false: '#4b5563', true: '#10b981' }}
-                thumbColor={'#ffffff'}
-                onValueChange={toggleOnlineStatus}
-                value={isOnline}
-              />
-              <Text style={styles.toggleText}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
-            </View>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Bell size={24} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-        </View>
+  const formatTimeRange = (startIso: string, endIso: string) => {
+    const start = new Date(startIso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const end = new Date(endIso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${start} - ${end}`;
+  };
 
-        {/* Active Shift Card OR Next Slot */}
-        <View style={styles.shiftCard}>
-          {shiftDetails ? (
-            <View style={styles.shiftRow}>
-              <View>
-                <Text style={styles.shiftLabel}>ACTIVE TIME</Text>
-                <Text style={styles.shiftTime}>{elapsedTime}</Text>
-              </View>
-              <View style={styles.shiftDetailsBox}>
-                <Text style={styles.shiftDetailsText}>
-                  {formatTime(shiftDetails.shift_start)} - {formatTime(shiftDetails.shift_end)}
-                </Text>
-                <View style={styles.activeDot} />
+  const renderNextSlotButton = () => {
+    if (!shiftDetails) {
+      return (
+        <View>
+          <Text style={styles.nextSlotWarehouse}>[v2] No booked slot</Text>
+          <Text style={styles.nextSlotDate}>Book a slot to start working</Text>
+          <TouchableOpacity 
+            style={styles.nextSlotButton}
+            onPress={() => navigation.navigate('Slots')}
+          >
+            <Text style={styles.nextSlotButtonText}>Book now</Text>
+            <ArrowRight size={16} color="#10b981" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    const start = new Date(shiftDetails.shift_start).getTime();
+    const end = new Date(shiftDetails.shift_end).getTime();
+    const fiveMinsBefore = start - 5 * 60000;
+    const canStart = currentTime >= fiveMinsBefore && currentTime < end;
+
+    return (
+      <View>
+        <Text style={styles.nextSlotWarehouse}>{shiftDetails.warehouses?.name || 'FlashGO Store'}</Text>
+        <Text style={styles.nextSlotDate}>{formatDate(shiftDetails.shift_start)}</Text>
+        <Text style={styles.nextSlotTime}>{formatTimeRange(shiftDetails.shift_start, shiftDetails.shift_end)}</Text>
+        
+        {canStart ? (
+          <TouchableOpacity 
+            style={[styles.nextSlotButton, { backgroundColor: '#10b981', borderColor: '#059669' }]}
+            onPress={() => navigation.navigate('WarehouseQRVerification', { shiftId: shiftDetails.id })}
+          >
+            <Text style={[styles.nextSlotButtonText, { color: '#ffffff' }]}>Start shift</Text>
+            <ArrowRight size={16} color="#ffffff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={styles.nextSlotButton}
+            onPress={() => navigation.navigate('Slots', { screen: 'Booked' })}
+          >
+            <Text style={styles.nextSlotButtonText}>View slot</Text>
+            <ArrowRight size={16} color="#10b981" />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  const renderOrderPickingCard = () => {
+    // Calculate total quantity
+    const totalQty = activeOrder.order_items?.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0) || 0;
+    const qtyStr = totalQty < 10 ? `0${totalQty}` : `${totalQty}`;
+
+    // SLA Timer Logic
+    const targetTime = activeOrder.picker_assigned_at ? new Date(activeOrder.picker_assigned_at).getTime() + 150000 : 0;
+    const remainingMs = Math.max(0, targetTime - currentTime);
+    const m = Math.floor(remainingMs / 60000);
+    const s = Math.floor((remainingMs % 60000) / 1000);
+    const mStr = m < 10 ? `0${m}` : `${m}`;
+    const sStr = s < 10 ? `0${s}` : `${s}`;
+    
+    return (
+      <View style={[styles.dashboardCard, { padding: 0 }]}>
+        <View style={styles.orderCard}>
+          <View style={styles.orderCardHeader}>
+            <Text style={styles.orderCardTitle}>🛍 Order Picking</Text>
+            <View style={styles.badgeContainer}>
+              <Text style={styles.badgeText}>IN WORK / NEW ORDER</Text>
+            </View>
+          </View>
+
+          <View style={styles.orderMetricsRow}>
+            <View style={styles.orderMetricCol}>
+              <Text style={styles.orderMetricLabel}>Order ID</Text>
+              <Text style={styles.orderMetricValue}>#{activeOrder.id.substring(0,8).toUpperCase()}</Text>
+            </View>
+            
+            <View style={styles.orderMetricColCenter}>
+              <Text style={styles.orderMetricLabel}>Quantity</Text>
+              <Text style={styles.quantityValue}>{qtyStr}</Text>
+            </View>
+
+            <View style={styles.orderMetricColRight}>
+              <Text style={styles.orderMetricLabelCenter}>{mStr} : {sStr}</Text>
+              <View style={styles.timerSubLabels}>
+                <Text style={styles.timerSubLabel}>MIN</Text>
+                <Text style={styles.timerSubLabel}>SEC</Text>
               </View>
             </View>
-          ) : nextSlot ? (
-            <View style={styles.nextSlotContainer}>
-              <Text style={styles.shiftLabel}>NEXT BOOKED SLOT</Text>
-              <Text style={styles.shiftTimeText}>
-                {new Date(nextSlot.shift_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, {formatTime(nextSlot.shift_start)} - {formatTime(nextSlot.shift_end)}
-              </Text>
-              <TouchableOpacity 
-                style={styles.verifyButton}
-                onPress={() => navigation.navigate('PickerFaceVerification', { shiftId: nextSlot.id })}
-              >
-                <Text style={styles.verifyButtonText}>Start Shift</Text>
+          </View>
+
+          <TouchableOpacity style={styles.startPickingBtn} onPress={handleStartPicking}>
+            <Text style={styles.startPickingBtnText}>Start Picking</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderOnlineDashboard = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Picker'}</Text>
+          <Text style={styles.userDetails}>
+            ID: {profile?.id?.substring(0, 8).toUpperCase() || '----'}
+          </Text>
+          <Text style={styles.warehouseDetails}>{shiftDetails?.warehouses?.name}</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <View style={styles.toggleContainer}>
+            <Text style={[styles.toggleText, { color: '#10b981' }]}>ONLINE / ACTIVE</Text>
+          </View>
+          <TouchableOpacity style={styles.iconBtn}>
+            <Bell size={24} color="#374151" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Current Work Area or Order Card */}
+      {activeOrder && activeOrder.status === 'placed' ? (
+        renderOrderPickingCard()
+      ) : (
+        <View style={styles.dashboardCard}>
+          <Text style={styles.dashboardCardTitle}>Current work area</Text>
+          {activeOrder ? (
+            <View style={styles.activeTaskBox}>
+              <Text style={styles.activeTaskText}>Assigned Order #{activeOrder.id.substring(0,8).toUpperCase()}</Text>
+              <Text style={styles.activeTaskSub}>Status: {activeOrder.status}</Text>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleStartPicking}>
+                <Text style={styles.primaryButtonText}>Resume Task</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.nextSlotContainer}>
-              <Text style={styles.shiftLabel}>SHIFT STATUS</Text>
-              <Text style={styles.noShiftText}>No active or upcoming shift</Text>
-            </View>
+             <View style={styles.searchingBox}>
+               <ActivityIndicator size="small" color="#10b981" style={{ marginRight: 8 }} />
+               <Text style={styles.searchingText}>Searching for order...</Text>
+             </View>
           )}
+        </View>
+      )}
+
+      {/* Active Time */}
+      <View style={styles.dashboardCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+           <Text style={styles.dashboardCardTitle}>Active Time</Text>
+           <Text style={styles.activeTimeText}>{activeTimeStr}</Text>
+        </View>
+      </View>
+
+      {/* Slot Details */}
+      <View style={styles.dashboardCard}>
+        <Text style={styles.dashboardCardTitle}>Slot details</Text>
+        <Text style={styles.slotDetailsText}>
+           {formatTimeRange(shiftDetails.shift_start, shiftDetails.shift_end)}
+        </Text>
+
+        <View style={styles.metricsContainer}>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricLabel}>Earnings</Text>
+            <Text style={styles.metricValue}>₹{shiftDetails.earnings || 0}</Text>
+          </View>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricLabel}>Items picked</Text>
+            <Text style={styles.metricValue}>{shiftDetails.items_picked || 0}</Text>
+          </View>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricLabel}>Complaints</Text>
+            <Text style={styles.metricValue}>{shiftDetails.complaints || 0}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Incentive Section */}
+      <View style={styles.dashboardCard}>
+        <Text style={styles.dashboardCardTitle}>Incentive progress</Text>
+        <Text style={styles.emptyIncentiveText}>No active incentive for this slot</Text>
+      </View>
+    </ScrollView>
+  );
+
+  const renderNormalDashboard = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Picker'}</Text>
+          <Text style={styles.userDetails}>
+            ID: {profile?.id?.substring(0, 8).toUpperCase() || '----'}
+          </Text>
+          {shiftDetails?.warehouses?.name && (
+            <Text style={styles.warehouseDetails}>{shiftDetails.warehouses.name}</Text>
+          )}
+        </View>
+        <View style={styles.headerRight}>
+          <View style={styles.toggleContainer}>
+            <Text style={styles.toggleText}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
+            <Switch
+              trackColor={{ false: '#d1d5db', true: '#10b981' }}
+              thumbColor={'#ffffff'}
+              onValueChange={toggleOnlineStatus}
+              value={isOnline}
+            />
+          </View>
+          <TouchableOpacity style={styles.iconBtn}>
+            <Bell size={24} color="#374151" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Next Slot Section */}
+      <View style={styles.nextSlotContainer}>
+        <Text style={styles.nextSlotHeader}>Next slot</Text>
+        <View style={styles.nextSlotCard}>
+          {renderNextSlotButton()}
+        </View>
+      </View>
+
+      {/* General Cards */}
+      <View style={styles.cardsContainer}>
+        {/* Card 1 — Full-time work */}
+        <View style={styles.card}>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Full-time work</Text>
+            <Text style={styles.cardSubtitle}>Explore full-time warehouse opportunities</Text>
+          </View>
+          <TouchableOpacity style={styles.cardButton}>
+            <Text style={styles.cardButtonText}>View opportunities</Text>
+            <ArrowRight size={16} color="#374151" />
+          </TouchableOpacity>
         </View>
 
-        {/* Active Order Section */}
-        <View style={styles.orderSection}>
-          {loading ? (
-            <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 40 }} />
-          ) : activeOrder ? (
-            ['waiting_for_packing', 'packing', 'packed', 'staged'].includes(activeOrder.status) ? (
-              <View style={styles.orderCard}>
-                <Text style={styles.orderCardTitle}>Packing & Handover</Text>
-                <Text style={styles.orderId}>Order #{activeOrder.id.substring(0, 8).toUpperCase()}</Text>
-                <TouchableOpacity 
-                  style={styles.startButton} 
-                  onPress={() => navigation.navigate('HandoverToDriver', { orderId: activeOrder.id })}
-                >
-                  <Text style={styles.startButtonText}>Resume Handover</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <AssignedOrderCard order={activeOrder} onStartPicking={handleStartPicking} />
-            )
-          ) : (
-            <View style={styles.searchingContainer}>
-              <ActivityIndicator color="#10b981" size="large" />
-              <Text style={styles.searchingText}>Searching for order...</Text>
-            </View>
-          )}
+        {/* Card 2 — Book a slot */}
+        <View style={styles.card}>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Book a slot</Text>
+            <Text style={styles.cardSubtitle}>Choose a work slot at your assigned FlashGO store</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.cardButton}
+            onPress={() => navigation.navigate('Slots')}
+          >
+            <Text style={styles.cardButtonText}>Book now</Text>
+            <ArrowRight size={16} color="#374151" />
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
+    </ScrollView>
+  );
+
+  // Derive whether the online dashboard should be shown.
+  // Both conditions must be true:
+  //   1. profile.is_online === true (authoritative, re-fetched on focus)
+  //   2. There is an active shift whose end_time has NOT yet passed
+  const shiftIsCurrentlyValid =
+    shiftDetails?.status === 'active' &&
+    new Date(shiftDetails.shift_end).getTime() > Date.now();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {(shiftIsCurrentlyValid && isOnline) ? renderOnlineDashboard() : renderNormalDashboard()}
     </SafeAreaView>
   );
 }
@@ -329,35 +665,94 @@ export default function PickerDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#030712',
+    backgroundColor: '#f3f4f6', // Clean light-grey background
   },
   scrollContent: {
     padding: 16,
   },
+  nextSlotContainer: {
+    marginBottom: 24,
+  },
+  nextSlotHeader: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  nextSlotCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  nextSlotWarehouse: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  nextSlotDate: {
+    color: '#4b5563',
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  nextSlotTime: {
+    color: '#6b7280',
+    fontSize: 15,
+    marginBottom: 16,
+  },
+  nextSlotButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ecfdf5',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+    alignSelf: 'flex-start',
+  },
+  nextSlotButtonText: {
+    color: '#10b981',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1f2937',
+    alignItems: 'flex-start',
+    marginBottom: 24,
   },
-  headerLeft: {},
+  headerLeft: {
+    flex: 1,
+  },
   greeting: {
-    color: '#fff',
-    fontSize: 18,
+    color: '#111827',
+    fontSize: 22,
     fontWeight: 'bold',
   },
   userDetails: {
-    color: '#9ca3af',
-    fontSize: 12,
+    color: '#4b5563',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  warehouseDetails: {
+    color: '#6b7280',
+    fontSize: 14,
     marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   toggleContainer: {
     flexDirection: 'row',
@@ -365,152 +760,262 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   toggleText: {
-    color: '#fff',
-    fontSize: 12,
+    color: '#374151',
+    fontSize: 13,
     fontWeight: '600',
   },
   iconBtn: {
-    padding: 4,
-  },
-  shiftCard: {
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
+    padding: 6,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#e5e7eb',
   },
-  shiftRow: {
+  cardsContainer: {
+    gap: 16,
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cardContent: {
+    marginBottom: 20,
+  },
+  cardTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  cardSubtitle: {
+    color: '#6b7280',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  cardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  cardButtonText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Online Dashboard Styles
+  dashboardCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dashboardCardTitle: {
+    color: '#111827',
+    fontSize: 17,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  activeTimeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#10b981',
+  },
+  slotDetailsText: {
+    fontSize: 15,
+    color: '#4b5563',
+    marginBottom: 20,
+  },
+  metricsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    paddingTop: 16,
+  },
+  metricBox: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  emptyIncentiveText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
+  searchingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+  },
+  searchingText: {
+    color: '#6b7280',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  activeTaskBox: {
+    backgroundColor: '#f0fdf4',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  activeTaskText: {
+    color: '#166534',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  activeTaskSub: {
+    color: '#15803d',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  primaryButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  
+  // NEW ORDER CARD STYLES
+  orderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  orderCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  shiftLabel: {
-    color: '#9ca3af',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  shiftTime: {
-    color: '#10b981',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  shiftDetailsBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 8,
-  },
-  shiftDetailsText: {
-    color: '#e5e7eb',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10b981',
-  },
-  nextSlotContainer: {
-    alignItems: 'center',
-  },
-  shiftTimeText: {
-    color: '#fff',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  noShiftText: {
-    color: '#9ca3af',
-    fontSize: 16,
-    fontStyle: 'italic',
-  },
-  verifyButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
-  },
-  verifyButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  orderSection: {
-    flex: 1,
-  },
-  searchingContainer: {
-    marginTop: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchingText: {
-    color: '#10b981',
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  orderCard: {
-    backgroundColor: '#111827',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: '#10b981',
-    alignItems: 'center',
-  },
-  newBadge: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  newBadgeText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: 'bold',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    backgroundColor: '#fafafa',
   },
   orderCardTitle: {
-    color: '#fff',
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 24,
+    color: '#111827',
   },
-  qtyContainer: {
+  badgeContainer: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  badgeText: {
+    color: '#ef4444',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  orderMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 20,
   },
-  qtyLabel: {
-    color: '#9ca3af',
-    fontSize: 14,
+  orderMetricCol: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  orderMetricColCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  orderMetricColRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  orderMetricLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  orderMetricLabelCenter: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#111827',
     marginBottom: 4,
   },
-  qtyValue: {
-    color: '#fff',
-    fontSize: 48,
-    fontWeight: 'bold',
-  },
-  orderId: {
-    color: '#9ca3af',
+  orderMetricValue: {
     fontSize: 16,
-    marginBottom: 24,
+    fontWeight: 'bold',
+    color: '#111827',
   },
-  startButton: {
+  quantityValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  timerSubLabels: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    paddingRight: 4,
+  },
+  timerSubLabel: {
+    fontSize: 10,
+    color: '#6b7280',
+    fontWeight: 'bold',
+    width: 24,
+    textAlign: 'center',
+  },
+  startPickingBtn: {
     backgroundColor: '#10b981',
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 14,
+    borderRadius: 8,
     alignItems: 'center',
   },
-  startButtonText: {
-    color: '#000',
-    fontSize: 18,
+  startPickingBtnText: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: 'bold',
   }
 });

@@ -24,6 +24,8 @@ interface ActiveDelivery {
   delivery_lat: number;
   delivery_lng: number;
   total_item_count: number;
+  warehouse_lat?: number;
+  warehouse_lng?: number;
 }
 
 export default function DriverReachDropScreen() {
@@ -49,7 +51,9 @@ export default function DriverReachDropScreen() {
           delivery_address: data.order.delivery_address,
           delivery_lat: data.order.delivery_lat,
           delivery_lng: data.order.delivery_lng,
-          total_item_count: data.order.total_item_count
+          total_item_count: data.order.total_item_count,
+          warehouse_lat: data.warehouse.latitude,
+          warehouse_lng: data.warehouse.longitude
         });
       } else {
         navigation.navigate('DriverOperationsMapScreen');
@@ -70,9 +74,15 @@ export default function DriverReachDropScreen() {
   const handleMap = () => {
     // Open full screen navigation map inside app
     navigation.navigate('NavigationScreen', { 
+      mode: 'customer',
       destLat: delivery?.delivery_lat, 
       destLng: delivery?.delivery_lng,
-      tripId: delivery?.trip_id
+      destinationName: delivery?.customer_name || 'Customer',
+      destinationAddress: delivery?.delivery_address,
+      orderId: delivery?.order_id,
+      tripId: delivery?.trip_id,
+      warehouseLat: delivery?.warehouse_lat,
+      warehouseLng: delivery?.warehouse_lng
     });
   };
 

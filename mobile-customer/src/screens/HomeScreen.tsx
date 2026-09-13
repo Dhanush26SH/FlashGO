@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, useWindowDimensions, Alert, Image, BackHandler, Modal, TouchableWithoutFeedback, Animated, ActivityIndicator } from 'react-native';
 import { Search, ChevronRight, User, ShoppingBag, Sparkles, X, Bell, ArrowLeft, MapPin, LayoutGrid, Smartphone, Heart, Gift, Baby, Home, Globe, ChevronLeft } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
 import { theme } from '../theme';
@@ -15,6 +15,7 @@ import FlashTransition from '../components/FlashTransition';
 import FloatingCartBar from '../components/FloatingCartBar';
 import { getActiveMerchandising, SeasonalConfig } from '../utils/seasonalMerchandising';
 import { fetchTrendingByTag } from '../services/api';
+import ActiveOrderBanner from '../components/ActiveOrderBanner';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -89,8 +90,15 @@ export default function HomeScreen() {
     setSearchQuery,
     isResolvingLocation,
     servingWarehouseId,
-    requireLocationForShopping
+    requireLocationForShopping,
+    refreshServerCart
   } = useMobileAppContext();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshServerCart();
+    }, [refreshServerCart])
+  );
 
   const formatHeaderAddress = (addr: any) => {
     if (!addr) return 'Choose location';
@@ -305,6 +313,8 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
+
+        <ActiveOrderBanner />
 
         {activeAddress && !isResolvingLocation && servingWarehouseId === null ? (
           <UnserviceableAreaScreen 

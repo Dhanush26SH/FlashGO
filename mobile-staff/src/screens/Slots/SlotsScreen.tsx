@@ -1,14 +1,144 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { MoreVertical, MapPin, ChevronRight, Store, Clock } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
+import { MoreVertical, MapPin, ChevronRight, Store, Clock, X } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SlotsScreen() {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   const { profile } = useAuth();
+
+  const [datesList, setDatesList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Location selection state
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+
+  const fetchWarehouses = async () => {
+    setLoadingWarehouses(true);
+    try {
+      const { data, error } = await supabase
+        .from('warehouses')
+        .select('id, name, address')
+        .eq('is_active', true);
+      if (!error && data) {
+        setWarehouses(data);
+      }
+    } catch (e) {
+      console.log('Error fetching warehouses:', e);
+    } finally {
+      setLoadingWarehouses(false);
+    }
+  };
+
+  const handleOpenLocationModal = () => {
+    setShowLocationModal(true);
+    if (warehouses.length === 0) {
+      fetchWarehouses();
+    }
+  };
+
+  const handleSelectWarehouse = (warehouse: any) => {
+    setSelectedWarehouse(warehouse);
+    setShowLocationModal(false);
+  };
+
+  const generateDates = () => {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const generatedDates = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 10; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      
+      const month = months[d.getMonth()];
+      const dateStr = d.getDate().toString();
+      const dayStr = days[d.getDay()];
+      const isoDate = d.toISOString().split('T')[0];
+      
+      generatedDates.push({ month, dateStr, dayStr, isoDate });
+    }
+    return generatedDates;
+  };
+
+  const fetchSlotCounts = async () => {
+    setIsLoading(true);
+    const dates = generateDates();
+    try {
+      const todayIso = new Date().toISOString();
+      let query = supabase
+        .from('work_slots')
+        .select('id, start_time, warehouse_id')
+        .eq('status', 'published')
+        .gte('start_time', todayIso);
+
+      if (selectedWarehouse) {
+        query = query.eq('warehouse_id', selectedWarehouse.id);
+      }
+
+      const { data: allSlots } = await query;
+
+      let myBookings: any[] = [];
+      if (profile?.id) {
+        let bookingsQuery = supabase
+          .from('staff_shifts')
+          .select('work_slot_id, shift_start, work_slots(warehouse_id)')
+          .eq('staff_id', profile.id)
+          .neq('status', 'cancelled');
+          
+        const { data } = await bookingsQuery;
+        
+        // Filter my bookings by selected warehouse if one is selected
+        myBookings = (data || []).filter((b: any) => {
+          if (!selectedWarehouse) return true;
+          return b.work_slots?.warehouse_id === selectedWarehouse.id;
+        });
+      }
+
+      const datesWithCounts = dates.map(d => {
+        const slotsForDate = (allSlots || []).filter(s => s.start_time.startsWith(d.isoDate));
+        const bookingsForDate = (myBookings || []).filter((b: any) => b.shift_start.startsWith(d.isoDate));
+        
+        const openCount = Math.max(0, slotsForDate.length - bookingsForDate.length);
+        const bookedCount = bookingsForDate.length;
+        
+        const isActive = slotsForDate.length > 0;
+        
+        let title = 'No slots available yet';
+        let subtitle = 'Check back later';
+        let icon = 'clock';
+
+        if (isActive) {
+          title = `${openCount} Slots open, ${bookedCount} Booked`;
+          subtitle = selectedWarehouse ? selectedWarehouse.name : 'Store available';
+          icon = 'store';
+        }
+
+        return { ...d, isActive, title, subtitle, icon, openCount, bookedCount };
+      });
+
+      setDatesList(datesWithCounts);
+    } catch (error) {
+      console.error('Error fetching dates:', error);
+      setDatesList(dates.map(d => ({ ...d, isActive: false, title: 'Error loading', subtitle: '', icon: 'clock', openCount: 0, bookedCount: 0 })));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchSlotCounts();
+    }
+  }, [isFocused, profile?.id, selectedWarehouse]);
 
   const renderDateCard = (date: string, day: string, isActive: boolean, title: string, subtitle: string, icon: 'store' | 'clock', isoDate: string, month: string) => {
     return (
@@ -17,7 +147,11 @@ export default function SlotsScreen() {
         activeOpacity={0.8}
         onPress={() => {
           if (isActive) {
-            navigation.navigate('SlotDetails', { date: `${date} ${month.substring(0, 3)}`, isoDate });
+            navigation.navigate('SlotDetails', { 
+              date: `${date} ${month.substring(0, 3)}`, 
+              isoDate,
+              warehouseId: selectedWarehouse?.id // pass down to SlotDetails
+            });
           }
         }}
       >
@@ -53,90 +187,6 @@ export default function SlotsScreen() {
     );
   };
 
-  const generateDates = () => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const generatedDates = [];
-    const today = new Date();
-    
-    for (let i = 0; i < 10; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      
-      const month = months[d.getMonth()];
-      const dateStr = d.getDate().toString();
-      const dayStr = days[d.getDay()];
-      const isoDate = d.toISOString().split('T')[0];
-      
-      generatedDates.push({ month, dateStr, dayStr, isoDate });
-    }
-    return generatedDates;
-  };
-
-  const [datesList, setDatesList] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchSlotCounts = async () => {
-    const dates = generateDates();
-    try {
-      // Fetch all slots from today onwards
-      const todayIso = new Date().toISOString();
-      const { data: allSlots } = await supabase
-        .from('work_slots')
-        .select('id, start_time')
-        .eq('status', 'published')
-        .gte('start_time', todayIso);
-
-      // Fetch bookings for this picker
-      let myBookings: any[] = [];
-      if (profile?.id) {
-        const { data } = await supabase
-          .from('staff_shifts')
-          .select('work_slot_id, shift_start')
-          .eq('staff_id', profile.id)
-          .eq('status', 'booked');
-        myBookings = data || [];
-      }
-
-      const datesWithCounts = dates.map(d => {
-        const slotsForDate = (allSlots || []).filter(s => s.start_time.startsWith(d.isoDate));
-        const bookingsForDate = (myBookings || []).filter((b: any) => b.shift_start.startsWith(d.isoDate));
-        
-        const openCount = Math.max(0, slotsForDate.length - bookingsForDate.length);
-        const bookedCount = bookingsForDate.length;
-        
-        const isActive = slotsForDate.length > 0;
-        
-        // Formulate titles based on real data
-        let title = 'No slots available yet';
-        let subtitle = 'Check back later';
-        let icon = 'clock';
-
-        if (isActive) {
-          title = `${openCount} Slots open, ${bookedCount} Booked`;
-          subtitle = 'Store available';
-          icon = 'store';
-        }
-
-        return { ...d, isActive, title, subtitle, icon, openCount, bookedCount };
-      });
-
-      setDatesList(datesWithCounts);
-    } catch (error) {
-      console.error('Error fetching dates:', error);
-      // Fallback
-      setDatesList(dates.map(d => ({ ...d, isActive: false, title: 'Error loading', subtitle: '', icon: 'clock', openCount: 0, bookedCount: 0 })));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isFocused) {
-      fetchSlotCounts();
-    }
-  }, [isFocused, profile?.id]);
-
   let currentMonth = '';
 
   return (
@@ -144,23 +194,25 @@ export default function SlotsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Staff-982'}</Text>
-          <Text style={styles.userDetails}>16.24.5 | GCEBOD76301586719 | 5499 | 0</Text>
+          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Staff'}</Text>
+          <Text style={styles.userDetails}>{profile?.id?.substring(0, 8).toUpperCase()}</Text>
         </View>
         <TouchableOpacity style={styles.menuButton}>
           <MoreVertical size={24} color="#ffffff" />
         </TouchableOpacity>
       </View>
 
-      {/* Near You Banner */}
+      {/* Near You / Selected Location Banner */}
       <View style={styles.nearYouContainer}>
         <View style={styles.nearYouLeft}>
           <View style={styles.mapPinContainer}>
             <MapPin size={20} color="#ef4444" fill="#ef4444" opacity={0.8} />
           </View>
-          <Text style={styles.nearYouText}>Near you</Text>
+          <Text style={styles.nearYouText} numberOfLines={1} ellipsizeMode="tail">
+            {selectedWarehouse ? selectedWarehouse.name : 'Near you'}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.changeLocationBtn}>
+        <TouchableOpacity style={styles.changeLocationBtn} onPress={handleOpenLocationModal}>
           <Text style={styles.changeLocationText}>Change Location</Text>
           <ChevronRight size={16} color="#1f2937" />
         </TouchableOpacity>
@@ -188,6 +240,55 @@ export default function SlotsScreen() {
           })
         )}
       </ScrollView>
+
+      {/* Location Selection Modal */}
+      <Modal
+        visible={showLocationModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowLocationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Store</Text>
+              <TouchableOpacity onPress={() => setShowLocationModal(false)}>
+                <X size={24} color="#1f2937" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.warehouseList}>
+              {loadingWarehouses ? (
+                <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 40 }} />
+              ) : warehouses.length > 0 ? (
+                warehouses.map((wh) => (
+                  <TouchableOpacity 
+                    key={wh.id} 
+                    style={[
+                      styles.warehouseItem, 
+                      selectedWarehouse?.id === wh.id && styles.warehouseItemActive
+                    ]}
+                    onPress={() => handleSelectWarehouse(wh)}
+                  >
+                    <View style={styles.warehouseItemIcon}>
+                      <Store size={24} color={selectedWarehouse?.id === wh.id ? '#10b981' : '#6b7280'} />
+                    </View>
+                    <View style={styles.warehouseItemDetails}>
+                      <Text style={styles.warehouseItemName}>{wh.name}</Text>
+                      <Text style={styles.warehouseItemAddress}>{wh.address}</Text>
+                    </View>
+                    {selectedWarehouse?.id === wh.id && (
+                      <ChevronRight size={20} color="#10b981" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.noWarehousesText}>No stores found.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -245,68 +346,75 @@ const styles = StyleSheet.create({
   nearYouLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
   },
   mapPinContainer: {
     width: 36,
     height: 36,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
+    backgroundColor: '#fee2e2',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    marginRight: 10,
   },
   nearYouText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1f2937',
+    flexShrink: 1,
   },
   changeLocationBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#e5e7eb',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1f2937',
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   changeLocationText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#1f2937',
     marginRight: 4,
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#f4f5f8',
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
+    padding: 16,
+    paddingBottom: 40,
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 16,
+    marginBottom: 16,
+    marginTop: 8,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#d1d5db',
+    backgroundColor: '#e5e7eb',
   },
   dividerText: {
-    marginHorizontal: 12,
-    fontSize: 15,
-    fontWeight: '600',
+    paddingHorizontal: 12,
     color: '#9ca3af',
+    fontWeight: '600',
+    fontSize: 12,
+    textTransform: 'uppercase',
   },
   cardContainer: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    marginBottom: 12,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
     overflow: 'hidden',
   },
   dateBlock: {
@@ -316,20 +424,22 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   dateActive: {
-    backgroundColor: '#10b981', // green
+    backgroundColor: '#ecfdf5', // Light green
   },
   dateInactive: {
-    backgroundColor: '#8c95a0', // grey matching screenshot
+    backgroundColor: '#f9fafb', // Light grey
   },
   dateText: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 2,
   },
   dayText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#6b7280',
+    textTransform: 'uppercase',
   },
   detailsBlock: {
     flex: 1,
@@ -340,26 +450,91 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1f2937',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   cardTitleInactive: {
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   subtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   subtitleIcon: {
-    marginRight: 6,
+    marginRight: 4,
   },
   cardSubtitle: {
-    fontSize: 14,
-    color: '#4b5563',
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   cardSubtitleInactive: {
     color: '#9ca3af',
   },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    minHeight: '50%',
+    maxHeight: '80%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  warehouseList: {
+    flex: 1,
+  },
+  warehouseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 12,
+    backgroundColor: '#ffffff',
+  },
+  warehouseItemActive: {
+    borderColor: '#10b981',
+    backgroundColor: '#ecfdf5',
+  },
+  warehouseItemIcon: {
+    marginRight: 16,
+  },
+  warehouseItemDetails: {
+    flex: 1,
+  },
+  warehouseItemName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  warehouseItemAddress: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  noWarehousesText: {
+    textAlign: 'center',
+    color: '#6b7280',
+    marginTop: 40,
+    fontSize: 16,
+  }
 });

@@ -101,8 +101,11 @@ export default function DriverReturnToStoreScreen() {
   const handleMap = () => {
     if (!task?.warehouses) return;
     navigation.navigate('NavigationScreen', { 
+      mode: 'warehouse',
       destLat: task.warehouses.latitude, 
       destLng: task.warehouses.longitude,
+      destinationName: task.warehouses.name || 'Warehouse',
+      destinationAddress: task.warehouses.address,
       isReturn: true
     });
   };

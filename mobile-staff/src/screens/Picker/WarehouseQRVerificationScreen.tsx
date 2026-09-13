@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ChevronLeft, Briefcase } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 export default function WarehouseQRVerificationScreen() {
   const navigation = useNavigation<any>();
@@ -12,11 +13,39 @@ export default function WarehouseQRVerificationScreen() {
   const shiftId = route.params?.shiftId;
   const { profile } = useAuth() as any;
   const [scannedData, setScannedData] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // We are currently just reading the QR but not pretending it verified since the backend doesn't exist.
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
-    if (!scannedData) {
-      setScannedData(data);
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
+    if (scannedData || loading) return;
+    setScannedData(data);
+    setLoading(true);
+
+    try {
+      if (!data) {
+        throw new Error('Invalid QR code format');
+      }
+
+      const { data: rpcData, error } = await supabase.rpc('picker_shift_check_in', {
+        p_shift_id: shiftId,
+        p_qr_token: data
+      });
+
+      if (error) {
+        throw error;
+      }
+      
+      // Success - go back to Dashboard which will now see the shift as active
+      navigation.goBack();
+      
+    } catch (e: any) {
+      setScannedData(null);
+      if (e.message && e.message.includes('belong to your booked store')) {
+         Alert.alert('Scan Failed', 'This QR does not belong to your booked store.');
+      } else {
+         Alert.alert('Scan Failed', e.message || 'Invalid QR Code');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -42,7 +71,6 @@ export default function WarehouseQRVerificationScreen() {
           <View style={styles.guideContainer}>
             <Text style={styles.subtitle}>Scan the QR code displayed at your warehouse</Text>
             <View style={styles.qrFrame}>
-              {/* Corner markers for visual aesthetic */}
               <View style={[styles.corner, styles.topLeft]} />
               <View style={[styles.corner, styles.topRight]} />
               <View style={[styles.corner, styles.bottomLeft]} />
@@ -52,65 +80,28 @@ export default function WarehouseQRVerificationScreen() {
               Align the warehouse QR code inside the frame
             </Text>
             
-            {/* Show the real warehouse name if available */}
-            {profile?.warehouse?.name && (
+            {profile?.warehouses?.name && (
               <View style={styles.warehouseTag}>
-                <Text style={styles.warehouseTagText}>{profile.warehouse.name}</Text>
+                <Text style={styles.warehouseTagText}>{profile.warehouses.name}</Text>
               </View>
             )}
           </View>
 
-          {/* Scanned Data Notification (Since real backend isn't connected) */}
+          {/* Bottom Area */}
           <View style={styles.bottomArea}>
-            {scannedData ? (
+            {loading ? (
               <View style={styles.scanResultBox}>
-                <Text style={styles.scanResultTitle}>QR Detected</Text>
-                <Text style={styles.scanResultText}>
-                  Warehouse QR verification is not connected yet.
-                </Text>
-                <TouchableOpacity style={styles.resetButton} onPress={() => setScannedData(null)}>
-                  <Text style={styles.resetButtonText}>Scan Again</Text>
-                </TouchableOpacity>
+                <ActivityIndicator size="small" color="#10b981" />
+                <Text style={[styles.scanResultText, { marginTop: 8 }]}>Verifying shift...</Text>
               </View>
             ) : (
               <Text style={styles.helperText}>
                 The QR code is displayed on the warehouse screen.
               </Text>
             )}
-
-            {/* DEV ONLY Preview Button */}
-            {__DEV__ && (
-              <TouchableOpacity 
-                style={styles.devButton} 
-                onPress={() => setScannedData('__DEV_PREVIEW')}
-              >
-                <Text style={styles.devButtonText}>[DEV] Preview Success Sheet</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </SafeAreaView>
       </CameraView>
-
-      {/* SUCCESS BOTTOM SHEET PREVIEW */}
-      {__DEV__ && scannedData === '__DEV_PREVIEW' && (
-        <View style={styles.bottomSheetContainer}>
-          <View style={styles.bottomSheet}>
-            <View style={styles.dragHandle} />
-            <Text style={styles.bottomSheetTitle}>Verification complete</Text>
-            
-            <TouchableOpacity 
-              style={styles.pickerRow} 
-              onPress={() => navigation.navigate('PickerShift', { shiftId })}
-            >
-              <View style={styles.pickerRowLeft}>
-                <Briefcase color="#10b981" size={24} />
-                <Text style={styles.pickerRowText}>Picker</Text>
-              </View>
-              <ChevronLeft color="#9ca3af" size={20} style={{ transform: [{ rotate: '180deg' }] }} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -220,89 +211,9 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  scanResultTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
   scanResultText: {
     color: '#9ca3af',
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  resetButton: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  resetButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  devButton: {
-    marginTop: 16,
-    backgroundColor: 'rgba(239,68,68,0.8)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  devButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  
-  // Bottom Sheet Styles
-  bottomSheetContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  bottomSheet: {
-    backgroundColor: '#1f2937',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#4b5563',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  bottomSheetTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#374151',
-    padding: 16,
-    borderRadius: 12,
-  },
-  pickerRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  pickerRowText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   }
 });

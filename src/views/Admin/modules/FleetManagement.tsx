@@ -195,7 +195,7 @@ export const FleetManagement: React.FC = () => {
                         e.preventDefault(); e.stopPropagation();
                         if (confirm(`Approve personal vehicle ${r.license_plate} for ${r.driverName}?`)) {
                           try {
-                            await FleetService.approveDriverVehicle(r.driverId, r.id);
+                            await FleetService.approveDriverVehicle(r.driverId as string, r.id);
                             addToast('Personal vehicle approved', 'success');
                             fetchFleetData();
                           } catch (e: any) {

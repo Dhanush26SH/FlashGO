@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/Auth/LoginScreen';
 import RequestAccessScreen from '../screens/Auth/RequestAccessScreen';
 import PendingScreen from '../screens/Auth/PendingScreen';
-import ProfileScreen from '../screens/Profile/ProfileScreen';
+import ProfileScreen from '../screens/Rider/DriverProfileScreen';
 import MainTabs from './MainTabs';
 import DriverMainTabs from './DriverMainTabs';
 import WarehouseMainTabs from './WarehouseMainTabs';

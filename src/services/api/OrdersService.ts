@@ -11,7 +11,8 @@ export class OrdersService {
         customer:profiles!customer_id(full_name, phone),
         picker:profiles!picker_id(full_name),
         driver:profiles!driver_id(full_name),
-        substitutions:order_substitutions(*)
+        substitutions:order_substitutions(*),
+        events:order_events(*)
       `)
       .order('created_at', { ascending: false });
     

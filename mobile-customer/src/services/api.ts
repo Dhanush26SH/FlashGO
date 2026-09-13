@@ -89,12 +89,17 @@ export const processCheckout = async (payload: {
   //   - receives p_items as jsonb array of { "productId": uuid, quantity: int }
   //   - computes prices, delivery fee, warehouse, coupon server-side (not trusted from client)
   //   - resolves warehouse from (p_lat, p_lng) via get_serving_warehouse internally
+  const formattedItems = payload.p_items.map(item => ({
+    product_id: item.productId,
+    quantity: item.quantity
+  }));
+
   const { data, error } = await supabase.rpc('process_checkout', {
     p_user_id: payload.p_user_id,
     p_address: payload.p_address,
     p_delivery_speed: payload.p_delivery_speed,
     p_payment_method: payload.p_payment_method,
-    p_items: payload.p_items,
+    p_items: formattedItems,
     p_coupon_code: payload.p_coupon_code ?? null,
     p_lat: payload.p_lat,
     p_lng: payload.p_lng,
@@ -104,14 +109,118 @@ export const processCheckout = async (payload: {
   return data; // returns order_id uuid
 };
 
+export const getCheckoutQuote = async (payload: {
+  p_items: Array<{ productId: string; quantity: number }>;
+  p_coupon_code?: string | null;
+}) => {
+  if (!payload.p_items || payload.p_items.length === 0) {
+    throw new Error('Cannot get quote for empty order.');
+  }
+  
+  const formattedItems = payload.p_items.map(item => ({
+    product_id: item.productId,
+    quantity: item.quantity
+  }));
+
+  const { data, error } = await supabase.rpc('get_checkout_quote', {
+    p_items: formattedItems,
+    p_coupon_id: payload.p_coupon_code ?? null,
+  });
+  
+  if (error) throw error;
+  return data;
+};
+
+// ─── Server Cart RPCs ─────────────────────────────────────────────────────────
+
+/**
+ * Upsert a single item in the authenticated user's server cart.
+ * Quantity ≤ 0 removes the item entirely (server-side behavior).
+ */
+export const upsertCartItem = async (productId: string, quantity: number) => {
+  const { data, error } = await supabase.rpc('upsert_cart_item', {
+    p_product_id: productId,
+    p_quantity: quantity,
+  });
+  if (error) throw error;
+  return data; // returns { revision, cart_id }
+};
+
+/**
+ * Remove a single item from the authenticated user's server cart.
+ */
+export const removeCartItem = async (productId: string) => {
+  const { data, error } = await supabase.rpc('remove_cart_item', {
+    p_product_id: productId,
+  });
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Fetch the authenticated user's current server cart contents.
+ * Returns { cart_id, revision, items: [{ product_id, quantity }] }
+ */
+export const getServerCart = async () => {
+  const { data, error } = await supabase.rpc('get_cart');
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Get a checkout pricing quote sourced from the server cart.
+ * Does NOT commit an order.
+ */
+export const getCartCheckoutQuote = async (addressId: string, couponCode?: string | null) => {
+  const { data, error } = await supabase.rpc('get_cart_checkout_quote', {
+    p_address_id: addressId,
+    p_coupon_code: couponCode ?? null,
+  });
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Commit a server-cart checkout.
+ * Identity is derived from auth.uid() — no user ID, lat/lng, or items from client.
+ * Returns order_id UUID.
+ */
+export const processCheckoutV2 = async (payload: {
+  p_address_id: string;
+  p_delivery_speed: string;
+  p_payment_method: string;
+  p_coupon_code?: string | null;
+  p_idempotency_key?: string | null;
+}): Promise<string> => {
+  const { data, error } = await supabase.rpc('process_checkout_v2', {
+    p_address_id:      payload.p_address_id,
+    p_delivery_speed:  payload.p_delivery_speed,
+    p_payment_method:  payload.p_payment_method,
+    p_coupon_code:     payload.p_coupon_code ?? null,
+    p_idempotency_key: payload.p_idempotency_key ?? null,
+  });
+  if (error) throw error;
+  return data as string; // UUID
+};
+
+/**
+ * Fail a pending payment order, releasing reservations and restoring cart quantities.
+ */
+export const failPendingPayment = async (orderId: string) => {
+  const { data, error } = await supabase.rpc('fail_pending_payment', {
+    p_order_id: orderId,
+  });
+  if (error) throw error;
+  return data;
+};
 
 // Orders
 export const fetchOrders = async () => {
   const { data, error } = await supabase
     .from('orders')
     .select(`
-      id, status, total_amount, created_at, payment_method, payment_status, refund_status,
-      order_items ( id, product_id, quantity, price_at_time, products(name, image_url) )
+      id, status, total_amount, created_at, payment_method, payment_status,
+      order_items ( id, product_id, quantity, price, products(name, image_url) )
     `)
     .order('created_at', { ascending: false });
   if (error) throw error;

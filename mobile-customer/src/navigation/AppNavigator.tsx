@@ -27,6 +27,10 @@ import ConfirmLocationScreen from '../screens/ConfirmLocationScreen';
 import SeasonalBrowserScreen from '../screens/SeasonalBrowserScreen';
 import DepartmentBrowserScreen from '../screens/DepartmentBrowserScreen';
 import CartScreen from '../screens/CartScreen';
+import PaymentOptionsScreen from '../screens/PaymentOptionsScreen';
+import AddressDetailsScreen from '../screens/AddressDetailsScreen';
+import OrderPlacedScreen from '../screens/OrderPlacedScreen';
+import RazorpayCheckoutScreen from '../screens/RazorpayCheckoutScreen';
 
 // Types
 export type RootStackParamList = {
@@ -34,7 +38,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   ProductDetails: { product: any };
   Tracking: { orderId: string | null };
-  Addresses: undefined;
+  Addresses: { origin?: 'home' | 'checkout_address' } | undefined;
   Notifications: undefined;
   OrderDetails: { order: any };
   CategoryBrowser: { categoryId: string };
@@ -45,12 +49,16 @@ export type RootStackParamList = {
     filterOrigin?: string;
   };
   SeasonalBrowser: { config: any };
-  ConfirmLocation: { lat: number, lng: number, name: string, address: string };
+  ConfirmLocation: { lat: number, lng: number, name: string, address: string, origin?: 'home' | 'checkout_address' };
   Profile: undefined;
   OrdersStack: undefined;
   SupportStack: undefined;
   Cart: undefined;
-  LocationSelector: undefined;
+  PaymentOptions: { quote: any, couponCode: string | null, deliveryInstruction: string };
+  LocationSelector: { origin?: 'home' | 'checkout_address' } | undefined;
+  AddressDetails: { lat: number, lng: number, name: string, address: string };
+  OrderPlaced: { orderId: string };
+  RazorpayCheckout: { orderId: string; amount: number; isConversion?: boolean };
 };
 
 export type MainTabParamList = {
@@ -178,6 +186,7 @@ export default function AppNavigator() {
                 animation: 'slide_from_bottom'
               }} 
             />
+            <Stack.Screen name="AddressDetails" component={AddressDetailsScreen} />
             <Stack.Screen 
               name="Profile" 
               component={ProfileScreen} 
@@ -188,14 +197,10 @@ export default function AppNavigator() {
             />
             <Stack.Screen name="OrdersStack" component={OrdersScreen} />
             <Stack.Screen name="SupportStack" component={SupportScreen} />
-            <Stack.Screen 
-              name="Cart" 
-              component={CartScreen} 
-              options={{ 
-                presentation: 'transparentModal',
-                animation: 'fade'
-              }} 
-            />
+            <Stack.Screen name="Cart" component={CartScreen} />
+            <Stack.Screen name="PaymentOptions" component={PaymentOptionsScreen} />
+            <Stack.Screen name="OrderPlaced" component={OrderPlacedScreen} />
+            <Stack.Screen name="RazorpayCheckout" component={RazorpayCheckoutScreen} />
             <Stack.Screen 
               name="LocationSelector" 
               component={LocationSelectorSheet} 

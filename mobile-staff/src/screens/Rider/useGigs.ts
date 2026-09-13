@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { Alert } from 'react-native';
 
@@ -42,9 +43,11 @@ export function useGigs() {
     }
   };
 
-  useEffect(() => {
-    fetchGigs();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchGigs();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

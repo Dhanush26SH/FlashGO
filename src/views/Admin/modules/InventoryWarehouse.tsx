@@ -56,12 +56,34 @@ export const InventoryWarehouse: React.FC = () => {
       setLedgers(ledgerData || []);
       setBatches(batchData || []);
       
+      // Fetch physical locations and placements if on locations tab
+      if (activeTab === 'locations') {
+        const { data: locs, error: locsErr } = await supabase
+          .from('warehouse_locations')
+          .select(`
+            *,
+            warehouse_product_placements (
+              quantity,
+              placed_at,
+              placement_source,
+              product:products(name, barcode, sku, manufacturer_barcode, manufacturer_barcode_verified)
+            )
+          `)
+          .eq('warehouse_id', warehouseId)
+          .order('location_code', { ascending: true });
+        
+        if (!locsErr) {
+            // we will store locs in state
+            setMovements(locs || []); // Using movements state temporarily to hold locs for simplicity
+        }
+      }
+
       // Fetch movements if on movement tab
       if (activeTab === 'movement') {
         setLoadingMovements(true);
         const { data: movData, error: movErr } = await supabase
-          .from('stock_ledgers')
-          .select('*, product:products(name)')
+          .from('warehouse_placement_events')
+          .select('*, product:products(name, barcode, sku, manufacturer_barcode, manufacturer_barcode_verified), from_loc:warehouse_locations!from_location_id(location_code), to_loc:warehouse_locations!to_location_id(location_code)')
           .eq('warehouse_id', warehouseId)
           .order('created_at', { ascending: false })
           .limit(200);
@@ -138,32 +160,30 @@ export const InventoryWarehouse: React.FC = () => {
             <thead>
               <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
                 <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Timestamp</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Event Type</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Product</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Reason</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Qty Change</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Admin ID</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>From → To</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Qty</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Source</th>
               </tr>
             </thead>
             <tbody>
               {loadingMovements ? (
-                <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>Loading movements...</td></tr>
+                <tr><td colSpan={6} style={{ padding: '20px', textAlign: 'center' }}>Loading events...</td></tr>
               ) : movements.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>No stock movements found</td></tr>
-              ) : movements.map(m => (
-                <tr key={m.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '12px 16px' }}>{new Date(m.created_at).toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px' }}>{m.product?.name}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span className="status-badge" style={{ backgroundColor: 'var(--primary-transparent)', color: 'var(--primary)' }}>
-                      {m.reason}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', color: m.quantity_change > 0 ? '#10b981' : m.quantity_change < 0 ? '#ef4444' : 'var(--text-secondary)', fontWeight: 700 }}>
-                    {m.quantity_change > 0 ? '+' : ''}{m.quantity_change}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>{m.actor_email?.slice(0,8) || '-'}</td>
-                </tr>
-              ))}
+                <tr><td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No placement events found.</td></tr>
+              ) : (
+                movements.map((m: any) => (
+                  <tr key={m.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>{new Date(m.created_at).toLocaleString()}</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>{m.event_type}</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>{m.product?.name} ({m.product?.barcode})</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>{m.from_loc?.location_code || 'UNPLACED'} → {m.to_loc?.location_code || 'OUT'}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{m.quantity}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{m.source}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -235,95 +255,88 @@ export const InventoryWarehouse: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 0 16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Warehouse size={18} color="var(--primary)" /> Operational Warehouses
+              <Warehouse size={18} color="var(--primary)" /> Physical Warehouse Locations
             </h3>
           </div>
           
-          <div style={{ height: '300px', width: '100%', borderRadius: 'var(--border-radius-md)', overflow: 'hidden', border: '1px solid var(--border-light)', margin: '16px 0', padding: '0 16px' }}>
-            <MapContainer 
-              center={[13.3427, 74.7472]} 
-              zoom={11} 
-              scrollWheelZoom={false} 
-              style={{ height: '100%', width: '100%', backgroundColor: '#0f172a' }}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              />
-              {warehouses.map((ds: any) => (
-                <Circle
-                  key={ds.id}
-                  center={[ds.lat, ds.lng]}
-                  radius={(ds.service_radius_km || 5) * 1000}
-                  pathOptions={{
-                    color: ds.is_active ? '#10b981' : 'var(--danger)',
-                    fillColor: ds.is_active ? '#10b981' : 'var(--danger)',
-                    fillOpacity: 0.2
-                  }}
-                >
-                  <Popup>
-                    <div style={{ color: '#000' }}>
-                      <strong>{ds.name}</strong><br/>
-                      Code: {ds.code}
-                    </div>
-                  </Popup>
-                </Circle>
-              ))}
-            </MapContainer>
+          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '12px', overflow: 'hidden', margin: '0 16px 16px 16px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Location Code</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Product</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Product Code</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Manufacturer Barcode</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Qty</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Used / Capacity</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Free Capacity</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movements.length === 0 ? (
+                  <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No physical locations mapped.</td></tr>
+                ) : (
+                  movements.map((l: any) => {
+                    const used = l.warehouse_product_placements?.reduce((a:any, b:any) => a + b.quantity, 0) || 0;
+                    const free = l.capacity - used;
+                    const isFull = used >= l.capacity;
+                    return (
+                    <tr key={l.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 800 }}>{l.location_code}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
+                        {l.warehouse_product_placements?.map((p: any, i: number) => (
+                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
+                            {p.product?.name}
+                          </div>
+                        ))}
+                        {(!l.warehouse_product_placements || l.warehouse_product_placements.length === 0) && <span style={{ color: 'var(--text-muted)' }}>Empty</span>}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
+                        {l.warehouse_product_placements?.map((p: any, i: number) => (
+                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
+                            {p.product?.sku || 'N/A'}
+                          </div>
+                        ))}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
+                        {l.warehouse_product_placements?.map((p: any, i: number) => (
+                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
+                            {p.product?.manufacturer_barcode_verified ? (
+                              <span style={{ color: '#10b981', fontWeight: 'bold' }}>{p.product?.manufacturer_barcode}</span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>Not verified</span>
+                            )}
+                          </div>
+                        ))}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
+                        {l.warehouse_product_placements?.map((p: any, i: number) => (
+                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
+                            <strong>{p.quantity}</strong>
+                          </div>
+                        ))}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{used} / {l.capacity}</span>
+                        </div>
+                        <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--border-light)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
+                          <div style={{ height: '100%', width: `${Math.min(100, (used/l.capacity)*100)}%`, backgroundColor: isFull ? '#ef4444' : '#10b981' }}></div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 600 }}>{free}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                         <span className={isFull ? 'admin-badge-warning' : 'admin-badge-success'}>
+                           {isFull ? 'FULL' : 'AVAILABLE'}
+                         </span>
+                      </td>
+                    </tr>
+                  )})
+                )}
+              </tbody>
+            </table>
           </div>
-
-          <DataTable
-            data={warehouses}
-            keyExtractor={(w: any) => w.id}
-            columns={[
-              { key: 'code', header: 'CODE', render: (w: any) => <span style={{ fontWeight: 800 }}>{w.code}</span> },
-              { key: 'name', header: 'NAME', render: (w: any) => w.name },
-              { key: 'address', header: 'ADDRESS', render: (w: any) => w.address || 'N/A' },
-              { key: 'radius', header: 'SERVICE RADIUS', render: (w: any) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: 800 }}>{w.service_radius_km || 5} km</span>
-                  <button 
-                    onClick={async () => {
-                      const rad = prompt('Enter new service radius (km) for ' + w.name, w.service_radius_km || '5');
-                      if (rad && !isNaN(Number(rad))) {
-                        try {
-                          await AdminService.updateWarehouseServiceability(w.id, Number(rad));
-                          addToast('Serviceability radius updated', 'success');
-                          fetchWarehouses();
-                        } catch (e: any) {
-                          addToast(e.message, 'error');
-                        }
-                      }
-                    }}
-                    style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: '0.75rem' }}
-                  >
-                    Edit
-                  </button>
-                </div>
-              )},
-              { key: 'active', header: 'STATUS', render: (w: any) => (
-                <span className={w.is_active ? 'admin-badge-success' : 'admin-badge-warning'}>
-                  {w.is_active ? 'ACTIVE' : 'INACTIVE'}
-                </span>
-              )},
-              { key: 'actions', header: '', render: (w: any) => (
-                <button 
-                  onClick={async () => {
-                    try {
-                      await AdminService.updateWarehouse(w.id, { is_active: !w.is_active });
-                      addToast(`Warehouse ${!w.is_active ? 'activated' : 'deactivated'}`, 'success');
-                      fetchWarehouses();
-                    } catch (e: any) {
-                      addToast(e.message, 'error');
-                    }
-                  }}
-                  style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', cursor: 'pointer', color: w.is_active ? 'var(--danger)' : 'var(--primary)' }}
-                >
-                  {w.is_active ? 'Deactivate' : 'Activate'}
-                </button>
-              )}
-            ]}
-          />
         </div>
       )}
 

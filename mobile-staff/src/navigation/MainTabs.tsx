@@ -3,13 +3,17 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ClipboardList, TrendingUp, Percent, User, Calendar } from 'lucide-react-native';
 import PickerDashboard from '../screens/Picker/PickerDashboard';
 import SlotsScreen from '../screens/Slots/SlotsScreen';
-import ProfileScreen from '../screens/Profile/ProfileScreen';
+import ProfileScreen from '../screens/Rider/DriverProfileScreen';
+import PickerProfileScreen from '../screens/Picker/PickerProfileScreen';
 import PerformanceScreen from '../screens/Performance/PerformanceScreen';
 import OffersScreen from '../screens/Offers/OffersScreen';
+import { useAuth } from '../context/AuthContext';
 
 const Tab = createBottomTabNavigator();
 
 export default function MainTabs() {
+  const { profile } = useAuth();
+
   return (
     <Tab.Navigator
       id="MainTabs"
@@ -54,7 +58,7 @@ export default function MainTabs() {
       />
       <Tab.Screen 
         name="Profile" 
-        component={ProfileScreen} 
+        component={profile?.role === 'picker' ? PickerProfileScreen : ProfileScreen} 
         options={{
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />
         }}

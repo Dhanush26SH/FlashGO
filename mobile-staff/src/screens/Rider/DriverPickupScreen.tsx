@@ -27,7 +27,12 @@ import { supabase } from '../../lib/supabase';
 
 interface DeliveryData {
   trip: { id: string; status: string };
-  warehouse: { id: string; name: string; address: string };
+  // Stable RPC response contract for warehouse coordinates:
+  //   JSON keys: latitude / longitude
+  //   SQL source: w.lat / w.lng  (authoritative DDL: 20260813000000_phase1_foundation.sql)
+  // The SQL→JSON mapping ('latitude', w.lat) is intentional — do NOT mirror DDL column names
+  // into the JSON contract. See migration 20260916000084_restore_driver_delivery_coordinate_contract.sql.
+  warehouse: { id: string; name: string; address: string; latitude: number | null; longitude: number | null };
   order: {
     id: string;
     order_number: string;
@@ -37,6 +42,8 @@ interface DeliveryData {
     customer_name: string;
     customer_phone: string;
     delivery_address: string;
+    delivery_lat: number | null;
+    delivery_lng: number | null;
     picker_ready: boolean;
     items: { id: string; quantity: number; picked_quantity: number; product_name: string; product_image: string | null }[];
     total_item_count: number;
@@ -56,16 +63,40 @@ export default function DriverPickupScreen() {
   const readyPulse = useRef(new Animated.Value(1)).current;
 
   const fetchDelivery = useCallback(async () => {
+    console.log('DRIVER_PICKUP_FETCH_START');
     try {
       const { data, error } = await supabase.rpc('driver_get_active_delivery');
-      if (error) throw error;
+      if (error) {
+        console.error('DRIVER_PICKUP_FETCH_ERROR', { code: error.code, message: error.message });
+        throw error;
+      }
+      console.log('DRIVER_PICKUP_FETCH_RESULT', {
+        success: data?.success,
+        hasTrip: !!(data?.trip),
+        hasOrder: !!(data?.order),
+        orderStatus: data?.order?.status ?? null,
+        pickerReady: data?.order?.picker_ready ?? null,
+      });
       if (data?.success && data?.trip && data?.order) {
+        console.log('DRIVER_PICKUP_WAREHOUSE_CONTEXT', {
+          id: data.warehouse?.id,
+          name: data.warehouse?.name,
+          latitude: data.warehouse?.latitude,
+          longitude: data.warehouse?.longitude,
+        });
+        console.log('DRIVER_PICKUP_TRIP_CONTEXT', {
+          tripId: data.trip?.id,
+          tripStatus: data.trip?.status,
+          orderStatus: data.order?.status,
+          deliveryLat: data.order?.delivery_lat,
+          deliveryLng: data.order?.delivery_lng,
+        });
         setDelivery(data as DeliveryData);
       } else {
         setDelivery(null);
       }
     } catch (err) {
-      console.error('Delivery fetch error:', err);
+      console.error('DRIVER_PICKUP_FETCH_ERROR', err);
     } finally {
       setLoading(false);
     }
@@ -122,8 +153,8 @@ export default function DriverPickupScreen() {
         }
         return;
       }
-      // Stop here — next screen will be provided separately
-      await fetchDelivery();
+      // Stop here — replace the current screen with the reach drop screen
+      navigation.replace('DriverReachDropScreen');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to confirm pickup.');
     } finally {
