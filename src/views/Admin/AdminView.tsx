@@ -31,6 +31,7 @@ import { OrderManagement } from './modules/OrderManagement';
 import { ProductCatalog } from './modules/ProductCatalog';
 import { InventoryWarehouse } from './modules/InventoryWarehouse';
 import { StaffManagement } from './modules/StaffManagement';
+import { PickerOffersManagement } from './modules/PickerOffersManagement';
 import { AdminProfile } from './modules/AdminProfile';
 import { UserCouponWallet } from './modules/UserCouponWallet';
 import { MarketingCMS } from './modules/MarketingCMS';
@@ -57,7 +58,7 @@ export const AdminView: React.FC = () => {
   
   // Roster tab selection
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'catalog' | 'inventory' | 'putaway' | 'counts' | 'returns' | 'transfers' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'layout' | 'platformSettings' | 'work_slots' | 'packing' | 'dispatch' | 'audit_logs'
+    'overview' | 'orders' | 'catalog' | 'inventory' | 'putaway' | 'counts' | 'returns' | 'transfers' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'layout' | 'platformSettings' | 'work_slots' | 'packing' | 'dispatch' | 'audit_logs' | 'picker_offers'
   >('overview');
 
   React.useEffect(() => {
@@ -90,6 +91,7 @@ export const AdminView: React.FC = () => {
     { id: 'packing', label: 'Packing & Staging', icon: <Package size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'dispatch', label: 'Dispatch & Handoff', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'staff', label: 'Workforce & Shifts', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
+    { id: 'picker_offers', label: 'Picker Offers', icon: <Gift size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'driver_approvals', label: 'Driver Approvals', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'procurement', label: 'B2B Procurement', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'finance', label: 'Finance & Settlements', icon: <IndianRupee size={16} />, clearance: ['super_admin'] },
@@ -158,6 +160,8 @@ export const AdminView: React.FC = () => {
         return <StockTransfers />;
       case 'staff':
         return <StaffManagement />;
+      case 'picker_offers':
+        return <PickerOffersManagement />;
       case 'driver_approvals':
         return <DriverApprovals />;
       case 'profile':

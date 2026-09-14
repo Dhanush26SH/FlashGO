@@ -53,7 +53,7 @@ export default function OrdersScreen() {
   };
 
   const filteredOrders = orders.filter(o => {
-    if (filter === 'active') return ['placed', 'picking', 'packed', 'driver_assigned', 'out_for_delivery'].includes(o.status);
+    if (filter === 'active') return ['placed', 'picking', 'packed', 'out_for_delivery'].includes(o.status);
     if (filter === 'past') return o.status === 'delivered';
     if (filter === 'cancelled') return o.status === 'cancelled';
     return true;

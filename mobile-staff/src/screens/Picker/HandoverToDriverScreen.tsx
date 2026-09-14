@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, ScrollView
@@ -35,6 +35,25 @@ export default function HandoverToDriverScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [order, setOrder] = useState<OrderData | null>(null);
+  const terminalHandledRef = useRef(false);
+
+  // ─── Watch for Terminal State ───
+  useEffect(() => {
+    if (order?.status === 'cancelled' && !terminalHandledRef.current) {
+      terminalHandledRef.current = true;
+      Alert.alert(
+        'Order Cancelled',
+        'This order is no longer active. Returning to dashboard.',
+        [{
+          text: 'OK',
+          onPress: () => navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          }),
+        }]
+      );
+    }
+  }, [order?.status, navigation]);
 
   // ─── Fetch order + driver profile (called on mount and on realtime updates) ───
   const fetchOrder = useCallback(async () => {

@@ -24,6 +24,8 @@ import WarehouseQRVerificationScreen from '../screens/Picker/WarehouseQRVerifica
 import PickerShiftScreen from '../screens/Picker/PickerShiftScreen';
 import PickingScreen from '../screens/Picker/PickingScreen';
 import HandoverToDriverScreen from '../screens/Picker/HandoverToDriverScreen';
+import WeeklyItemTargetScreen from '../screens/Offers/WeeklyItemTargetScreen';
+import PickerBonusOfferDetailScreen from '../screens/Offers/PickerBonusOfferDetailScreen';
 import DriverOnboardingNavigator from '../screens/DriverOnboarding/DriverOnboardingNavigator';
 import DriverCheckInScreen from '../screens/Rider/DriverCheckInScreen';
 import NavigationScreen from '../screens/Rider/NavigationScreen';
@@ -109,6 +111,8 @@ export default function AppNavigator() {
             <Stack.Screen name="PickerShift" component={PickerShiftScreen} />
             <Stack.Screen name="Picking" component={PickingScreen} />
             <Stack.Screen name="HandoverToDriver" component={HandoverToDriverScreen} />
+            <Stack.Screen name="WeeklyItemTargetScreen" component={WeeklyItemTargetScreen} />
+            <Stack.Screen name="PickerBonusOfferDetailScreen" component={PickerBonusOfferDetailScreen} />
           </>
         );
       default:

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react-native';
 
 export default function PickerProfileScreen() {
+  const navigation = useNavigation<any>();
   const { profile } = useAuth() as any;
   const [isOnline, setIsOnline] = useState(!!profile?.is_online);
   const [shiftInfo, setShiftInfo] = useState<any>(null);
@@ -158,7 +160,7 @@ export default function PickerProfileScreen() {
           <MenuItem 
             icon={<CreditCard size={22} color="#10b981" />} 
             title="Payouts" 
-            onPress={() => {}} 
+            onPress={() => navigation.navigate('Payouts')} 
           />
           <View style={styles.divider} />
           

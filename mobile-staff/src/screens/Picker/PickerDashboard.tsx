@@ -10,7 +10,6 @@ import { supabase } from '../../lib/supabase';
 export default function PickerDashboard() {
   const renderCount = useRef(0);
   renderCount.current += 1;
-  console.log('PICKER_RENDER_COUNT', renderCount.current);
   const navigation = useNavigation<any>();
   const { profile } = useAuth() as any;
   const isFocused = useIsFocused();
@@ -18,6 +17,7 @@ export default function PickerDashboard() {
   const [isOnline, setIsOnline] = useState(profile?.is_online || false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [shiftDetails, setShiftDetails] = useState<any>(null);
+  const [earningsData, setEarningsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
   const [currentTime, setCurrentTime] = useState(new Date().getTime());
@@ -26,15 +26,17 @@ export default function PickerDashboard() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const notifiedOrders = useRef<Set<string>>(new Set());
   const expiryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const incentivesChannelRef = useRef<any>(null);
 
-  // Update current time every 1s for the SLA Timer & Next Slot button
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('TIMER_TICK');
-      setCurrentTime(new Date().getTime());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Update current time every 1s for the SLA Timer & Next Slot button ONLY when focused
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(() => {
+        setCurrentTime(new Date().getTime());
+      }, 1000);
+      return () => clearInterval(interval);
+    }, [])
+  );
 
   // Live active time ticker — capped at shift_end
   useEffect(() => {
@@ -48,7 +50,6 @@ export default function PickerDashboard() {
         const diffMins = Math.floor(Math.max(0, effectiveEnd - start) / 60000);
         const hours = Math.floor(diffMins / 60);
         const mins = diffMins % 60;
-        console.log('SET_ACTIVE_TIME', `${hours}h ${mins}m`);
         setActiveTimeStr(`${hours}h ${mins}m`);
       };
       updateActiveTime();
@@ -206,7 +207,12 @@ export default function PickerDashboard() {
     // First try to find an active shift
     const { data: activeData } = await supabase
       .from('staff_shifts')
-      .select('id, shift_start, shift_end, status, started_at, items_picked, earnings, complaints, warehouses(name)')
+      .select(`
+        id, shift_start, shift_end, status, started_at, items_picked, earnings, complaints, 
+        work_slot_id, 
+        warehouses(name),
+        work_slots(picker_incentive_enabled, work_slot_picker_incentives(target_items, reward_amount, sort_order))
+      `)
       .eq('staff_id', profile.id)
       .eq('status', 'active')
       .maybeSingle();
@@ -227,6 +233,13 @@ export default function PickerDashboard() {
         console.log('FOCUS_EARLY_RETURN_REASON', 'active shift is valid');
         console.log('SET_SHIFT_DETAILS', activeData?.id);
         setShiftDetails(activeData);
+        
+        // Fetch earnings authoritatively
+        const { data: eData } = await supabase.rpc('calculate_picker_shift_earnings', { p_shift_id: activeData.id });
+        if (eData?.success) {
+           setEarningsData(eData);
+        }
+
         // Schedule the expiry timer precisely
         scheduleExpiryTimer(activeData.shift_end);
       }
@@ -256,7 +269,12 @@ export default function PickerDashboard() {
 
       const { data: nextData, error: nextError } = await supabase
         .from('staff_shifts')
-        .select('id, shift_start, shift_end, status, started_at, items_picked, earnings, complaints, warehouses(name)')
+        .select(`
+          id, shift_start, shift_end, status, started_at, items_picked, earnings, complaints, 
+          work_slot_id, 
+          warehouses(name),
+          work_slots(picker_incentive_enabled, work_slot_picker_incentives(target_items, reward_amount, sort_order))
+        `)
         .eq('staff_id', profile.id)
         .eq('status', 'scheduled')
         .gt('shift_end', nowIso)
@@ -312,13 +330,49 @@ export default function PickerDashboard() {
 
   // AppState: handle foreground re-entry (app backgrounded while shift active)
   useEffect(() => {
+    let activeRefetchTimer: ReturnType<typeof setTimeout>;
+    
+    // Cleanup previous channel instance synchronously on remount
+    if (incentivesChannelRef.current) {
+      supabase.removeChannel(incentivesChannelRef.current);
+      incentivesChannelRef.current = null;
+    }
+    
+    // Generate globally unique channel name for this exact mount cycle
+    const uniqueChannelName = `picker_incentives_sync_${profile?.id || 'anon'}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(uniqueChannelName);
+    incentivesChannelRef.current = channel;
+
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_slot_picker_incentives' }, () => {
+        // Debounce refetch to avoid multiple calls if many rows update
+        clearTimeout(activeRefetchTimer);
+        activeRefetchTimer = setTimeout(fetchShiftAndStatus, 1000);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'work_slots' }, () => {
+        clearTimeout(activeRefetchTimer);
+        activeRefetchTimer = setTimeout(fetchShiftAndStatus, 1000);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'staff_shifts', filter: `staff_id=eq.${profile?.id}` }, () => {
+        clearTimeout(activeRefetchTimer);
+        activeRefetchTimer = setTimeout(fetchShiftAndStatus, 1000);
+      })
+      .subscribe();
+      
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       console.log('APPSTATE_EVENT', nextState);
       if (nextState === 'active') {
         fetchShiftAndStatus();
       }
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (incentivesChannelRef.current) {
+        supabase.removeChannel(incentivesChannelRef.current);
+        incentivesChannelRef.current = null;
+      }
+      clearTimeout(activeRefetchTimer);
+    };
   }, [fetchShiftAndStatus]);
 
   // Cleanup expiry timer on unmount
@@ -399,7 +453,7 @@ export default function PickerDashboard() {
     if (!shiftDetails) {
       return (
         <View>
-          <Text style={styles.nextSlotWarehouse}>[v2] No booked slot</Text>
+          <Text style={styles.nextSlotWarehouse}>No booked slot</Text>
           <Text style={styles.nextSlotDate}>Book a slot to start working</Text>
           <TouchableOpacity 
             style={styles.nextSlotButton}
@@ -557,11 +611,11 @@ export default function PickerDashboard() {
         <View style={styles.metricsContainer}>
           <View style={styles.metricBox}>
             <Text style={styles.metricLabel}>Earnings</Text>
-            <Text style={styles.metricValue}>₹{shiftDetails.earnings || 0}</Text>
+            <Text style={styles.metricValue}>₹{earningsData?.base_earnings ?? (shiftDetails.earnings || 0)}</Text>
           </View>
           <View style={styles.metricBox}>
             <Text style={styles.metricLabel}>Items picked</Text>
-            <Text style={styles.metricValue}>{shiftDetails.items_picked || 0}</Text>
+            <Text style={styles.metricValue}>{earningsData?.items_picked ?? (shiftDetails.items_picked || 0)}</Text>
           </View>
           <View style={styles.metricBox}>
             <Text style={styles.metricLabel}>Complaints</Text>
@@ -571,10 +625,68 @@ export default function PickerDashboard() {
       </View>
 
       {/* Incentive Section */}
-      <View style={styles.dashboardCard}>
-        <Text style={styles.dashboardCardTitle}>Incentive progress</Text>
-        <Text style={styles.emptyIncentiveText}>No active incentive for this slot</Text>
-      </View>
+      {shiftDetails?.work_slots?.picker_incentive_enabled && (
+        <View style={styles.dashboardCard}>
+          <Text style={styles.dashboardCardTitle}>Incentive progress</Text>
+          
+          {(!shiftDetails.work_slots.work_slot_picker_incentives || shiftDetails.work_slots.work_slot_picker_incentives.length === 0) ? (
+            <Text style={styles.emptyIncentiveText}>No incentive configured for this slot.</Text>
+          ) : (
+            <View style={{ marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 4 }}>
+                {shiftDetails.work_slots.work_slot_picker_incentives
+                  .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                  .map((inc: any, i: number) => (
+                    <Text key={`reward-${i}`} style={{ fontSize: 13, fontWeight: 'bold', color: '#10b981', textAlign: 'center', flex: 1 }}>
+                      ₹{inc.reward_amount}
+                    </Text>
+                ))}
+              </View>
+              
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }}>
+                {shiftDetails.work_slots.work_slot_picker_incentives
+                  .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                  .map((inc: any, i: number, arr: any[]) => {
+                    const isAchieved = (shiftDetails.items_picked || 0) >= inc.target_items;
+                    const isLast = i === arr.length - 1;
+                    return (
+                      <React.Fragment key={`dot-${i}`}>
+                        <View style={{ 
+                          width: 14, height: 14, borderRadius: 7, 
+                          backgroundColor: isAchieved ? '#10b981' : '#d1d5db',
+                          borderWidth: 2, borderColor: '#fff',
+                          zIndex: 2
+                        }} />
+                        {!isLast && (
+                          <View style={{ 
+                            flex: 1, height: 3, 
+                            backgroundColor: ((shiftDetails.items_picked || 0) >= arr[i+1].target_items) ? '#10b981' : '#e5e7eb',
+                            marginHorizontal: -2,
+                            zIndex: 1
+                          }} />
+                        )}
+                      </React.Fragment>
+                    );
+                })}
+              </View>
+              
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 4 }}>
+                {shiftDetails.work_slots.work_slot_picker_incentives
+                  .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                  .map((inc: any, i: number) => (
+                    <Text key={`target-${i}`} style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', flex: 1 }}>
+                      {inc.target_items}
+                    </Text>
+                ))}
+              </View>
+              
+              <Text style={{ marginTop: 16, fontSize: 13, color: '#374151', textAlign: 'center', fontWeight: '500' }}>
+                Items picked: {shiftDetails.items_picked || 0}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 

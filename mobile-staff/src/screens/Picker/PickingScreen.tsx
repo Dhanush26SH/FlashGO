@@ -37,6 +37,10 @@ export default function PickingScreen() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualBarcode, setManualBarcode] = useState('');
 
+  // Multi-quantity state
+  const [showQuantityConfirm, setShowQuantityConfirm] = useState(false);
+  const [manualPickedQuantity, setManualPickedQuantity] = useState(1);
+
   useEffect(() => {
     fetchOrderData();
     const interval = setInterval(() => setCurrentTime(new Date().getTime()), 1000);
@@ -83,6 +87,8 @@ export default function PickingScreen() {
         setScannedBarcode(null);
         setManualBarcode('');
         setShowManualEntry(false);
+        setShowQuantityConfirm(false);
+        setManualPickedQuantity(1);
       } else {
         await finishPicking();
       }
@@ -109,44 +115,92 @@ export default function PickingScreen() {
     }
   };
 
-  // Authoritative barcode validation via resolve_product_barcode → pick_fefo_location_item
+  // Authoritative barcode validation via resolve_product_barcode
   const handleBarcodeScanned = async ({ data }: any) => {
     if (processingScan) return;
+    
+    // Ignore rapid identical scans if already verified for multi-quantity
+    if (isVerified && scannedBarcode === data && items[currentIndex]?.quantity > 1) {
+      return;
+    }
+    
     setProcessingScan(true);
 
     try {
       const currentItem = items[currentIndex];
-      
       setSubmitting(true);
-      const { error } = await supabase.rpc('pick_fefo_location_item', {
-        p_warehouse_id: profile.warehouse_id,
-        p_product_id: currentItem.product_id,
-        p_location_id: currentItem.location_id,
-        p_quantity: 1, // Only increment 1 unit per scan
-        p_order_id: orderId,
-        p_user_id: profile.id,
+
+      const { data: resolvedProductId, error: resolveError } = await supabase.rpc('resolve_product_barcode', {
         p_scanned_barcode: data
       });
+
+      if (resolveError) throw resolveError;
+
+      if (!resolvedProductId) {
+        Alert.alert('Barcode not recognized', 'This barcode does not match any product in our system.');
+        return;
+      }
       
-      if (error) {
-        // Handle specific server-side errors
-        if (error.message.includes('not match the expected product')) {
-            Alert.alert('Wrong product scanned', `Please scan the barcode for ${currentItem.product_name}.`);
-        } else if (error.message.includes('not recognized')) {
-            Alert.alert('Barcode not recognized', 'This barcode does not match any product in our system.');
+      if (resolvedProductId !== currentItem.product_id) {
+        Alert.alert('Wrong product scanned', `Please scan the barcode for ${currentItem.product_name}.`);
+        return;
+      }
+
+      // Valid scan!
+      setScannedBarcode(data);
+      setIsVerified(true);
+      setShowManualEntry(false);
+
+      if (currentItem.quantity === 1) {
+        // Single unit: pick authoritatively immediately
+        const { error } = await supabase.rpc('pick_fefo_location_item', {
+          p_warehouse_id: profile.warehouse_id,
+          p_product_id: currentItem.product_id,
+          p_location_id: currentItem.location_id,
+          p_quantity: 1,
+          p_order_id: orderId,
+          p_user_id: profile.id,
+          p_scanned_barcode: data
+        });
+        
+        if (error) {
+          throw error;
         } else {
-            throw error;
+          await fetchOrderData();
         }
       } else {
-        // Backend succeeded — refresh pick lines
-        await fetchOrderData();
-        // Do not close the scanner, allow subsequent scans if more items are needed
+        // Multi-quantity: require manual confirmation
+        setManualPickedQuantity(1);
+        setShowQuantityConfirm(true);
       }
     } catch (e: any) {
       Alert.alert('Pick Error', e.message, [{ text: 'OK' }]);
     } finally {
       setSubmitting(false);
       setProcessingScan(false);
+    }
+  };
+
+  const handleConfirmItem = async () => {
+    if (processingScan || submitting) return;
+    setSubmitting(true);
+    try {
+      const currentItem = items[currentIndex];
+      const { error } = await supabase.rpc('pick_fefo_location_item', {
+        p_warehouse_id: profile.warehouse_id,
+        p_product_id: currentItem.product_id,
+        p_location_id: currentItem.location_id,
+        p_quantity: manualPickedQuantity,
+        p_order_id: orderId,
+        p_user_id: profile.id,
+        p_scanned_barcode: scannedBarcode
+      });
+      if (error) throw error;
+      await fetchOrderData();
+    } catch (e: any) {
+      Alert.alert('Pick Error', e.message, [{ text: 'OK' }]);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -321,74 +375,113 @@ export default function PickingScreen() {
         </View>
 
         {/* ── BARCODE / SCANNER SECTION ── */}
-        <View style={styles.scannerSection}>
-          {showManualEntry ? (
-            <View style={styles.manualEntryContainer}>
-              <Text style={styles.manualEntryTitle}>Enter UPC Manually</Text>
-              <TextInput
-                style={styles.barcodeInput}
-                placeholder="Enter UPC / barcode..."
-                value={manualBarcode}
-                onChangeText={setManualBarcode}
-                autoCapitalize="none"
-                autoFocus
-                keyboardType="default"
-              />
-              <View style={styles.manualActions}>
+        {showQuantityConfirm ? (
+          <View style={styles.multiQtyContainer}>
+            <Text style={styles.multiQtyTitle}>Verify Quantity</Text>
+            <Text style={styles.multiQtyLabel}>Picked: {manualPickedQuantity} / {currentItem.quantity}</Text>
+            
+            <View style={styles.qtyControls}>
+              <TouchableOpacity 
+                style={styles.qtyBtn} 
+                onPress={() => setManualPickedQuantity(prev => Math.max(1, prev - 1))}
+                disabled={manualPickedQuantity <= 1}
+              >
+                <Text style={styles.qtyBtnText}>-</Text>
+              </TouchableOpacity>
+              
+              <Text style={styles.qtyValue}>{manualPickedQuantity}</Text>
+              
+              <TouchableOpacity 
+                style={styles.qtyBtn} 
+                onPress={() => setManualPickedQuantity(prev => Math.min(currentItem.quantity, prev + 1))}
+                disabled={manualPickedQuantity >= currentItem.quantity}
+              >
+                <Text style={styles.qtyBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={[styles.confirmBtn, manualPickedQuantity !== currentItem.quantity && styles.confirmBtnDisabled]}
+              onPress={handleConfirmItem}
+              disabled={manualPickedQuantity !== currentItem.quantity || submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.confirmBtnText}>Confirm Item</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.scannerSection}>
+            {showManualEntry ? (
+              <View style={styles.manualEntryContainer}>
+                <Text style={styles.manualEntryTitle}>Enter UPC Manually</Text>
+                <TextInput
+                  style={styles.barcodeInput}
+                  placeholder="Enter UPC / barcode..."
+                  value={manualBarcode}
+                  onChangeText={setManualBarcode}
+                  autoCapitalize="none"
+                  autoFocus
+                  keyboardType="default"
+                />
+                <View style={styles.manualActions}>
+                  <TouchableOpacity
+                    style={[styles.manualBtn, styles.manualBtnCancel]}
+                    onPress={() => { setShowManualEntry(false); setManualBarcode(''); }}
+                  >
+                    <Text style={styles.manualBtnCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.manualBtn, styles.manualBtnSubmit, (!manualBarcode.trim() || processingScan) && styles.manualBtnDisabled]}
+                    onPress={submitManualBarcode}
+                    disabled={!manualBarcode.trim() || processingScan || submitting}
+                  >
+                    {processingScan || submitting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.manualBtnSubmitText}>Verify & Pick</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <>
                 <TouchableOpacity
-                  style={[styles.manualBtn, styles.manualBtnCancel]}
-                  onPress={() => { setShowManualEntry(false); setManualBarcode(''); }}
+                  style={[styles.scanCameraBtn, isVerified && styles.scanCameraBtnVerified]}
+                  onPress={() => {
+                    if (!permission?.granted) { requestPermission(); return; }
+                    setIsScanning(true);
+                  }}
+                  disabled={submitting}
                 >
-                  <Text style={styles.manualBtnCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.manualBtn, styles.manualBtnSubmit, (!manualBarcode.trim() || processingScan) && styles.manualBtnDisabled]}
-                  onPress={submitManualBarcode}
-                  disabled={!manualBarcode.trim() || processingScan || submitting}
-                >
-                  {processingScan || submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : isVerified ? (
+                    <>
+                      <Check color="#fff" size={20} strokeWidth={3} />
+                      <Text style={styles.scanCameraBtnText}>Verified — Scan next</Text>
+                    </>
                   ) : (
-                    <Text style={styles.manualBtnSubmitText}>Verify & Pick</Text>
+                    <>
+                      <CameraIcon color="#fff" size={20} />
+                      <Text style={styles.scanCameraBtnText}>Scan Barcode</Text>
+                    </>
                   )}
                 </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={[styles.scanCameraBtn, isVerified && styles.scanCameraBtnVerified]}
-                onPress={() => {
-                  if (!permission?.granted) { requestPermission(); return; }
-                  setIsScanning(true);
-                }}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : isVerified ? (
-                  <>
-                    <Check color="#fff" size={20} strokeWidth={3} />
-                    <Text style={styles.scanCameraBtnText}>Verified — Scan next</Text>
-                  </>
-                ) : (
-                  <>
-                    <CameraIcon color="#fff" size={20} />
-                    <Text style={styles.scanCameraBtnText}>Scan Barcode</Text>
-                  </>
-                )}
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.manualLinkBtn}
-                onPress={() => setShowManualEntry(true)}
-              >
-                <Keyboard size={16} color="#10b981" style={{ marginRight: 6 }} />
-                <Text style={styles.manualLinkText}>Enter UPC manually</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+                <TouchableOpacity
+                  style={styles.manualLinkBtn}
+                  onPress={() => setShowManualEntry(true)}
+                >
+                  <Keyboard size={16} color="#10b981" style={{ marginRight: 6 }} />
+                  <Text style={styles.manualLinkText}>Enter UPC manually</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* ── FULLSCREEN CAMERA SCANNER MODAL ── */}
@@ -519,4 +612,16 @@ const styles = StyleSheet.create({
   scannerLoadingText: { color: '#10b981', marginTop: 12, fontWeight: 'bold' },
   scannerFooter: { padding: 32, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
   scannerHelpText: { color: '#fff', fontSize: 14, textAlign: 'center' },
+
+  // Multi-quantity
+  multiQtyContainer: { backgroundColor: '#ffffff', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', marginTop: 4 },
+  multiQtyTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
+  multiQtyLabel: { fontSize: 16, color: '#4b5563', marginBottom: 20 },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 24, marginBottom: 24 },
+  qtyBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d1d5db' },
+  qtyBtnText: { fontSize: 28, fontWeight: 'bold', color: '#111827' },
+  qtyValue: { fontSize: 32, fontWeight: 'bold', color: '#111827', minWidth: 40, textAlign: 'center' },
+  confirmBtn: { width: '100%', backgroundColor: '#10b981', paddingVertical: 16, borderRadius: 10, alignItems: 'center' },
+  confirmBtnDisabled: { backgroundColor: '#9ca3af' },
+  confirmBtnText: { color: '#ffffff', fontSize: 18, fontWeight: 'bold' },
 });

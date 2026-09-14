@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ArrowLeft, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle2, ShieldCheck } from 'lucide-react-native';
@@ -14,12 +14,21 @@ export default function PaymentOptionsScreen() {
   
   const [selectedMethod, setSelectedMethod] = useState<'cod' | 'razorpay_google_pay' | 'razorpay_other_upi' | 'razorpay_card' | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const submitLockRef = useRef(false);
+  const idempotencyKeyRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!idempotencyKeyRef.current && sessionUser?.id) {
+      idempotencyKeyRef.current = `checkout_${sessionUser.id}_${Date.now()}`;
+    }
+  }, [sessionUser?.id]);
 
   const displayAddress = checkoutAddress || activeAddress;
   const grandTotal = quote?.total_payable || 0;
 
   const handlePlaceOrder = async () => {
     if (!selectedMethod || !displayAddress || !sessionUser) return;
+    if (submitLockRef.current) return;
 
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(displayAddress.id);
     if (!isUUID) {
@@ -31,6 +40,7 @@ export default function PaymentOptionsScreen() {
       return;
     }
 
+    submitLockRef.current = true;
     setIsProcessing(true);
     try {
       // Map UI payment method to backend value
@@ -38,16 +48,13 @@ export default function PaymentOptionsScreen() {
         : selectedMethod === 'razorpay_card' ? 'card'
         : 'upi'; // google_pay and other_upi both map to 'upi'
 
-      // Generate idempotency key to prevent double-submission
-      const idempotencyKey = `checkout_${sessionUser.id}_${Date.now()}`;
-
       // V2: identity from auth.uid(), cart from server, address by ID only
       const orderId = await processCheckoutV2({
         p_address_id:      displayAddress.id,
         p_delivery_speed:  'standard',
         p_payment_method:  backendMethod,
         p_coupon_code:     couponCode ?? null,
-        p_idempotency_key: idempotencyKey,
+        p_idempotency_key: idempotencyKeyRef.current,
       });
 
       if (selectedMethod === 'cod') {
@@ -57,13 +64,14 @@ export default function PaymentOptionsScreen() {
       } else {
         // Prepaid (UPI / Card): order is payment_pending.
         // Cart items were already removed from the server cart by process_checkout_v2.
+        await clearCart();
         // Navigate to Razorpay WebView to complete payment.
         navigation.navigate('RazorpayCheckout', { orderId, amount: grandTotal });
       }
 
     } catch (error: any) {
       console.error('Checkout error:', error?.message || error);
-    } finally {
+      submitLockRef.current = false;
       setIsProcessing(false);
     }
   };

@@ -199,7 +199,24 @@ export const processCheckoutV2 = async (payload: {
     p_coupon_code:     payload.p_coupon_code ?? null,
     p_idempotency_key: payload.p_idempotency_key ?? null,
   });
-  if (error) throw error;
+  
+  if (error) {
+    console.log('CHECKOUT_RPC_ERROR', JSON.stringify({
+      paymentMethod: payload.p_payment_method,
+      errorCode: error.code,
+      errorMessage: error.message,
+      details: error.details,
+      hint: error.hint
+    }, null, 2));
+    throw error;
+  }
+
+  console.log('CHECKOUT_RPC_RESULT', JSON.stringify({
+    paymentMethod: payload.p_payment_method,
+    idempotencyKey: payload.p_idempotency_key,
+    returnedOrderId: data
+  }, null, 2));
+
   return data as string; // UUID
 };
 
@@ -223,7 +240,15 @@ export const fetchOrders = async () => {
       order_items ( id, product_id, quantity, price, products(name, image_url) )
     `)
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) {
+    console.log('ORDERS_QUERY_ERROR', JSON.stringify({
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    }, null, 2));
+    throw error;
+  }
   return data;
 };
 

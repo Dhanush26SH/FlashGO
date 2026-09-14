@@ -4,7 +4,7 @@ import {
   getAddresses, getWalletBalance,
   getServingWarehouse, fetchWarehouseCatalog, fetchBrowseCatalog,
   fetchCategories, fetchSubcategories,
-  upsertCartItem, getServerCart,
+  upsertCartItem, removeCartItem, getServerCart,
 } from '../services/api';
 
 // ─── Persistence keys ────────────────────────────────────────────────────────
@@ -247,7 +247,11 @@ export const useMobileApp = (userId: string | null) => {
     // Sync to server — errors are logged but do not roll back the local state
     // because the server will be the source of truth on next bootstrap.
     try {
-      await upsertCartItem(productId, quantity);
+      if (quantity > 0) {
+        await upsertCartItem(productId, quantity);
+      } else {
+        await removeCartItem(productId);
+      }
     } catch (err: any) {
       console.error(`SERVER_CART_SYNC_ERROR product=${productId} qty=${quantity}:`, err?.message);
     }
@@ -258,6 +262,8 @@ export const useMobileApp = (userId: string | null) => {
     setCart({});
     // Legacy AsyncStorage cleanup (belt-and-suspenders)
     await AsyncStorage.removeItem(`flashgo_cart_${userId}`).catch(() => {});
+    // Force sync from backend immediately to prevent ghost states
+    await loadServerCart();
   };
 
   return {

@@ -7,13 +7,16 @@ import {
   Calendar, 
   CheckCircle2, 
   Package,
-  Activity
+  Activity,
+  Search,
+  X
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Circle, Popup } from 'react-leaflet';
 import { DataTable } from '../../../components/Admin/DataTable';
 import { AdminService } from '../../../services/api/AdminService';
 import { supabase } from '../../../services/api/supabaseClient';
+import { QRCodeSVG } from 'qrcode.react';
 
 export const InventoryWarehouse: React.FC = () => {
   const { addToast } = useApp();
@@ -31,6 +34,12 @@ export const InventoryWarehouse: React.FC = () => {
   // Stock Movement History state
   const [movements, setMovements] = useState<any[]>([]);
   const [loadingMovements, setLoadingMovements] = useState(false);
+
+  // Popup state
+  const [selectedLocationForQr, setSelectedLocationForQr] = useState<any>(null);
+
+  // Search state
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
 
   const fetchWarehouses = async () => {
     try {
@@ -56,26 +65,46 @@ export const InventoryWarehouse: React.FC = () => {
       setLedgers(ledgerData || []);
       setBatches(batchData || []);
       
-      // Fetch physical locations and placements if on locations tab
       if (activeTab === 'locations') {
-        const { data: locs, error: locsErr } = await supabase
-          .from('warehouse_locations')
-          .select(`
-            *,
-            warehouse_product_placements (
-              quantity,
-              placed_at,
-              placement_source,
-              product:products(name, barcode, sku, manufacturer_barcode, manufacturer_barcode_verified)
-            )
-          `)
-          .eq('warehouse_id', warehouseId)
-          .order('location_code', { ascending: true });
-        
-        if (!locsErr) {
-            // we will store locs in state
-            setMovements(locs || []); // Using movements state temporarily to hold locs for simplicity
+        let allLocs: any[] = [];
+        let from = 0;
+        const limit = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data: locs, error: locsErr } = await supabase
+            .from('warehouse_locations')
+            .select(`
+              *,
+              warehouse_product_placements (
+                quantity,
+                placed_at,
+                placement_source,
+                product:products(name, barcode, sku, manufacturer_barcode, manufacturer_barcode_verified, internal_barcode)
+              )
+            `)
+            .eq('warehouse_id', warehouseId)
+            .order('location_code', { ascending: true })
+            .range(from, from + limit - 1);
+          
+          if (locsErr) {
+            console.error('Error fetching locations:', locsErr);
+            break;
+          }
+          
+          if (locs && locs.length > 0) {
+            allLocs = [...allLocs, ...locs];
+            if (locs.length < limit) {
+              hasMore = false;
+            } else {
+              from += limit;
+            }
+          } else {
+            hasMore = false;
+          }
         }
+        
+        setMovements(allLocs); // Using movements state temporarily to hold locs for simplicity
       }
 
       // Fetch movements if on movement tab
@@ -128,6 +157,22 @@ export const InventoryWarehouse: React.FC = () => {
   const lowStockProducts = inventory.filter(p => p.is_low_stock);
   const expiryBatches = batches.filter(b => b.days_left <= 30 && b.status === 'active');
   const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
+
+  // Filter locations
+  const filteredLocations = movements.filter(l => {
+    if (!locationSearchQuery) return true;
+    const q = locationSearchQuery.toLowerCase().trim();
+    if (l.location_code?.toLowerCase().includes(q)) return true;
+    
+    if (l.warehouse_product_placements) {
+      for (const p of l.warehouse_product_placements) {
+        if (p.product?.name?.toLowerCase().includes(q)) return true;
+        if (p.product?.sku?.toLowerCase().includes(q)) return true;
+        if (p.product?.internal_barcode?.toLowerCase().includes(q)) return true;
+      }
+    }
+    return false;
+  });
 
   return (
     <div className="container">
@@ -253,13 +298,34 @@ export const InventoryWarehouse: React.FC = () => {
 
       {activeTab === 'locations' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="glass-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 0 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 16px 16px', flexWrap: 'wrap', gap: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Warehouse size={18} color="var(--primary)" /> Physical Warehouse Locations
             </h3>
+
+            <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+              <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                <Search size={16} color="var(--text-muted)" />
+              </div>
+              <input 
+                type="text" 
+                placeholder="Search product, location, product code or FLH barcode..." 
+                value={locationSearchQuery}
+                onChange={e => setLocationSearchQuery(e.target.value)}
+                style={{ width: '100%', padding: '10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+              />
+              {locationSearchQuery && (
+                <button 
+                  onClick={() => setLocationSearchQuery('')}
+                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 0 }}
+                >
+                  <X size={16} color="var(--text-muted)" />
+                </button>
+              )}
+            </div>
           </div>
           
-          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '12px', overflow: 'hidden', margin: '0 16px 16px 16px' }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '12px', overflowX: 'auto', margin: '0 16px 16px 16px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
@@ -274,16 +340,24 @@ export const InventoryWarehouse: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {movements.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No physical locations mapped.</td></tr>
+                {filteredLocations.length === 0 ? (
+                  <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No warehouse locations found.</td></tr>
                 ) : (
-                  movements.map((l: any) => {
+                  filteredLocations.map((l: any) => {
                     const used = l.warehouse_product_placements?.reduce((a:any, b:any) => a + b.quantity, 0) || 0;
                     const free = l.capacity - used;
                     const isFull = used >= l.capacity;
                     return (
                     <tr key={l.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 800 }}>{l.location_code}</td>
+                      <td 
+                        style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 800, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                        onClick={() => setSelectedLocationForQr(l)}
+                        title="Click to view details and print QR"
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.textDecoration = 'underline'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.textDecoration = 'none'; }}
+                      >
+                        {l.location_code}
+                      </td>
                       <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
                         {l.warehouse_product_placements?.map((p: any, i: number) => (
                           <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
@@ -336,6 +410,58 @@ export const InventoryWarehouse: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'locations' && selectedLocationForQr && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'var(--bg-base)', padding: '32px', borderRadius: '16px', width: '350px', border: '1px solid var(--border-light)', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: 800 }}>Location Details</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <strong>Location Code:</strong> 
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{selectedLocationForQr.location_code}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <strong>Zone:</strong> 
+                <span style={{ color: 'var(--text-primary)' }}>{selectedLocationForQr.zone}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <strong>Rack:</strong> 
+                <span style={{ color: 'var(--text-primary)' }}>{selectedLocationForQr.rack}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <strong>Shelf:</strong> 
+                <span style={{ color: 'var(--text-primary)' }}>{selectedLocationForQr.shelf_level}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                <strong>Position:</strong> 
+                <span style={{ color: 'var(--text-primary)' }}>{selectedLocationForQr.position}</span>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px', backgroundColor: '#fff', padding: '16px', borderRadius: '12px' }}>
+              <QRCodeSVG value={selectedLocationForQr.barcode} size={180} />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 700 }}
+                onClick={() => setSelectedLocationForQr(null)}
+              >
+                Close
+              </button>
+              <button 
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                onClick={() => {
+                  window.print();
+                }}
+              >
+                Print Label
+              </button>
+            </div>
           </div>
         </div>
       )}

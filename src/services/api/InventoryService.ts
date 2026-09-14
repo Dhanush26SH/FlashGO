@@ -104,15 +104,111 @@ export class InventoryService {
   }
 
   // --- PUTAWAY API ---
-  static async getPutawayTasks(warehouseId: string): Promise<any[]> {
-    if (!supabase) return [];
-    const { data, error } = await supabase
+  static async getPutawayTasksPaginated(
+    warehouseId: string, 
+    page: number, 
+    limit: number, 
+    filters: {
+      search?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ): Promise<{ data: any[], count: number, kpis: any }> {
+    if (!supabase) return { data: [], count: 0, kpis: { pending: 0, in_progress: 0, completed_today: 0 } };
+
+    // 1. Fetch KPIs
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfToday = today.toISOString();
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const endOfToday = tomorrow.toISOString();
+
+    const pPending = supabase.from('putaway_tasks').select('*', { count: 'exact', head: true })
+      .eq('warehouse_id', warehouseId).eq('status', 'pending');
+    
+    const pInProgress = supabase.from('putaway_tasks').select('*', { count: 'exact', head: true })
+      .eq('warehouse_id', warehouseId).eq('status', 'in_progress');
+      
+    const pCompletedToday = supabase.from('putaway_tasks').select('*', { count: 'exact', head: true })
+      .eq('warehouse_id', warehouseId).eq('status', 'completed')
+      .gte('completed_at', startOfToday).lt('completed_at', endOfToday);
+
+    const [resP, resI, resC] = await Promise.all([pPending, pInProgress, pCompletedToday]);
+    const kpis = {
+      pending: resP.count || 0,
+      in_progress: resI.count || 0,
+      completed_today: resC.count || 0
+    };
+
+    // 2. Fetch related IDs for search if needed
+    let productIds: string[] = [];
+    let workerIds: string[] = [];
+    let batchIds: string[] = [];
+
+    if (filters.search) {
+      const q = filters.search.trim();
+      const pProd = supabase.from('products').select('id').or(`name.ilike.%${q}%,sku.ilike.%${q}%,internal_barcode.ilike.%${q}%`);
+      const pProf = supabase.from('profiles').select('id').or(`full_name.ilike.%${q}%,employee_id.ilike.%${q}%`);
+      const pBatch = supabase.from('product_batches').select('batch_id').ilike('batch_number', `%${q}%`);
+      
+      const [rProd, rProf, rBatch] = await Promise.all([pProd, pProf, pBatch]);
+      productIds = (rProd.data || []).map((x: any) => x.id);
+      workerIds = (rProf.data || []).map((x: any) => x.id);
+      batchIds = (rBatch.data || []).map((x: any) => x.batch_id);
+    }
+
+    // 3. Build Main Query
+    let query = supabase
       .from('putaway_tasks')
-      .select('*, product:products(name, sku, category_id, barcode), batch:product_batches(batch_number, expiry_date), worker:profiles!worker_id(full_name)')
-      .eq('warehouse_id', warehouseId)
-      .order('created_at', { ascending: false });
+      .select('*, product:products(name, sku, internal_barcode), batch:product_batches(batch_number), worker:profiles!worker_id(full_name, employee_id)', { count: 'exact' })
+      .eq('warehouse_id', warehouseId);
+
+    // Filter logic
+    if (filters.status && filters.status !== 'all') {
+      query = query.eq('status', filters.status);
+      if (filters.status === 'completed' && filters.startDate && filters.endDate) {
+        query = query.gte('completed_at', filters.startDate).lte('completed_at', filters.endDate);
+      }
+    } else {
+      if (filters.startDate && filters.endDate) {
+        // Must never hide pending/in_progress
+        query = query.or(`status.in.(pending,in_progress),and(status.eq.completed,completed_at.gte.${filters.startDate},completed_at.lte.${filters.endDate})`);
+      }
+    }
+
+    if (filters.search) {
+      const q = filters.search.trim();
+      let searchOrs = [];
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q)) {
+         searchOrs.push(`id.eq.${q}`);
+      } else {
+         searchOrs.push(`id.ilike.%${q}%`);
+      }
+      searchOrs.push(`destination_location.ilike.%${q}%`);
+      if (productIds.length > 0) searchOrs.push(`product_id.in.(${productIds.join(',')})`);
+      if (workerIds.length > 0) searchOrs.push(`worker_id.in.(${workerIds.join(',')})`);
+      if (batchIds.length > 0) searchOrs.push(`batch_id.in.(${batchIds.join(',')})`);
+      
+      query = query.or(searchOrs.join(','));
+    }
+
+    query = query.order('created_at', { ascending: false });
+
+    // Pagination
+    const from = (page - 1) * limit;
+    query = query.range(from, from + limit - 1);
+
+    const { data, count, error } = await query;
     if (error) throw error;
-    return data || [];
+    
+    return {
+      data: data || [],
+      count: count || 0,
+      kpis
+    };
   }
 
   static async completePutaway(taskId: string, location: string, userId: string): Promise<void> {

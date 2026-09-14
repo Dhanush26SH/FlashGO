@@ -12,6 +12,9 @@ export interface WorkSlot {
   booked_count: number;
   estimated_hourly_rate_min?: number | null;
   estimated_hourly_rate_max?: number | null;
+  picker_incentive_enabled?: boolean;
+  picker_incentives?: any[];
+  picker_pay_rate?: number | null;
 }
 
 export class WorkSlotService {
@@ -33,7 +36,8 @@ export class WorkSlotService {
     capacity: number,
     status: string,
     rateMin: number | null = null,
-    rateMax: number | null = null
+    rateMax: number | null = null,
+    pickerPayRate: number | null = null
   ): Promise<void> {
     if (!supabase) throw new Error('Supabase not configured');
     const { error } = await supabase.rpc('admin_create_work_slot', {
@@ -44,7 +48,8 @@ export class WorkSlotService {
       p_capacity: capacity,
       p_status: status,
       p_rate_min: rateMin,
-      p_rate_max: rateMax
+      p_rate_max: rateMax,
+      p_picker_pay_rate: pickerPayRate
     });
     if (error) throw error;
   }
@@ -58,7 +63,8 @@ export class WorkSlotService {
     capacity: number,
     status: string,
     rateMin: number | null = null,
-    rateMax: number | null = null
+    rateMax: number | null = null,
+    pickerPayRate: number | null = null
   ): Promise<void> {
     if (!supabase) throw new Error('Supabase not configured');
     const { error } = await supabase.rpc('admin_edit_work_slot', {
@@ -70,7 +76,8 @@ export class WorkSlotService {
       p_capacity: capacity,
       p_status: status,
       p_rate_min: rateMin,
-      p_rate_max: rateMax
+      p_rate_max: rateMax,
+      p_picker_pay_rate: pickerPayRate
     });
     if (error) throw error;
   }
@@ -79,6 +86,20 @@ export class WorkSlotService {
     if (!supabase) throw new Error('Supabase not configured');
     const { error } = await supabase.rpc('admin_cancel_work_slot', {
       p_slot_id: slotId
+    });
+    if (error) throw error;
+  }
+
+  static async adminSaveIncentives(
+    slotId: string,
+    enabled: boolean,
+    milestones: any[]
+  ): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase.rpc('admin_save_work_slot_picker_incentives', {
+      p_work_slot_id: slotId,
+      p_enabled: enabled,
+      p_milestones: milestones
     });
     if (error) throw error;
   }
@@ -115,6 +136,38 @@ export class WorkSlotService {
     if (!supabase) throw new Error('Supabase not configured');
     const { error } = await supabase.rpc('worker_cancel_booking', {
       p_shift_id: shiftId
+    });
+    if (error) throw error;
+  }
+
+  static async adminCreateWarehouseStaffShift(
+    warehouseId: string,
+    startTime: string,
+    endTime: string,
+    staffIds: string[]
+  ): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase.rpc('admin_create_warehouse_staff_shift', {
+      p_warehouse_id: warehouseId,
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_staff_ids: staffIds
+    });
+    if (error) throw error;
+  }
+
+  static async adminUpdateWarehouseStaffShift(
+    slotId: string,
+    startTime: string,
+    endTime: string,
+    staffIds: string[]
+  ): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase.rpc('admin_update_warehouse_staff_shift', {
+      p_slot_id: slotId,
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_staff_ids: staffIds
     });
     if (error) throw error;
   }

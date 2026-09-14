@@ -41,7 +41,7 @@ export default function FloatingCartBar({ onPress, bottomOffset = 24 }: Floating
       // In FlashGO, the Cart is often a bottom sheet on Home. Wait, let's look at how it works.
       // On ProductDetails, it calls navigation.goBack() to go home where cart is.
       // I'll emit onPress. If not provided, assume going to Home or a Cart screen.
-      navigation.navigate('Home'); // Fallback
+      navigation.navigate('MainTabs', { screen: 'Home' }); // Fallback
     }
   };
 

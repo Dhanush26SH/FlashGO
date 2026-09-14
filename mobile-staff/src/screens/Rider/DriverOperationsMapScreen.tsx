@@ -21,6 +21,7 @@ export default function DriverOperationsMapScreen() {
   const [isTesterGeofenceAccount, setIsTesterGeofenceAccount] = useState(false);
   const [activeTrip, setActiveTrip] = useState<any>(null);
   const [pendingTrip, setPendingTrip] = useState<any>(null);
+  const [returnTask, setReturnTask] = useState<any>(null);
   
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
@@ -29,39 +30,75 @@ export default function DriverOperationsMapScreen() {
   
   const isFocused = useIsFocused();
   const expiryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isExpiringRef = useRef(false);
+
+  // Realtime channel refs
+  const statusChannelRef = useRef<any>(null);
+  const operationsChannelRef = useRef<any>(null);
 
   const performShiftExpiry = useCallback(async () => {
+    if (isExpiringRef.current) return;
+    isExpiringRef.current = true;
+
     if (expiryTimerRef.current) {
       clearTimeout(expiryTimerRef.current);
       expiryTimerRef.current = null;
     }
+
     try {
       const { data, error } = await supabase.rpc('driver_expire_shift');
       if (error) throw error;
       
       if (data?.code === 'ACTIVE_DELIVERY_IN_PROGRESS' || data?.code === 'RETURN_TASK_IN_PROGRESS') {
-        // Driver gets to finish their active trip. We don't kick them out.
         console.log('Shift expired, but allowing driver to finish active delivery.');
       } else {
-        // Shift fully expired and driver set offline. Return to main tabs.
         navigation.reset({ index: 0, routes: [{ name: 'DriverMainTabs' }] });
       }
-    } catch (e) {
-      console.error('driver_expire_shift RPC failed', e);
+    } catch (e: any) {
+      // 504 Timeout or network error recovery
+      try {
+        const { count: shiftCount } = await supabase
+          .from('staff_shifts')
+          .select('id', { count: 'exact', head: true })
+          .eq('staff_id', profile?.id)
+          .eq('status', 'active');
+          
+        const { count: sessionCount } = await supabase
+          .from('driver_sessions')
+          .select('id', { count: 'exact', head: true })
+          .eq('driver_id', profile?.id)
+          .eq('status', 'active');
+          
+        if (shiftCount === 0 && sessionCount === 0) {
+          // Backend actually succeeded before timing out
+          setIsOnline(false);
+          setSessionData(null);
+          navigation.reset({ index: 0, routes: [{ name: 'DriverMainTabs' }] });
+        } else {
+          console.error('driver_expire_shift failed and shift remains active', e);
+        }
+      } catch (recoveryErr) {
+        console.error('Error during timeout recovery', recoveryErr);
+      }
+    } finally {
+      isExpiringRef.current = false;
     }
-  }, [navigation]);
+  }, [navigation, profile?.id]);
 
   const scheduleExpiryTimer = useCallback((shiftEndIso: string) => {
     if (expiryTimerRef.current) {
       clearTimeout(expiryTimerRef.current);
       expiryTimerRef.current = null;
     }
+    // Do not schedule timers if the screen is not focused
+    if (!isFocused) return;
+
     const msUntilExpiry = new Date(shiftEndIso).getTime() - Date.now();
     if (msUntilExpiry <= 0) return; 
     expiryTimerRef.current = setTimeout(() => {
       performShiftExpiry();
     }, msUntilExpiry);
-  }, [performShiftExpiry]);
+  }, [performShiftExpiry, isFocused]);
 
   const fetchActiveSession = useCallback(async () => {
     try {
@@ -172,8 +209,10 @@ export default function DriverOperationsMapScreen() {
           Animated.timing(slideAnim, { toValue: 300, duration: 300, useNativeDriver: true }).start();
           
           if (data.active_trip.status === 'accepted') {
+            setReturnTask(null);
             navigation.navigate('DriverPickup');
           } else if (data.active_trip.status === 'in_transit') {
+            setReturnTask(null);
             if (data.active_trip.arrived_at) {
               navigation.navigate('DriverDropOrderScreen');
             } else {
@@ -181,24 +220,24 @@ export default function DriverOperationsMapScreen() {
             }
           } else if (data.active_trip.status === 'completed') {
             if (!data.active_trip.completion_acknowledged_at) {
+               setReturnTask(null);
                navigation.navigate('DriverDeliveryCompleteScreen');
             } else {
                // Check if there is an active return task
-               const { data: returnTask } = await supabase
+               const { data: retTask } = await supabase
                  .from('driver_return_tasks')
                  .select('id')
                  .eq('driver_id', profile.id)
                  .eq('status', 'required')
                  .maybeSingle();
                  
-               if (returnTask) {
-                 navigation.navigate('DriverReturnToStoreScreen');
-               }
+               setReturnTask(retTask);
             }
           }
         } else if (data.pending_offer) {
           setActiveTrip(null);
           setPendingTrip(data.pending_offer);
+          setReturnTask(null);
           // Calculate initial remaining
           const expiresAt = new Date(data.pending_offer.offer_expires_at).getTime();
           const trueCurrentTime = new Date().getTime() - offset;
@@ -210,16 +249,19 @@ export default function DriverOperationsMapScreen() {
           }
         } else {
           // No active trip, no pending offer. Check for return task.
-          const { data: returnTask } = await supabase
+          // No active trip, no pending offer. Check for return task.
+          const { data: retTask, error: retError } = await supabase
             .from('driver_return_tasks')
             .select('id')
             .eq('driver_id', profile.id)
             .eq('status', 'required')
             .maybeSingle();
             
-          if (returnTask) {
-             navigation.navigate('DriverReturnToStoreScreen');
-          }
+          console.log('[DriverReturnTask] driverId', profile.id);
+          console.log('[DriverReturnTask] data', retTask);
+          if (retError) console.error('[DriverReturnTask] error', retError);
+          
+          setReturnTask(retTask);
           
           setActiveTrip(null);
           setPendingTrip(null);
@@ -227,6 +269,7 @@ export default function DriverOperationsMapScreen() {
         }
       } else {
         // Feed returned ineligible or error
+        setReturnTask(null);
         setActiveTrip(null);
         setPendingTrip(null);
         Animated.timing(slideAnim, { toValue: 300, duration: 300, useNativeDriver: true }).start();
@@ -292,27 +335,44 @@ export default function DriverOperationsMapScreen() {
     fetchLocation();
     
     if (profile?.id) {
-      const channel = supabase.channel('driver_status_sync')
+      if (statusChannelRef.current) {
+        supabase.removeChannel(statusChannelRef.current);
+        statusChannelRef.current = null;
+      }
+
+      const uniqueName = `driver_status_sync_${profile.id}_${Date.now()}_${Math.random()}`;
+      const channel = supabase.channel(uniqueName)
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.id}` },
           (payload) => {
             setIsOnline(payload.new.is_online);
           }
-        )
-        .subscribe();
+        );
+        
+      channel.subscribe();
+      statusChannelRef.current = channel;
         
       return () => {
-        supabase.removeChannel(channel);
+        if (statusChannelRef.current) {
+          supabase.removeChannel(statusChannelRef.current);
+          statusChannelRef.current = null;
+        }
       };
     }
   }, [profile?.id]);
 
-  // Focus-based refresh
+  // Focus-based refresh and cleanup
   useEffect(() => {
     if (isFocused) {
       fetchActiveSession();
       fetchTrips();
+    } else {
+      // Clear timers when losing focus
+      if (expiryTimerRef.current) {
+        clearTimeout(expiryTimerRef.current);
+        expiryTimerRef.current = null;
+      }
     }
   }, [isFocused, fetchActiveSession, fetchTrips]);
 
@@ -320,6 +380,7 @@ export default function DriverOperationsMapScreen() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'active') {
+        // Authoritative refresh on resume
         fetchActiveSession();
         fetchTrips();
       }
@@ -341,7 +402,13 @@ export default function DriverOperationsMapScreen() {
     if (!isFocused) return;
     fetchTrips();
     if (profile?.id) {
-      const channel = supabase.channel('operations_trips_feed')
+      if (operationsChannelRef.current) {
+        supabase.removeChannel(operationsChannelRef.current);
+        operationsChannelRef.current = null;
+      }
+
+      const uniqueName = `operations_trips_feed_${profile.id}_${Date.now()}_${Math.random()}`;
+      const channel = supabase.channel(uniqueName)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'logistics_trips' },
@@ -351,9 +418,17 @@ export default function DriverOperationsMapScreen() {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'driver_trip_offers', filter: `driver_id=eq.${profile.id}` },
           () => fetchTrips()
-        )
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
+        );
+        
+      channel.subscribe();
+      operationsChannelRef.current = channel;
+
+      return () => { 
+        if (operationsChannelRef.current) {
+          supabase.removeChannel(operationsChannelRef.current);
+          operationsChannelRef.current = null;
+        }
+      };
     }
   }, [profile?.id, isOnline, sessionData]);
 
@@ -581,10 +656,23 @@ export default function DriverOperationsMapScreen() {
         </View>
         
         {isOnline ? (
-          <View style={styles.waitingState}>
-            <ActivityIndicator size="small" color="#10b981" style={{marginRight: 8}} />
-            <Text style={styles.waitingText}>Waiting for trips...</Text>
-          </View>
+          returnTask ? (
+            <View style={{ marginTop: 16, padding: 16, backgroundColor: '#7f1d1d', borderRadius: 12 }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Return to Store Required</Text>
+              <Text style={{ color: '#fca5a5', marginTop: 4, marginBottom: 12 }}>Complete your previous delivery return before receiving another order.</Text>
+              <TouchableOpacity 
+                style={{ backgroundColor: '#fff', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }} 
+                onPress={() => navigation.navigate('DriverReturnToStoreScreen')}
+              >
+                <Text style={{ color: '#000', fontWeight: 'bold' }}>Complete Return</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.waitingState}>
+              <ActivityIndicator size="small" color="#10b981" style={{marginRight: 8}} />
+              <Text style={styles.waitingText}>Waiting for trips...</Text>
+            </View>
+          )
         ) : (
           <View style={styles.waitingState}>
             <Text style={[styles.waitingText, { color: '#f59e0b' }]}>You are currently on break. Go online to receive trips.</Text>

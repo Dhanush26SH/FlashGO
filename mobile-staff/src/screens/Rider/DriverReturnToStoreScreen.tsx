@@ -21,6 +21,7 @@ export default function DriverReturnToStoreScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [errorState, setErrorState] = useState<string | null>(null);
 
   useEffect(() => {
     fetchReturnTask();
@@ -36,7 +37,7 @@ export default function DriverReturnToStoreScreen() {
         .select(`
           id, 
           warehouse_id, 
-          warehouses ( name, address, latitude, longitude )
+          warehouses ( name, address, lat, lng )
         `)
         .eq('driver_id', user.id)
         .eq('status', 'required')
@@ -48,8 +49,9 @@ export default function DriverReturnToStoreScreen() {
         return;
       }
       setTask(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setErrorState('Unable to load return task');
     } finally {
       setLoading(false);
     }
@@ -102,18 +104,32 @@ export default function DriverReturnToStoreScreen() {
     if (!task?.warehouses) return;
     navigation.navigate('NavigationScreen', { 
       mode: 'warehouse',
-      destLat: task.warehouses.latitude, 
-      destLng: task.warehouses.longitude,
+      destLat: task.warehouses.lat, 
+      destLng: task.warehouses.lng,
       destinationName: task.warehouses.name || 'Warehouse',
       destinationAddress: task.warehouses.address,
       isReturn: true
     });
   };
 
-  if (loading || !task) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
+  }
+
+  if (errorState || !task) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={{ color: '#ef4444', fontSize: 16, marginBottom: 16 }}>{errorState || 'Task not found'}</Text>
+        <TouchableOpacity style={styles.mapBtn} onPress={() => { setLoading(true); setErrorState(null); fetchReturnTask(); }}>
+          <Text style={styles.mapBtnText}>Retry</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ marginTop: 24 }} onPress={() => navigation.replace('DriverOperationsMapScreen')}>
+          <Text style={{ color: '#9ca3af' }}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }

@@ -21,6 +21,9 @@ export default function TrackingScreen() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const driverChannelRef = useRef<any>(null);
+  const subscribedDriverIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!orderId) return;
     fetchOrderDetails();
@@ -39,6 +42,11 @@ export default function TrackingScreen() {
 
     return () => {
       orderSub.unsubscribe();
+      if (driverChannelRef.current) {
+        supabase.removeChannel(driverChannelRef.current);
+        driverChannelRef.current = null;
+        subscribedDriverIdRef.current = null;
+      }
     };
   }, [orderId]);
 
@@ -80,7 +88,7 @@ export default function TrackingScreen() {
   };
 
   const fetchDriverInfo = async (driverId: string) => {
-    const { data } = await supabase.from('users').select('full_name, phone_number').eq('id', driverId).single();
+    const { data } = await supabase.from('profiles').select('full_name, phone').eq('id', driverId).maybeSingle();
     if (data) setDriverInfo(data);
   };
 
@@ -88,15 +96,35 @@ export default function TrackingScreen() {
     const { data } = await supabase.from('driver_sessions')
       .select('latest_lat, latest_lng')
       .eq('driver_id', driverId)
-      .single();
+      .eq('status', 'active')
+      .maybeSingle();
     if (data && data.latest_lat && data.latest_lng) {
       setDriverLocation({ lat: data.latest_lat, lng: data.latest_lng });
     }
   };
 
-  const subscribeDriver = (driverId: string) => {
-    supabase.channel(`driver-${driverId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions', filter: `driver_id=eq.${driverId}` }, (payload) => {
+  const subscribeDriver = (driverId: string | null) => {
+    if (!driverId) {
+      if (driverChannelRef.current) {
+        supabase.removeChannel(driverChannelRef.current);
+        driverChannelRef.current = null;
+        subscribedDriverIdRef.current = null;
+      }
+      return;
+    }
+
+    if (driverId === subscribedDriverIdRef.current) {
+      return;
+    }
+
+    if (driverChannelRef.current) {
+      supabase.removeChannel(driverChannelRef.current);
+      driverChannelRef.current = null;
+      subscribedDriverIdRef.current = null;
+    }
+
+    const channel = supabase.channel(`driver-${driverId}`);
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions', filter: `driver_id=eq.${driverId}` }, (payload) => {
         const newData = payload.new as any;
         if (newData.latest_lat && newData.latest_lng) {
           setDriverLocation({ lat: newData.latest_lat, lng: newData.latest_lng });
@@ -104,7 +132,11 @@ export default function TrackingScreen() {
           const js = `updateDriverLocation(${newData.latest_lat}, ${newData.latest_lng}); true;`;
           webViewRef.current?.injectJavaScript(js);
         }
-      }).subscribe();
+    });
+    
+    channel.subscribe();
+    driverChannelRef.current = channel;
+    subscribedDriverIdRef.current = driverId;
   };
 
   const handlePayOnline = async () => {
@@ -253,7 +285,7 @@ export default function TrackingScreen() {
 
   const isCODUnpaid = order.payment_method === 'cod' && order.payment_status === 'pending';
   const showOTP = order.total_amount > 1000 && order.status === 'out_for_delivery' && order.otp_code;
-  const canCancel = ['placed', 'confirmed'].includes(order.status);
+  const canCancel = ['placed'].includes(order.status);
 
   return (
     <View style={styles.container}>

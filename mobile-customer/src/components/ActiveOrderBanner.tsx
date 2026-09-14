@@ -42,9 +42,9 @@ export default function ActiveOrderBanner() {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('id, status, created_at, expected_delivery_time, total_amount')
+        .select('id, status, created_at, total_amount')
         .eq('customer_id', sessionUser?.id)
-        .in('status', ['placed', 'confirmed', 'packed', 'driver_assigned', 'out_for_delivery'])
+        .in('status', ['placed', 'picking', 'packed', 'out_for_delivery'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -67,8 +67,8 @@ export default function ActiveOrderBanner() {
 
   const getStatusDisplay = (status: string) => {
     switch(status) {
-      case 'placed':
-      case 'confirmed': return { label: 'Order Confirmed', icon: Clock, color: theme.colors.primary };
+      case 'placed': return { label: 'Order Placed', icon: Clock, color: theme.colors.primary };
+      case 'picking': return { label: 'Order Picking', icon: Box, color: theme.colors.primary };
       case 'packed': return { label: 'Order Packed', icon: Box, color: theme.colors.primary };
       case 'driver_assigned': return { label: 'Driver Assigned', icon: Bike, color: theme.colors.primary };
       case 'out_for_delivery': return { label: 'Out for Delivery', icon: Bike, color: '#f59e0b' }; // Orange for out for delivery
