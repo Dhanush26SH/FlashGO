@@ -36,7 +36,7 @@ export const WorkSlotManagement: React.FC = () => {
 
   // Warehouse Staff Assignment Form States
   const [availableWarehouseStaff, setAvailableWarehouseStaff] = useState<any[]>([]);
-  const [warehouseStaffIds, setWarehouseStaffIds] = useState<string[]>([]);
+  const [warehouseStaffAssignments, setWarehouseStaffAssignments] = useState<{staffId: string, duty: string}[]>([]);
   
   const [activeTab, setActiveTab] = useState<'all' | 'picker' | 'driver' | 'warehouse_staff'>('all');
   const { currentUser } = useApp();
@@ -177,14 +177,8 @@ export const WorkSlotManagement: React.FC = () => {
     setPickerPayRate(0.50);
     setPickerIncentiveEnabled(false);
     setPickerMilestones([]);
-    setWarehouseStaffIds([]);
+    setWarehouseStaffAssignments([]);
     setShowForm(false);
-  };
-
-  const toggleStaffSelection = (id: string) => {
-    setWarehouseStaffIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
   };
 
   const handleAddMilestone = () => {
@@ -215,7 +209,6 @@ export const WorkSlotManagement: React.FC = () => {
     newMilestones[index] = newMilestones[swapIndex];
     newMilestones[swapIndex] = temp;
     
-    // Update sort_order based on new position
     newMilestones.forEach((m, i) => m.sort_order = i + 1);
     setPickerMilestones(newMilestones);
   };
@@ -227,9 +220,17 @@ export const WorkSlotManagement: React.FC = () => {
       return;
     }
 
-    if (targetRole === 'warehouse_staff' && warehouseStaffIds.length === 0) {
-      addToast('Please select at least one warehouse staff', 'error');
+    if (targetRole === 'warehouse_staff' && warehouseStaffAssignments.length === 0) {
+      addToast('Please assign at least one warehouse staff', 'error');
       return;
+    }
+
+    if (targetRole === 'warehouse_staff') {
+      const missingDuty = warehouseStaffAssignments.some(a => !a.duty);
+      if (missingDuty) {
+        addToast('Please assign a duty to all selected warehouse staff', 'error');
+        return;
+      }
     }
 
     const sDt = new Date(startTime).toISOString();
@@ -262,10 +263,10 @@ export const WorkSlotManagement: React.FC = () => {
     try {
       if (targetRole === 'warehouse_staff') {
         if (editingId) {
-          await WorkSlotService.adminUpdateWarehouseStaffShift(editingId, sDt, eDt, warehouseStaffIds);
+          await WorkSlotService.adminUpdateWarehouseStaffShift(editingId, sDt, eDt, warehouseStaffAssignments);
           addToast('Warehouse shift updated', 'success');
         } else {
-          await WorkSlotService.adminCreateWarehouseStaffShift(warehouseId, sDt, eDt, warehouseStaffIds);
+          await WorkSlotService.adminCreateWarehouseStaffShift(warehouseId, sDt, eDt, warehouseStaffAssignments);
           addToast('Warehouse shift created & assigned', 'success');
         }
       } else {
@@ -390,18 +391,47 @@ export const WorkSlotManagement: React.FC = () => {
                 ) : availableWarehouseStaff.length === 0 ? (
                   <p style={{ fontSize: '0.85rem', color: '#ef4444' }}>No active warehouse staff found for this location.</p>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
-                    {availableWarehouseStaff.map(staff => (
-                      <label key={staff.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer', padding: '8px', backgroundColor: warehouseStaffIds.includes(staff.id) ? '#e0f2fe' : '#fff', borderRadius: '6px', border: `1px solid ${warehouseStaffIds.includes(staff.id) ? '#7dd3fc' : '#e2e8f0'}` }}>
-                        <input 
-                          type="checkbox" 
-                          checked={warehouseStaffIds.includes(staff.id)}
-                          onChange={() => toggleStaffSelection(staff.id)}
-                          style={{ width: '16px', height: '16px' }}
-                        />
-                        {staff.full_name}
-                      </label>
-                    ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '8px' }}>
+                    {availableWarehouseStaff.map(staff => {
+                      const assignment = warehouseStaffAssignments.find(a => a.staffId === staff.id);
+                      const isSelected = !!assignment;
+                      return (
+                      <div key={staff.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem', padding: '8px', backgroundColor: isSelected ? '#e0f2fe' : '#fff', borderRadius: '6px', border: `1px solid ${isSelected ? '#7dd3fc' : '#e2e8f0'}` }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={() => {
+                              if (isSelected) {
+                                setWarehouseStaffAssignments(prev => prev.filter(a => a.staffId !== staff.id));
+                              } else {
+                                setWarehouseStaffAssignments(prev => [...prev, { staffId: staff.id, duty: '' }]);
+                              }
+                            }}
+                            style={{ width: '16px', height: '16px' }}
+                          />
+                          {staff.full_name}
+                        </label>
+                        {isSelected && (
+                          <div style={{ paddingLeft: '24px' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '4px' }}>Duty:</label>
+                            <select 
+                              value={assignment.duty}
+                              onChange={(e) => {
+                                const newDuty = e.target.value;
+                                setWarehouseStaffAssignments(prev => prev.map(a => a.staffId === staff.id ? { ...a, duty: newDuty } : a));
+                              }}
+                              style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            >
+                              <option value="" disabled>Select Duty</option>
+                              <option value="putaway">Putter (Putaway)</option>
+                              <option value="auditor">Auditor</option>
+                              <option value="inward_damage">Inward + Damage/Expiry</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )})}
                   </div>
                 )}
               </div>
@@ -616,11 +646,21 @@ export const WorkSlotManagement: React.FC = () => {
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No active assignments for this slot.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {slotBookings.map(booking => (
+                      {slotBookings.map(booking => {
+                        let dutyLabel = '';
+                        if (booking.current_duty) {
+                          const cd = booking.current_duty;
+                          if (cd === 'putaway') dutyLabel = 'Putter (Putaway)';
+                          else if (cd === 'auditor') dutyLabel = 'Auditor';
+                          else dutyLabel = 'Inward + Damage/Expiry'; // inward_damage, inward_receiver, damage_expiry, fnv
+                        }
+                        
+                        return (
                         <div key={booking.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: 'var(--bg-base)', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
                           <div>
                             <p style={{ fontWeight: '600', fontSize: '0.9rem', margin: 0 }}>{booking.profiles?.full_name || 'Unknown Worker'}</p>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{booking.profiles?.phone || 'No phone'}</p>
+                            {dutyLabel && <p style={{ fontSize: '0.8rem', color: '#10b981', margin: '4px 0 0 0', fontWeight: 'bold' }}>{dutyLabel}</p>}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', 
@@ -631,7 +671,7 @@ export const WorkSlotManagement: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   )}
                 </div>

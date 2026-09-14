@@ -6,13 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PutterWorkflow from './PutterWorkflow';
+import AuditorWorkflow from './AuditorWorkflow';
 
 const DUTIES = [
   { id: 'putaway', title: 'Putter (Putaway)', subtitle: 'Place received stock into assigned rack/shelf locations.' },
   { id: 'auditor', title: 'Auditor', subtitle: 'Count and verify physical inventory against system stock.' },
-  { id: 'fnv', title: 'FnV (Fruits & Vegetables)', subtitle: 'Check, grade and manage fresh produce quality.' },
-  { id: 'inward_receiver', title: 'Inward Receiver', subtitle: 'Receive and verify incoming warehouse stock.' },
-  { id: 'damage_expiry', title: 'Damage & Expiry', subtitle: 'Inspect and process damaged, expired or near-expiry stock.' }
+  { id: 'inward_damage', title: 'Inward + Damage/Expiry', subtitle: 'Receive stock and process damaged/expired items.' }
 ];
 
 export default function WarehouseTaskScreen() {
@@ -180,6 +179,11 @@ export default function WarehouseTaskScreen() {
   };
 
   const handleToggleOnline = async (value: boolean) => {
+    if (value && !currentDuty) {
+      Alert.alert("Duty Required", "You must have an assigned duty to go ONLINE.");
+      return;
+    }
+
     if (value) {
       await reconcileShift();
     }
@@ -352,7 +356,14 @@ export default function WarehouseTaskScreen() {
     );
   }
 
-  const selectedDutyObj = currentDuty ? DUTIES.find(d => d.id === currentDuty) : null;
+  const getDutyObj = (dutyKey: string | null) => {
+    if (!dutyKey) return null;
+    if (['inward_damage', 'inward_receiver', 'damage_expiry', 'fnv'].includes(dutyKey)) {
+      return DUTIES.find(d => d.id === 'inward_damage');
+    }
+    return DUTIES.find(d => d.id === dutyKey);
+  };
+  const selectedDutyObj = getDutyObj(currentDuty);
 
   // ACTIVE SHIFT DASHBOARD
   return (
@@ -381,6 +392,7 @@ export default function WarehouseTaskScreen() {
         <TouchableOpacity 
           style={[styles.selectRoleButton, currentDuty ? styles.selectRoleButtonActive : null]}
           onPress={() => setShowDutySelector(true)}
+          disabled={!!currentDuty}
         >
           <View>
             <Text style={styles.selectRoleLabel}>{currentDuty ? 'Current duty' : 'Select duty for'}</Text>
@@ -388,11 +400,13 @@ export default function WarehouseTaskScreen() {
               {currentDuty ? selectedDutyObj?.title : (profile?.full_name || 'Worker')}
             </Text>
           </View>
-          <ChevronDown size={24} color={currentDuty ? '#10b981' : '#0f172a'} />
+          {!currentDuty && <ChevronDown size={24} color={'#0f172a'} />}
         </TouchableOpacity>
 
         {currentDuty === 'putaway' && isOnline ? (
           <PutterWorkflow onWorkflowComplete={() => {}} />
+        ) : currentDuty === 'auditor' && isOnline ? (
+          <AuditorWorkflow onWorkflowComplete={() => {}} />
         ) : (
           <View style={styles.lowerWorkArea}>
             <Clock size={48} color="#cbd5e1" style={{ marginBottom: 16 }} />

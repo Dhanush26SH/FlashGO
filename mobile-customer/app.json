@@ -1,7 +1,21 @@
 {
   "expo": {
-    "name": "flashgo-customer-app",
+    "name": "FlashGO Customer",
     "slug": "flashgo-customer-app",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.flashgo.customer",
+      "adaptiveIcon": {
+        "backgroundColor": "#047857"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d8c26438-a720-47f1-9891-423523d335f5"
+      }
+    },
+    "owner": "dhanushh26"
   }
 }

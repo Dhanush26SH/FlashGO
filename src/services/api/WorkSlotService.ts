@@ -144,14 +144,14 @@ export class WorkSlotService {
     warehouseId: string,
     startTime: string,
     endTime: string,
-    staffIds: string[]
+    assignments: { staffId: string, duty: string }[]
   ): Promise<void> {
     if (!supabase) throw new Error('Supabase not configured');
     const { error } = await supabase.rpc('admin_create_warehouse_staff_shift', {
       p_warehouse_id: warehouseId,
       p_start_time: startTime,
       p_end_time: endTime,
-      p_staff_ids: staffIds
+      p_assignments: assignments.map(a => ({ staff_id: a.staffId, duty: a.duty }))
     });
     if (error) throw error;
   }
@@ -160,14 +160,14 @@ export class WorkSlotService {
     slotId: string,
     startTime: string,
     endTime: string,
-    staffIds: string[]
+    assignments: { staffId: string, duty: string }[]
   ): Promise<void> {
     if (!supabase) throw new Error('Supabase not configured');
     const { error } = await supabase.rpc('admin_update_warehouse_staff_shift', {
       p_slot_id: slotId,
       p_start_time: startTime,
       p_end_time: endTime,
-      p_staff_ids: staffIds
+      p_assignments: assignments.map(a => ({ staff_id: a.staffId, duty: a.duty }))
     });
     if (error) throw error;
   }

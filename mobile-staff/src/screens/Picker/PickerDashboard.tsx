@@ -27,6 +27,7 @@ export default function PickerDashboard() {
   const notifiedOrders = useRef<Set<string>>(new Set());
   const expiryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const incentivesChannelRef = useRef<any>(null);
+  const isExpiringRef = useRef(false);
 
   // Update current time every 1s for the SLA Timer & Next Slot button ONLY when focused
   useFocusEffect(
@@ -136,6 +137,9 @@ export default function PickerDashboard() {
 
   // 4a. Perform server-authoritative shift expiry (called when shift_end has passed)
   const performShiftExpiry = useCallback(async (staleShift?: any) => {
+    if (isExpiringRef.current) return;
+    isExpiringRef.current = true;
+
     // Clear any pending timer
     if (expiryTimerRef.current) {
       clearTimeout(expiryTimerRef.current);
@@ -167,6 +171,8 @@ export default function PickerDashboard() {
       }
     } catch (e) {
       console.error('PICKER_EXPIRE_RPC_THROWN', e);
+    } finally {
+      isExpiringRef.current = false;
     }
     // Do NOT automatically recursively call fetchShiftAndStatus here!
     // It creates an infinite loop if the RPC fails or doesn't clear the active state.

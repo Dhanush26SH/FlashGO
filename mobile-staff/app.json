@@ -1,7 +1,20 @@
 {
   "expo": {
-    "name": "flashgo-staff-app",
+    "name": "FlashGO Staff",
     "slug": "flashgo-staff-app",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.flashgo.staff",
+      "adaptiveIcon": {
+        "backgroundColor": "#047857"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d7c1cbb2-9413-44a8-8c96-917ea7d3e3d4"
+      }
+    }
   }
 }

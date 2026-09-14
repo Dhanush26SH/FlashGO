@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, SafeAreaView, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
@@ -22,16 +22,43 @@ export default function RazorpayCheckoutScreen() {
     initiateRazorpayOrder();
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleWebMessage = (event: MessageEvent) => {
+        try {
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          if (data && data.type) {
+            handleWebViewMessage({ nativeEvent: { data: JSON.stringify(data) } });
+          }
+        } catch (e) {
+          // ignore non-matching messages
+        }
+      };
+      window.addEventListener('message', handleWebMessage);
+      return () => window.removeEventListener('message', handleWebMessage);
+    }
+  }, [orderId, amount, rzpOrderId]);
+
   const initiateRazorpayOrder = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
-        body: { order_id: orderId, amount: amount }
+        body: { orderId: orderId, amount: amount }
       });
-      if (error) throw error;
-      if (!data?.id) throw new Error("Failed to get Razorpay order ID");
+      if (error) {
+        let msg = error.message;
+        if ((error as any)?.context) {
+          try {
+            const body = await (error as any).context.json();
+            if (body?.error) msg = body.error;
+          } catch (e) {}
+        }
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
+      if (data?.orderId === undefined) throw new Error("Failed to get Razorpay order ID");
       
-      setRzpOrderId(data.id);
+      setRzpOrderId(data.orderId);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Could not initialize payment");
@@ -41,7 +68,9 @@ export default function RazorpayCheckoutScreen() {
   };
 
   const handleWebViewMessage = async (event: any) => {
-    const message = JSON.parse(event.nativeEvent.data);
+    const message = typeof event.nativeEvent.data === 'string' 
+      ? JSON.parse(event.nativeEvent.data) 
+      : event.nativeEvent.data;
     
     if (message.type === 'SUCCESS') {
       try {
@@ -56,18 +85,27 @@ export default function RazorpayCheckoutScreen() {
           }
         });
 
-        if (error || data?.error) {
-          throw new Error(data?.error || "Payment verification failed");
+        if (error) {
+          let msg = error.message;
+          if ((error as any)?.context) {
+            try {
+              const body = await (error as any).context.json();
+              if (body?.error) msg = body.error;
+            } catch (e) {}
+          }
+          throw new Error(msg);
+        }
+
+        if (data?.error) {
+          throw new Error(data.error);
         }
 
         // Successfully paid!
         await refreshServerCart();
 
         if (isConversion) {
-          // Returning to tracking
           navigation.goBack();
         } else {
-          // Normal checkout, go to order placed
           navigation.replace('OrderPlaced', { orderId });
         }
       } catch (err: any) {
@@ -135,22 +173,30 @@ export default function RazorpayCheckoutScreen() {
       <body>
         <div class="loader" id="loader"></div>
         <script>
+          function sendMsg(data) {
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(JSON.stringify(data));
+            } else if (window.parent && window.parent !== window) {
+              window.parent.postMessage(JSON.stringify(data), '*');
+            }
+          }
+
           setTimeout(() => {
             var options = {
-              "key": "rzp_test_mockkey", // Replaced by real test key in backend, but frontend needs a placeholder if it's not provided.
+              "key": "rzp_test_NgwEwXk1hnhpL6",
               "amount": "${Math.round(amount * 100)}", 
               "currency": "INR",
               "name": "FlashGO Private Limited",
               "description": "Order Payment",
               "image": "https://szpfuommfvrfdliloxcg.supabase.co/storage/v1/object/public/product-images/logo.png",
-              "order_id": "${rzpOrderId}", 
+              ${rzpOrderId ? `"order_id": "${rzpOrderId}",` : ''}
               "handler": function (response) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
+                sendMsg({
                   type: 'SUCCESS',
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_signature: response.razorpay_signature
-                }));
+                });
               },
               "prefill": {
                 "name": "FlashGO Customer",
@@ -162,30 +208,27 @@ export default function RazorpayCheckoutScreen() {
               },
               "modal": {
                 "ondismiss": function() {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'DISMISSED' }));
+                  sendMsg({ type: 'DISMISSED' });
                 }
               }
             };
             
-            // To properly mock the test key if environment doesn't provide it to frontend
-            // In a real app we fetch this from backend or env
             fetch('https://szpfuommfvrfdliloxcg.supabase.co/functions/v1/get-razorpay-key')
               .then(res => res.json())
               .then(data => {
                 if (data.key) options.key = data.key;
                 var rzp = new Razorpay(options);
                 rzp.on('payment.failed', function (response){
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', error: response.error.description }));
+                  sendMsg({ type: 'ERROR', error: response.error.description });
                 });
                 document.getElementById('loader').style.display = 'none';
                 rzp.open();
               })
               .catch(e => {
-                // fallback for testing
-                options.key = 'rzp_test_1234567890';
+                options.key = 'rzp_test_NgwEwXk1hnhpL6';
                 var rzp = new Razorpay(options);
                 rzp.on('payment.failed', function (response){
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', error: response.error.description }));
+                  sendMsg({ type: 'ERROR', error: response.error.description });
                 });
                 document.getElementById('loader').style.display = 'none';
                 rzp.open();
@@ -203,6 +246,12 @@ export default function RazorpayCheckoutScreen() {
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Initializing secure payment...</Text>
         </View>
+      ) : Platform.OS === 'web' ? (
+        // @ts-ignore
+        <iframe
+          srcDoc={htmlContent}
+          style={{ width: '100%', height: '100%', border: 'none' }}
+        />
       ) : (
         <WebView
           source={{ html: htmlContent }}

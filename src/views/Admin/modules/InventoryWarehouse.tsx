@@ -29,7 +29,7 @@ export const InventoryWarehouse: React.FC = () => {
   const [batches, setBatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'batches' | 'locations' | 'movement'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'batches' | 'locations' | 'movement' | 'audits'>('inventory');
   
   // Stock Movement History state
   const [movements, setMovements] = useState<any[]>([]);
@@ -40,6 +40,14 @@ export const InventoryWarehouse: React.FC = () => {
 
   // Search state
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  
+  // Audits state
+  const [audits, setAudits] = useState<any[]>([]);
+  const [loadingAudits, setLoadingAudits] = useState(false);
+  const [auditProductId, setAuditProductId] = useState('');
+  const [auditLocationId, setAuditLocationId] = useState('');
+  const [auditNote, setAuditNote] = useState('');
+  const [auditMappedLocations, setAuditMappedLocations] = useState<any[]>([]);
 
   const fetchWarehouses = async () => {
     try {
@@ -121,10 +129,46 @@ export const InventoryWarehouse: React.FC = () => {
         setMovements(movData || []);
         setLoadingMovements(false);
       }
+      // Fetch audits if on audits tab
+      if (activeTab === 'audits') {
+        setLoadingAudits(true);
+        const { data: auditData, error: auditErr } = await supabase
+          .from('cycle_counts')
+          .select('*, product:products(name, sku, internal_barcode), location:warehouse_locations(location_code), counter:profiles!counter_id(full_name)')
+          .eq('warehouse_id', warehouseId)
+          .order('created_at', { ascending: false });
+        
+        if (auditErr) throw auditErr;
+        setAudits(auditData || []);
+        setLoadingAudits(false);
+      }
     } catch (e: any) {
       addToast(e.message, 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateAudit = async () => {
+    if (!auditProductId || !auditLocationId) {
+      addToast('Product and Location are required', 'error');
+      return;
+    }
+    try {
+      const { error } = await supabase.rpc('admin_create_warehouse_audit', {
+        p_warehouse_id: selectedWarehouseId,
+        p_product_id: auditProductId,
+        p_location_id: auditLocationId,
+        p_note: auditNote || null
+      });
+      if (error) throw error;
+      addToast('Audit task created successfully', 'success');
+      setAuditProductId('');
+      setAuditLocationId('');
+      setAuditNote('');
+      fetchInventoryData(selectedWarehouseId);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to create audit', 'error');
     }
   };
 
@@ -174,14 +218,42 @@ export const InventoryWarehouse: React.FC = () => {
     return false;
   });
 
+  useEffect(() => {
+    if (!auditProductId || !selectedWarehouseId) {
+      setAuditMappedLocations([]);
+      return;
+    }
+    
+    const fetchMappedLocations = async () => {
+      const { data, error } = await supabase
+        .from('warehouse_product_placements')
+        .select(`
+          location_id,
+          quantity,
+          location:warehouse_locations ( location_code )
+        `)
+        .eq('product_id', auditProductId)
+        .eq('warehouse_id', selectedWarehouseId);
+        
+      if (!error && data) {
+        setAuditMappedLocations(data);
+      } else {
+        setAuditMappedLocations([]);
+      }
+    };
+    
+    fetchMappedLocations();
+  }, [auditProductId, selectedWarehouseId]);
+
   return (
     <div className="container">
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-light)', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-light)', marginBottom: '24px', overflowX: 'auto' }}>
           <button style={activeTab === 'inventory' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('inventory')}>Inventory Stock</button>
           <button style={activeTab === 'batches' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('batches')}>Batch Expiry Management</button>
           <button style={activeTab === 'locations' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('locations')}>Warehouse Locations</button>
           <button style={activeTab === 'movement' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('movement')}>Stock Movement History</button>
+          <button style={activeTab === 'audits' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('audits')}>Inventory Audits</button>
         </div>
 
       <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
@@ -231,6 +303,110 @@ export const InventoryWarehouse: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {activeTab === 'audits' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '16px' }}>Create Audit Task</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Product</label>
+                <select 
+                  value={auditProductId} 
+                  onChange={(e) => {
+                    setAuditProductId(e.target.value);
+                    setAuditLocationId('');
+                  }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}
+                >
+                  <option value="">Select a product...</option>
+                  {inventory.map(inv => (
+                    <option key={inv.product_id} value={inv.product_id}>{inv.name} ({inv.sku})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Target Location (Mapped only)</label>
+                <select 
+                  value={auditLocationId} 
+                  onChange={(e) => setAuditLocationId(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}
+                  disabled={!auditProductId}
+                >
+                  <option value="">Select mapped location...</option>
+                  {auditMappedLocations.map((p: any) => (
+                    <option key={p.location_id} value={p.location_id}>{p.location?.location_code} (Qty: {p.quantity})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Note (Optional)</label>
+                <input 
+                  type="text" 
+                  value={auditNote} 
+                  onChange={(e) => setAuditNote(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}
+                  placeholder="Reason for count..."
+                />
+              </div>
+              <button 
+                onClick={handleCreateAudit}
+                style={{ backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 24px', fontWeight: 600, cursor: 'pointer', height: '42px' }}
+                disabled={!auditProductId || !auditLocationId}
+              >
+                Create Task
+              </button>
+            </div>
+          </div>
+          
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '16px' }}>Audit Tasks</h3>
+            {loadingAudits ? (
+              <p style={{ color: 'var(--text-secondary)' }}>Loading audits...</p>
+            ) : audits.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)' }}>No audit tasks found for this warehouse.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
+                    <th style={{ padding: '12px', textAlign: 'left', color: 'var(--text-secondary)' }}>Created</th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: 'var(--text-secondary)' }}>Status</th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: 'var(--text-secondary)' }}>Product</th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: 'var(--text-secondary)' }}>Location</th>
+                    <th style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>System Qty</th>
+                    <th style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>Counted</th>
+                    <th style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>Variance</th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: 'var(--text-secondary)' }}>Auditor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {audits.map(a => (
+                    <tr key={a.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: '12px', color: 'var(--text-primary)' }}>{new Date(a.created_at).toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase',
+                          backgroundColor: a.status === 'open' ? '#fef3c7' : a.status === 'counting' ? '#e0f2fe' : a.status === 'submitted' ? '#f3e8ff' : '#f1f5f9',
+                          color: a.status === 'open' ? '#d97706' : a.status === 'counting' ? '#0284c7' : a.status === 'submitted' ? '#9333ea' : '#475569'
+                        }}>
+                          {a.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', color: 'var(--text-primary)' }}>{a.product?.name} ({a.product?.sku})</td>
+                      <td style={{ padding: '12px', color: 'var(--text-primary)' }}>{a.location?.location_code}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600 }}>{a.status === 'open' || a.status === 'counting' ? '-' : a.system_quantity}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600 }}>{a.counted_quantity ?? '-'}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: a.variance < 0 ? '#ef4444' : a.variance > 0 ? '#10b981' : 'var(--text-primary)' }}>
+                        {a.variance !== null ? (a.variance > 0 ? `+${a.variance}` : a.variance) : '-'}
+                      </td>
+                      <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{a.counter?.full_name || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
