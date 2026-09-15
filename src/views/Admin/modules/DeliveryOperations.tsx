@@ -14,6 +14,7 @@ interface DriverSession {
   latest_lat: number | null;
   latest_lng: number | null;
   updated_at: string | null;
+  device_info?: any;
 }
 
 export const DeliveryOperations: React.FC = () => {
@@ -93,7 +94,8 @@ export const DeliveryOperations: React.FC = () => {
           lat: session.latest_lat,
           lng: session.latest_lng,
           name: driverObj?.full_name || 'Driver',
-          isStale
+          isStale,
+          deviceInfo: session.device_info
         });
       }
     }

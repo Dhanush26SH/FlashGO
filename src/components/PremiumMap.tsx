@@ -17,6 +17,7 @@ export interface MapDriver {
   lng: number;
   name: string;
   isStale: boolean;
+  deviceInfo?: any;
 }
 
 export interface MapDestination {
@@ -176,7 +177,10 @@ export const PremiumMap: React.FC<PremiumMapProps> = ({
 
             {drivers?.map(d => (
               <Marker key={d.id} position={[d.lat, d.lng]} icon={d.isStale ? riderIconStale : riderIconLive}>
-                <Popup>{d.name} {d.isStale ? '(Stale GPS)' : '(Live)'}</Popup>
+                <Popup>
+                  {d.name} {d.isStale ? '(Stale GPS)' : '(Live)'}
+                  {d.deviceInfo?.mode === 'test_simulated' && <span style={{color: '#ef4444', fontWeight: 'bold', marginLeft: 4}}>[TEST SIM]</span>}
+                </Popup>
               </Marker>
             ))}
           </React.Fragment>

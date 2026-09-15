@@ -41,6 +41,31 @@ export default function NavigationScreen() {
   const lastCalcCoords = useRef<{ lat: number, lng: number } | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef(true);
+  const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const deviceInfoRef = useRef<any>({});
+
+  const tripId = route.params?.tripId;
+
+  const [testerFlags, setTesterFlags] = useState<any>(null);
+  const [tripStatus, setTripStatus] = useState<string>('');
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationReached, setSimulationReached] = useState(false);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (profile?.role === 'driver') {
+      supabase.rpc('get_my_dev_test_flags').then(({ data, error }) => {
+        if (isSubscribed && data?.success) {
+          setTesterFlags(data.flags);
+        }
+      });
+      supabase.from('driver_sessions').select('device_info').eq('driver_id', profile.id).single()
+        .then(({ data }) => { if (isSubscribed && data?.device_info) deviceInfoRef.current = data.device_info; });
+    }
+    return () => { isSubscribed = false; };
+  }, [profile?.id, profile?.role]);
+
+  const isTesterAuthorized = testerFlags?.bypass_geofence === true && profile?.role === 'driver' && hasValidDestination && tripId;
 
   // Haversine distance in meters
   const getDistanceFromLatLonInM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -109,6 +134,21 @@ export default function NavigationScreen() {
       return;
     }
 
+    const publishTelemetry = async (lat: number, lng: number, telemetryMode: 'real_gps' | 'test_simulated') => {
+      if (!profile?.id) return;
+      try {
+        deviceInfoRef.current.mode = telemetryMode;
+        await supabase.from('driver_sessions').update({
+          latest_lat: lat,
+          latest_lng: lng,
+          updated_at: new Date().toISOString(),
+          device_info: deviceInfoRef.current
+        }).eq('driver_id', profile.id);
+      } catch (telemetryErr) {
+        console.warn('Failed to publish telemetry:', telemetryErr);
+      }
+    };
+
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -135,17 +175,7 @@ export default function NavigationScreen() {
           await calculateRoute(loc);
           
           // Publish telemetry to backend if we are a logged-in driver
-          if (profile?.id) {
-            try {
-               await supabase.from('driver_sessions').update({
-                  latest_lat: loc.coords.latitude,
-                  latest_lng: loc.coords.longitude,
-                  updated_at: new Date().toISOString(),
-               }).eq('driver_id', profile.id);
-            } catch (telemetryErr) {
-               console.warn('Failed to publish telemetry:', telemetryErr);
-            }
-          }
+          await publishTelemetry(loc.coords.latitude, loc.coords.longitude, 'real_gps');
         }
       );
 
@@ -158,6 +188,20 @@ export default function NavigationScreen() {
     }
   };
 
+  const stopSimulation = () => {
+    if (simulationIntervalRef.current) {
+      clearInterval(simulationIntervalRef.current);
+      simulationIntervalRef.current = null;
+    }
+    if (isMountedRef.current) {
+      setIsSimulating(false);
+      // Only restart real GPS if component still mounted and no active subscription
+      if (!locationSubRef.current && tripStatus === 'in_transit') {
+        startLiveTracking();
+      }
+    }
+  };
+
   useEffect(() => {
     isMountedRef.current = true;
     startLiveTracking();
@@ -166,16 +210,136 @@ export default function NavigationScreen() {
       if (locationSubRef.current) {
         locationSubRef.current.remove();
       }
+      if (simulationIntervalRef.current) {
+        clearInterval(simulationIntervalRef.current);
+      }
     };
   }, [destLat, destLng]);
 
-  // Recalculate route when test mode toggles
+  // Terminal trip monitor
+  useEffect(() => {
+    if (!tripId) return;
+    let isSubscribed = true;
+    
+    const fetchTrip = async () => {
+      const { data } = await supabase.from('logistics_trips').select('status, driver_id').eq('id', tripId).single();
+      if (isSubscribed && data) {
+        setTripStatus(data.status);
+        if (data.driver_id !== profile?.id || data.status !== 'in_transit') {
+          stopSimulation();
+        }
+      }
+    };
+    fetchTrip();
+    
+    const channel = supabase.channel(`trip_${tripId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'logistics_trips', filter: `id=eq.${tripId}` }, (payload) => {
+         const updated = payload.new as any;
+         setTripStatus(updated.status);
+         if (updated.status !== 'in_transit' || updated.driver_id !== profile?.id) {
+            stopSimulation();
+         }
+      })
+      .subscribe();
+      
+    return () => {
+      isSubscribed = false;
+      supabase.removeChannel(channel);
+    };
+  }, [tripId, profile?.id]);
+
+  const startSimulation = async () => {
+    if (!isTesterAuthorized || tripStatus !== 'in_transit' || !routeGeoJSON?.coordinates) {
+       Alert.alert('Cannot Simulate', 'Simulation is only available during an active in_transit trip with a loaded route.');
+       return;
+    }
+    
+    // Stop real GPS
+    if (locationSubRef.current) {
+      locationSubRef.current.remove();
+      locationSubRef.current = null;
+    }
+    
+    setIsSimulating(true);
+    setSimulationReached(false);
+    
+    const coords = routeGeoJSON.coordinates;
+    if (coords.length === 0) return;
+    
+    let totalDist = 0;
+    const segmentDists: number[] = [];
+    for (let i = 0; i < coords.length - 1; i++) {
+       const d = getDistanceFromLatLonInM(coords[i][1], coords[i][0], coords[i+1][1], coords[i+1][0]);
+       totalDist += d;
+       segmentDists.push(d);
+    }
+    
+    const targetDurationSec = 90; // ~90 seconds to reach destination
+    const speed = totalDist / targetDurationSec; // m/s
+    const tickMs = 2000;
+    let elapsedSec = 0;
+    
+    simulationIntervalRef.current = setInterval(async () => {
+       elapsedSec += tickMs / 1000;
+       let targetDist = speed * elapsedSec;
+       
+       if (targetDist >= totalDist) {
+          // Reached destination
+          if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
+          setSimulationReached(true);
+          
+          const finalCoord = coords[coords.length - 1];
+          const newLoc = { coords: { latitude: finalCoord[1], longitude: finalCoord[0] } };
+          setLocation(newLoc as any);
+          
+          if (!profile?.id) return;
+          deviceInfoRef.current.mode = 'test_simulated';
+          await supabase.from('driver_sessions').update({
+            latest_lat: finalCoord[1],
+            latest_lng: finalCoord[0],
+            updated_at: new Date().toISOString(),
+            device_info: deviceInfoRef.current
+          }).eq('driver_id', profile.id);
+          return;
+       }
+       
+       let accumDist = 0;
+       let currentPoint = coords[0];
+       for (let i = 0; i < segmentDists.length; i++) {
+          if (accumDist + segmentDists[i] >= targetDist) {
+             const segmentProgression = (targetDist - accumDist) / segmentDists[i];
+             const lat1 = coords[i][1], lon1 = coords[i][0];
+             const lat2 = coords[i+1][1], lon2 = coords[i+1][0];
+             const interpLat = lat1 + (lat2 - lat1) * segmentProgression;
+             const interpLng = lon1 + (lon2 - lon1) * segmentProgression;
+             currentPoint = [interpLng, interpLat];
+             break;
+          }
+          accumDist += segmentDists[i];
+       }
+       
+       const newLoc = { coords: { latitude: currentPoint[1], longitude: currentPoint[0] } };
+       setLocation(newLoc as any);
+       
+       if (profile?.id) {
+         deviceInfoRef.current.mode = 'test_simulated';
+         await supabase.from('driver_sessions').update({
+           latest_lat: currentPoint[1],
+           latest_lng: currentPoint[0],
+           updated_at: new Date().toISOString(),
+           device_info: deviceInfoRef.current
+         }).eq('driver_id', profile.id);
+       }
+    }, tickMs);
+  };
+
+  // Recalculate route when test mode toggles (legacy logic removed to prevent conflicts)
   useEffect(() => {
     if (location) {
       lastCalcCoords.current = null; // Force recalculation
       calculateRoute(location);
     }
-  }, [isTestMode]);
+  }, []);
 
   const handleOpenExternalMaps = () => {
     if (!hasValidDestination) return;
@@ -198,8 +362,8 @@ export default function NavigationScreen() {
   const generateMapHTML = () => {
     if (!location || !hasValidDestination) return '';
 
-    const driverLat = (isTestMode && canEnableTestMode) ? warehouseLat : location.coords.latitude;
-    const driverLng = (isTestMode && canEnableTestMode) ? warehouseLng : location.coords.longitude;
+    const driverLat = location.coords.latitude;
+    const driverLng = location.coords.longitude;
     const geoJSONString = routeGeoJSON ? JSON.stringify(routeGeoJSON) : 'null';
 
     // Different colors based on mode
@@ -293,6 +457,25 @@ export default function NavigationScreen() {
       )}
 
       {/* Map Area */}
+      {isTesterAuthorized && (
+        <View style={styles.testerContainer}>
+          {simulationReached ? (
+            <View style={styles.testerBadge}>
+              <CheckCircle2 color="#10b981" size={14} />
+              <Text style={styles.testerText}>Test destination reached</Text>
+            </View>
+          ) : isSimulating ? (
+            <TouchableOpacity style={[styles.testerBtn, { backgroundColor: '#ef4444' }]} onPress={stopSimulation}>
+              <Text style={styles.testerBtnText}>Stop Test Simulation</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.testerBtn} onPress={startSimulation}>
+              <Text style={styles.testerBtnText}>Start Test Simulation</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       <View style={styles.mapContainer}>
         {loading && !routeGeoJSON ? (
           <View style={styles.centerBox}>
@@ -435,4 +618,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  testerContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    paddingTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    backgroundColor: '#1c1c1e'
+  },
+  testerBtn: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6
+  },
+  testerBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14
+  },
+  testerBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  testerText: {
+    color: '#10b981',
+    fontWeight: '700',
+    fontSize: 14
+  }
 });
