@@ -15,6 +15,7 @@ export default function RazorpayCheckoutScreen() {
   const { refreshServerCart } = useMobileAppContext();
 
   const [rzpOrderId, setRzpOrderId] = useState<string | null>(null);
+  const [rzpKeyId, setRzpKeyId] = useState<string>('rzp_test_NgwEwXk1hnhpL6');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ export default function RazorpayCheckoutScreen() {
       if (data?.error) throw new Error(data.error);
       if (data?.orderId === undefined) throw new Error("Failed to get Razorpay order ID");
       
+      if (data?.keyId) setRzpKeyId(data.keyId);
       setRzpOrderId(data.orderId);
     } catch (err: any) {
       console.error(err);
@@ -183,7 +185,7 @@ export default function RazorpayCheckoutScreen() {
 
           setTimeout(() => {
             var options = {
-              "key": "rzp_test_NgwEwXk1hnhpL6",
+              "key": "${rzpKeyId}",
               "amount": "${Math.round(amount * 100)}", 
               "currency": "INR",
               "name": "FlashGO Private Limited",
@@ -213,26 +215,12 @@ export default function RazorpayCheckoutScreen() {
               }
             };
             
-            fetch('https://szpfuommfvrfdliloxcg.supabase.co/functions/v1/get-razorpay-key')
-              .then(res => res.json())
-              .then(data => {
-                if (data.key) options.key = data.key;
-                var rzp = new Razorpay(options);
-                rzp.on('payment.failed', function (response){
-                  sendMsg({ type: 'ERROR', error: response.error.description });
-                });
-                document.getElementById('loader').style.display = 'none';
-                rzp.open();
-              })
-              .catch(e => {
-                options.key = 'rzp_test_NgwEwXk1hnhpL6';
-                var rzp = new Razorpay(options);
-                rzp.on('payment.failed', function (response){
-                  sendMsg({ type: 'ERROR', error: response.error.description });
-                });
-                document.getElementById('loader').style.display = 'none';
-                rzp.open();
-              });
+            var rzp = new Razorpay(options);
+            rzp.on('payment.failed', function (response){
+              sendMsg({ type: 'ERROR', error: response.error.description });
+            });
+            document.getElementById('loader').style.display = 'none';
+            rzp.open();
           }, 500);
         </script>
       </body>

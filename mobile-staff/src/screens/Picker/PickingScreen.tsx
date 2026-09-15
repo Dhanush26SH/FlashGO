@@ -212,9 +212,14 @@ export default function PickingScreen() {
 
   // Timer display
   const getTimerStrings = () => {
-    if (!orderData?.picker_assigned_at) return { mStr: '02', sStr: '30' };
-    const targetTime = new Date(orderData.picker_assigned_at).getTime() + 150000;
+    const totalUnits = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const slaMs = totalUnits * 12 * 1000;
+
+    if (!orderData?.picker_assigned_at || totalUnits === 0) return { mStr: '00', sStr: '00' };
+    
+    const targetTime = new Date(orderData.picker_assigned_at).getTime() + slaMs;
     const remainingMs = Math.max(0, targetTime - currentTime);
+    
     const m = Math.floor(remainingMs / 60000);
     const s = Math.floor((remainingMs % 60000) / 1000);
     return {

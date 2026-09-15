@@ -219,9 +219,13 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Quick Actions (Visual placehoder / Disabled for now) */}
+        {/* Quick Actions */}
         {profile?.role === 'driver' && (
           <View style={styles.quickActions}>
+            <TouchableOpacity style={styles.actionItem} onPress={() => navigation.navigate('DriverPayouts')} activeOpacity={0.8}>
+              <View style={styles.actionIconBg}><CreditCard size={24} color="#64748b" /></View>
+              <Text style={styles.actionText}>Payouts</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
               <View style={styles.actionIconBg}><Map size={24} color="#64748b" /></View>
               <Text style={styles.actionText}>Trips History</Text>

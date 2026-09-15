@@ -56,7 +56,7 @@ export type RootStackParamList = {
   Cart: undefined;
   PaymentOptions: { quote: any, couponCode: string | null, deliveryInstruction: string };
   LocationSelector: { origin?: 'home' | 'checkout_address' } | undefined;
-  AddressDetails: { lat: number, lng: number, name: string, address: string };
+  AddressDetails: { lat: number, lng: number, name: string, address: string, existingAddress?: any };
   OrderPlaced: { orderId: string };
   RazorpayCheckout: { orderId: string; amount: number; isConversion?: boolean };
 };

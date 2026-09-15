@@ -86,13 +86,27 @@ export class FinanceService {
     if (!supabase) return [];
     const { data, error } = await supabase
       .from('cod_collections')
-      .select('*, order:orders(customer_id), driver:profiles!driver_id(full_name)')
+      .select('*, order:orders(customer:profiles!customer_id(full_name)), driver:profiles!driver_id(full_name, employee_id)')
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     return data || [];
   }
 
+  static async adminSettleDriverCod(driverId: string, orderIds: string[], reference: string): Promise<string> {
+    if (!supabase) throw new Error('Supabase not configured');
+    
+    const { data, error } = await supabase.rpc('admin_settle_driver_cod', {
+      p_driver_id: driverId,
+      p_order_ids: orderIds,
+      p_payment_reference: reference
+    });
+
+    if (error) throw error;
+    return data;
+  }
+
+  // Deprecated: Operational marking only, does not settle financial ledger
   static async markCodCollected(orderId: string, adminId: string): Promise<boolean> {
     if (!supabase) {
       FlashGoDB.markCodCollected(orderId);
@@ -105,5 +119,96 @@ export class FinanceService {
 
     if (rpcErr) throw rpcErr;
     return success;
+  }
+
+  // --- Picker Settlements ---
+  static async createPickerSettlements(warehouseId: string, weekStart: string, staffIds: string[]): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('create_picker_settlement_batch', {
+      p_warehouse_id: warehouseId,
+      p_week_start: weekStart,
+      p_staff_ids: staffIds
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  static async markPickerSettlementPaid(settlementId: string, reference: string, method: string, provider: string = 'manual'): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('mark_picker_settlement_paid', {
+      p_settlement_id: settlementId,
+      p_payment_reference: reference,
+      p_payment_method: method,
+      p_payment_provider: provider
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  static async getPickerSettlements(warehouseId?: string): Promise<any[]> {
+    if (!supabase) return [];
+    let query = supabase.from('picker_settlements').select('*, profiles!staff_id(full_name, id, role), picker_settlement_items(*)').order('created_at', { ascending: false });
+    if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  // --- Warehouse Payroll ---
+  static async configureWarehouseSalary(staffId: string, monthlySalary: number, effectiveFrom: string): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('configure_warehouse_salary', {
+      p_staff_id: staffId,
+      p_monthly_salary: monthlySalary,
+      p_effective_from: effectiveFrom
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  static async generateWarehousePayroll(warehouseId: string, salaryMonth: string, staffIds: string[]): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('generate_warehouse_payroll', {
+      p_warehouse_id: warehouseId,
+      p_salary_month: salaryMonth,
+      p_staff_ids: staffIds
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  static async addPayrollAdjustment(payrollId: string, type: 'addition'|'deduction', amount: number, reason: string): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('add_payroll_adjustment', {
+      p_payroll_id: payrollId,
+      p_type: type,
+      p_amount: amount,
+      p_reason: reason
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  static async markPayrollPaid(payrollId: string, reference: string, method: string, provider: string = 'manual'): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('mark_payroll_paid', {
+      p_payroll_id: payrollId,
+      p_payment_reference: reference,
+      p_payment_method: method,
+      p_payment_provider: provider
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  static async getWarehousePayroll(month: string): Promise<any[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('warehouse_staff_payroll')
+      .select('*, profiles!staff_id(full_name, id)')
+      .eq('salary_month', month)
+      .order('generated_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
   }
 }

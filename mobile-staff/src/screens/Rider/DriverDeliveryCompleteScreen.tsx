@@ -49,12 +49,13 @@ export default function DriverDeliveryCompleteScreen() {
         .eq('status', 'required')
         .maybeSingle();
 
-      // Get earnings for this order
+      // Get earnings for this order from authoritative ledger
       const orderId = tripData.orders?.[0]?.id;
       const { data: earningData } = await supabase
-        .from('driver_earnings')
-        .select('earning_amount')
+        .from('driver_financial_ledger')
+        .select('amount')
         .eq('order_id', orderId)
+        .eq('transaction_type', 'delivery_earning')
         .maybeSingle();
 
       setData({
@@ -134,18 +135,12 @@ export default function DriverDeliveryCompleteScreen() {
         <Text style={styles.cardTitle}>Trip earnings</Text>
         <View style={styles.earningRow}>
           <Text style={styles.earningLabel}>Trip pay</Text>
-          <Text style={styles.earningValue}>{earning ? `₹${earning.earning_amount}` : 'Calculating / Pending'}</Text>
+          <Text style={styles.earningValue}>{earning ? `₹${earning.amount}` : 'Not available'}</Text>
         </View>
-        {isLongDistance && (
-          <View style={styles.earningRow}>
-            <Text style={styles.earningLabel}>Long distance return pay</Text>
-            <Text style={[styles.earningValue, { color: '#10b981' }]}>Calculating / Pending</Text>
-          </View>
-        )}
         <View style={styles.divider} />
         <View style={styles.earningRow}>
           <Text style={styles.totalLabel}>Total trip earnings</Text>
-          <Text style={styles.totalValue}>{earning ? `₹${earning.earning_amount}` : 'Calculating / Pending'}</Text>
+          <Text style={styles.totalValue}>{earning ? `₹${earning.amount}` : 'Not available'}</Text>
         </View>
       </View>
 
@@ -166,9 +161,9 @@ export default function DriverDeliveryCompleteScreen() {
         <View style={styles.longDistanceBox}>
           <TrendingUp color="#3b82f6" size={24} />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.ldTitle}>Long Distance Return Pay!</Text>
+            <Text style={styles.ldTitle}>Return to Store Required</Text>
             <Text style={styles.ldSub}>Order {order?.order_number}</Text>
-            <Text style={styles.ldDesc}>Return to the store to receive your return bonus and get your next trip.</Text>
+            <Text style={styles.ldDesc}>Return to the store to complete this trip and get your next order.</Text>
           </View>
         </View>
       )}

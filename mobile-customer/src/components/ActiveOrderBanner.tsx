@@ -44,12 +44,15 @@ export default function ActiveOrderBanner() {
         .from('orders')
         .select('id, status, created_at, total_amount')
         .eq('customer_id', sessionUser?.id)
-        .in('status', ['placed', 'picking', 'packed', 'out_for_delivery'])
+        .in('status', ['placed', 'picking', 'packed', 'driver_assigned', 'handed_off', 'out_for_delivery'])
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
         
-      if (!error && data) {
+      if (error) {
+        console.error('Active order fetch error:', error.message);
+        setActiveOrder(null);
+      } else if (data) {
         setActiveOrder(data);
       } else {
         setActiveOrder(null);

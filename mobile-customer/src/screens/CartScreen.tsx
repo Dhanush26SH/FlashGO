@@ -319,6 +319,42 @@ export default function CartScreen() {
               style={[styles.checkoutBtn, (cartItemsCount === 0 || hasUnavailableItems) && styles.checkoutBtnDisabled]}
               disabled={cartItemsCount === 0 || hasUnavailableItems}
               onPress={() => {
+                console.log('--- CHECKOUT BUTTON PRESSED ---');
+                console.log('displayAddress ID:', displayAddress?.id);
+                console.log('hasReceiverName:', !!displayAddress?.receiver_name);
+                console.log('hasReceiverPhone:', !!displayAddress?.receiver_phone);
+
+                if (!displayAddress.receiver_name || typeof displayAddress.receiver_name !== 'string' || !displayAddress.receiver_name.trim() || !displayAddress.receiver_phone || typeof displayAddress.receiver_phone !== 'string' || !displayAddress.receiver_phone.trim()) {
+                  if (Platform.OS === 'web') {
+                    const confirmUpdate = window.confirm('Incomplete Address\n\nThis delivery address needs a receiver name and phone number. Click OK to update it.');
+                    if (confirmUpdate) {
+                      navigation.navigate('AddressDetails', {
+                        lat: displayAddress.lat,
+                        lng: displayAddress.lng,
+                        name: displayAddress.locality || displayAddress.label || 'Current Location',
+                        address: displayAddress.street_address || 'Current Location',
+                        existingAddress: displayAddress
+                      });
+                    }
+                  } else {
+                    Alert.alert(
+                      'Incomplete Address',
+                      'This delivery address needs a receiver name and phone number.',
+                      [{ 
+                        text: 'Update Address', 
+                        onPress: () => navigation.navigate('AddressDetails', {
+                          lat: displayAddress.lat,
+                          lng: displayAddress.lng,
+                          name: displayAddress.locality || displayAddress.label || 'Current Location',
+                          address: displayAddress.street_address || 'Current Location',
+                          existingAddress: displayAddress
+                        }) 
+                      }]
+                    );
+                  }
+                  return;
+                }
+
                 const finalInstruction = [deliveryInstruction, customInstruction].filter(Boolean).join(' | ');
                 navigation.navigate('PaymentOptions', { 
                   quote, 

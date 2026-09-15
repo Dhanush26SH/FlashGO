@@ -34,13 +34,19 @@ export default function SlotDetailsScreen() {
     setIsLoading(true);
     try {
       // 1. Fetch all slots for this date
-      const { data: allSlotsData, error: slotsError } = await supabase
+      let query = supabase
         .from('work_slots')
         .select('*')
         .eq('status', 'published')
         .gte('start_time', `${isoDate}T00:00:00Z`)
         .lte('start_time', `${isoDate}T23:59:59Z`)
         .order('start_time', { ascending: true });
+
+      if (profile?.role) {
+        query = query.eq('target_role', profile.role);
+      }
+
+      const { data: allSlotsData, error: slotsError } = await query;
 
       if (slotsError) throw slotsError;
 

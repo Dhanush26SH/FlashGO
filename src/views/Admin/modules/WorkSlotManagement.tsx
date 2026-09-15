@@ -4,6 +4,7 @@ import { supabase } from '../../../services/db';
 import { WorkSlotService } from '../../../services/api/WorkSlotService';
 import type { WorkSlot } from '../../../services/api/WorkSlotService';
 import { Calendar, Plus, Users, Warehouse, Search } from 'lucide-react';
+import { DriverDailyIncentiveManagement } from './DriverDailyIncentiveManagement';
 
 export const WorkSlotManagement: React.FC = () => {
   const { addToast } = useApp();
@@ -43,7 +44,7 @@ export const WorkSlotManagement: React.FC = () => {
   const [availableWarehouseStaff, setAvailableWarehouseStaff] = useState<any[]>([]);
   const [warehouseStaffAssignments, setWarehouseStaffAssignments] = useState<{staffId: string, duty: string}[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'all' | 'picker' | 'driver' | 'warehouse_staff'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'picker' | 'driver' | 'driver_daily_incentive' | 'warehouse_staff'>('all');
   const { currentUser } = useApp();
 
   useEffect(() => {
@@ -313,17 +314,12 @@ export const WorkSlotManagement: React.FC = () => {
           }
           addToast('Work slot updated', 'success');
         } else {
-          // Note: Admin create slot needs to return ID to save incentives properly. 
-          // Assuming we need to reload data and find it, or we skip incentives on create for now? 
-          // Wait, adminCreateWorkSlot currently returns void and doesn't return the ID. 
-          // I will use a simple workaround: fetch the newly created slot.
           await WorkSlotService.adminCreateWorkSlot(warehouseId, targetRole, sDt, eDt, capacity, status, rMin, rMax, pRate);
           if (targetRole === 'picker') {
-             // Let's refetch to get the latest slot id for this exact time and warehouse
              const allSlots = await WorkSlotService.adminGetWorkSlots();
              const newSlot = allSlots.find(s => s.warehouse_id === warehouseId && s.target_role === targetRole && s.start_time === sDt);
              if (newSlot) {
-               await WorkSlotService.adminSaveIncentives(newSlot.id, pickerIncentiveEnabled, pickerMilestones);
+                 await WorkSlotService.adminSaveIncentives(newSlot.id, pickerIncentiveEnabled, pickerMilestones);
              }
           }
           addToast('Work slot created', 'success');
@@ -470,16 +466,19 @@ export const WorkSlotManagement: React.FC = () => {
             )}
 
             {targetRole === 'driver' && (
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Min Hourly Rate (₹)</label>
-                  <input type="number" min="0" value={rateMin} onChange={e => setRateMin(e.target.value ? Number(e.target.value) : '')} placeholder="Optional for draft" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Min Hourly Rate (₹)</label>
+                    <input type="number" min="0" value={rateMin} onChange={e => setRateMin(e.target.value ? Number(e.target.value) : '')} placeholder="Optional for draft" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Max Hourly Rate (₹)</label>
+                    <input type="number" min="0" value={rateMax} onChange={e => setRateMax(e.target.value ? Number(e.target.value) : '')} placeholder="Optional for draft" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)' }} />
+                  </div>
+                  <div style={{ flex: 1 }} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Max Hourly Rate (₹)</label>
-                  <input type="number" min="0" value={rateMax} onChange={e => setRateMax(e.target.value ? Number(e.target.value) : '')} placeholder="Optional for draft" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)' }} />
-                </div>
-                <div style={{ flex: 1 }} />
+
               </div>
             )}
 
@@ -575,23 +574,29 @@ export const WorkSlotManagement: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        {(['all', 'picker', 'driver', 'warehouse_staff'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              padding: '8px 16px', borderRadius: '20px', border: 'none',
-              background: activeTab === tab ? 'var(--primary)' : 'var(--bg-surface)',
-              color: activeTab === tab ? '#fff' : 'var(--text-secondary)',
-              fontWeight: '600', cursor: 'pointer'
-            }}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1).replace('_', ' ')}
-          </button>
-        ))}
+        {(['all', 'picker', 'driver', 'driver_daily_incentive', 'warehouse_staff'] as const).map(tab => {
+          let label = tab.charAt(0).toUpperCase() + tab.slice(1).replace(/_/g, ' ');
+          if (tab === 'driver_daily_incentive') label = 'Driver Daily Incentives';
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab as any)}
+              style={{
+                padding: '8px 16px', borderRadius: '20px', border: 'none',
+                background: activeTab === tab ? 'var(--primary)' : 'var(--bg-surface)',
+                color: activeTab === tab ? '#fff' : 'var(--text-secondary)',
+                fontWeight: '600', cursor: 'pointer'
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
-      {loading ? (
+      {activeTab === 'driver_daily_incentive' ? (
+        <DriverDailyIncentiveManagement />
+      ) : loading ? (
         <p>Loading slots...</p>
       ) : filteredSlots.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '40px' }}>No work slots found.</p>

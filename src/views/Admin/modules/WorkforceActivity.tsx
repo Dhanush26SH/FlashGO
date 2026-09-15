@@ -44,11 +44,31 @@ export const WorkforceActivity: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
   
+  const [liveStaff, setLiveStaff] = useState<any[]>([]);
+  const [loadingLive, setLoadingLive] = useState(false);
+
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchData();
   }, [activeTab, dateFilter, customStart, customEnd, workerSearch, warehouseDuty, selectedWarehouseId]);
+
+  useEffect(() => {
+    fetchLiveStaff();
+  }, [activeTab, selectedWarehouseId]);
+
+  const fetchLiveStaff = async () => {
+    if (!selectedWarehouseId) return;
+    setLoadingLive(true);
+    try {
+      const data = await AdminService.getLiveStaffStatus(selectedWarehouseId, activeTab);
+      setLiveStaff(data || []);
+    } catch (err) {
+      console.error('Failed to load live staff status', err);
+    } finally {
+      setLoadingLive(false);
+    }
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -133,10 +153,11 @@ export const WorkforceActivity: React.FC = () => {
     }).toUpperCase();
   };
 
-  const renderPickerTab = () => {
-    const { summary, details } = data || {};
-    return (
-      <>
+  const renderSummaryCards = () => {
+    const { summary } = data || {};
+    
+    if (activeTab === 'Picker') {
+      return (
         <div className="summary-cards">
           <div className="summary-card">
             <span className="summary-card-title">Slots Booked / Completed</span>
@@ -159,7 +180,69 @@ export const WorkforceActivity: React.FC = () => {
             <span className="summary-card-value">₹{summary?.total_earnings || 0}</span>
           </div>
         </div>
+      );
+    }
+    
+    if (activeTab === 'Driver') {
+      return (
+        <div className="summary-cards">
+          <div className="summary-card">
+            <span className="summary-card-title">Gigs Booked</span>
+            <span className="summary-card-value">{summary?.gigs_booked || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Active Hours</span>
+            <span className="summary-card-value">{((summary?.active_minutes || 0) / 60).toFixed(1)}h</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Deliveries Assigned / Completed</span>
+            <span className="summary-card-value">{summary?.deliveries_assigned || 0} / {summary?.deliveries_completed || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">COD Orders Collected</span>
+            <span className="summary-card-value">{summary?.cod_collected || 0}</span>
+          </div>
+          <div className="summary-card" style={{border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-base)'}}>
+            <span className="summary-card-title" style={{opacity: 0.7}}>Earnings</span>
+            <span className="summary-card-value" style={{fontSize: '1rem', opacity: 0.7}}>Coming later</span>
+          </div>
+        </div>
+      );
+    }
+    
+    if (activeTab === 'Warehouse Staff') {
+      return (
+        <div className="summary-cards">
+          <div className="summary-card">
+            <span className="summary-card-title">Staff Worked</span>
+            <span className="summary-card-value">{summary?.staff_worked || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Active Hours</span>
+            <span className="summary-card-value">{((summary?.active_minutes || 0) / 60).toFixed(1)}h</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Putaway Units</span>
+            <span className="summary-card-value">{summary?.putaway_units || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Inward Units Processed</span>
+            <span className="summary-card-value">{summary?.inward_units_processed || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Audits Completed</span>
+            <span className="summary-card-value">{summary?.audits_completed || 0}</span>
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
+  const renderPickerTab = () => {
+    const { summary, details } = data || {};
+    return (
         <div className="history-list">
           {details?.length === 0 && <div className="empty-state"><p>No picker history found for this period.</p></div>}
           {details?.map((item: any) => (
@@ -228,37 +311,12 @@ export const WorkforceActivity: React.FC = () => {
             </div>
           ))}
         </div>
-      </>
     );
   };
 
   const renderDriverTab = () => {
     const { summary, details } = data || {};
     return (
-      <>
-        <div className="summary-cards">
-          <div className="summary-card">
-            <span className="summary-card-title">Gigs Booked</span>
-            <span className="summary-card-value">{summary?.gigs_booked || 0}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">Active Hours</span>
-            <span className="summary-card-value">{((summary?.active_minutes || 0) / 60).toFixed(1)}h</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">Deliveries Assigned / Completed</span>
-            <span className="summary-card-value">{summary?.deliveries_assigned || 0} / {summary?.deliveries_completed || 0}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">COD Orders Collected</span>
-            <span className="summary-card-value">{summary?.cod_collected || 0}</span>
-          </div>
-          <div className="summary-card" style={{border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-base)'}}>
-            <span className="summary-card-title" style={{opacity: 0.7}}>Earnings</span>
-            <span className="summary-card-value" style={{fontSize: '1rem', opacity: 0.7}}>Coming later</span>
-          </div>
-        </div>
-
         <div className="history-list">
           {details?.length === 0 && <div className="empty-state"><p>No driver history found for this period.</p></div>}
           {details?.map((item: any) => (
@@ -323,7 +381,6 @@ export const WorkforceActivity: React.FC = () => {
             </div>
           ))}
         </div>
-      </>
     );
   };
   const renderWarehouseStaffTab = () => {
@@ -340,30 +397,6 @@ export const WorkforceActivity: React.FC = () => {
     const staffList = Object.values(groupedDetails || {}).sort((a: any, b: any) => a.worker_name.localeCompare(b.worker_name));
 
     return (
-      <>
-        <div className="summary-cards">
-          <div className="summary-card">
-            <span className="summary-card-title">Staff Worked</span>
-            <span className="summary-card-value">{summary?.staff_worked || 0}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">Active Hours</span>
-            <span className="summary-card-value">{((summary?.active_minutes || 0) / 60).toFixed(1)}h</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">Putaway Units</span>
-            <span className="summary-card-value">{summary?.putaway_units || 0}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">Inward Units Processed</span>
-            <span className="summary-card-value">{summary?.inward_units_processed || 0}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-card-title">Audits Completed</span>
-            <span className="summary-card-value">{summary?.audits_completed || 0}</span>
-          </div>
-        </div>
-
         <div className="history-list">
           {(!staffList || staffList.length === 0) && <div className="empty-state"><p>No tasks found for this period and duty filter.</p></div>}
           
@@ -483,7 +516,6 @@ export const WorkforceActivity: React.FC = () => {
             </div>
           ))}
         </div>
-      </>
     );
   };
 
@@ -527,6 +559,7 @@ export const WorkforceActivity: React.FC = () => {
           </>
         )}
 
+        {/* Global Filters */}
         <div className="filter-group">
           <label className="filter-label"><Search size={12}/> Search Worker</label>
           <input 
@@ -537,8 +570,71 @@ export const WorkforceActivity: React.FC = () => {
             onChange={(e) => setWorkerSearch(e.target.value)}
           />
         </div>
+      </div>
 
-        {activeTab === 'Warehouse Staff' && (
+      {renderSummaryCards()}
+
+      <div className="workforce-tabs">
+        <button className={`workforce-tab ${activeTab === 'Picker' ? 'active' : ''}`} onClick={() => setActiveTab('Picker')}>Picker</button>
+        <button className={`workforce-tab ${activeTab === 'Driver' ? 'active' : ''}`} onClick={() => setActiveTab('Driver')}>Driver</button>
+        <button className={`workforce-tab ${activeTab === 'Warehouse Staff' ? 'active' : ''}`} onClick={() => setActiveTab('Warehouse Staff')}>Warehouse Staff</button>
+      </div>
+
+      <div className="live-staff-section">
+        <div className="live-staff-header">
+          <h3 className="live-staff-title">LIVE {activeTab.toUpperCase()} STATUS</h3>
+          <div className="live-staff-summary">
+            <span className="status-badge online"><span className="dot"></span> {liveStaff.filter(s => s.is_online).length} Online</span>
+            <span className="status-badge offline"><span className="dot"></span> {liveStaff.filter(s => !s.is_online).length} Offline</span>
+          </div>
+        </div>
+        
+        {loadingLive ? (
+          <div className="live-staff-loading"><Clock size={16} className="spin"/> Loading live status...</div>
+        ) : liveStaff.length === 0 ? (
+          <div className="live-staff-empty">No staff found</div>
+        ) : (
+          <div className="live-staff-table-container">
+            <table className="live-staff-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '60%' }}>STAFF</th>
+                  <th style={{ width: '20%' }}>EMPLOYEE ID</th>
+                  <th style={{ width: '20%', textAlign: 'right' }}>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {liveStaff
+                  .filter(s => !workerSearch || (s.full_name || '').toLowerCase().includes(workerSearch.toLowerCase()) || (s.employee_id || '').toLowerCase().includes(workerSearch.toLowerCase()))
+                  .sort((a, b) => {
+                    const nameA = (a.full_name || '').trim().toLowerCase();
+                    const nameB = (b.full_name || '').trim().toLowerCase();
+                    if (!nameA && nameB) return 1;
+                    if (nameA && !nameB) return -1;
+                    const comp = nameA.localeCompare(nameB);
+                    if (comp !== 0) return comp;
+                    return (a.employee_id || a.id).localeCompare(b.employee_id || b.id);
+                  })
+                  .map(staff => (
+                  <tr key={staff.id}>
+                    <td className="staff-name">{staff.full_name?.trim() || 'Unnamed staff'}</td>
+                    <td className="staff-emp-id">{staff.employee_id || '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div className={`staff-status ${staff.is_online ? 'is-online' : 'is-offline'}`}>
+                        <div className="status-indicator"></div>
+                        {staff.is_online ? 'ONLINE' : 'OFFLINE'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {activeTab === 'Warehouse Staff' && (
+        <div className="workforce-filters" style={{ marginTop: '16px', marginBottom: '0' }}>
           <div className="filter-group">
             <label className="filter-label"><Filter size={12}/> Duty Filter</label>
             <select className="filter-select" value={warehouseDuty} onChange={(e) => setWarehouseDuty(e.target.value as WarehouseDuty)}>
@@ -548,14 +644,8 @@ export const WorkforceActivity: React.FC = () => {
               <option value="Auditor">Auditor</option>
             </select>
           </div>
-        )}
-      </div>
-
-      <div className="workforce-tabs">
-        <button className={`workforce-tab ${activeTab === 'Picker' ? 'active' : ''}`} onClick={() => setActiveTab('Picker')}>Picker</button>
-        <button className={`workforce-tab ${activeTab === 'Driver' ? 'active' : ''}`} onClick={() => setActiveTab('Driver')}>Driver</button>
-        <button className={`workforce-tab ${activeTab === 'Warehouse Staff' ? 'active' : ''}`} onClick={() => setActiveTab('Warehouse Staff')}>Warehouse Staff</button>
-      </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="loading-state">

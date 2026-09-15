@@ -13,16 +13,17 @@ interface DriverSession {
   driver_id: string;
   latest_lat: number | null;
   latest_lng: number | null;
-  last_updated: string | null;
+  updated_at: string | null;
 }
 
 export const DeliveryOperations: React.FC = () => {
-  const { addToast, orders, logisticsTrips, profiles, darkStores, refreshData } = useApp();
+  const { addToast, orders, logisticsTrips, profiles, refreshData } = useApp();
   const drivers = profiles.filter(p => p.role === 'driver');
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('all');
   const [driverSessions, setDriverSessions] = useState<Record<string, DriverSession>>({});
+  const [realWarehouses, setRealWarehouses] = useState<{id: string, name: string, lat: number, lng: number}[]>([]);
 
   // Active trips across the platform
   const allActiveTrips = logisticsTrips.filter(t => t.status === 'in_transit' || t.status === 'accepted' || t.status === 'pending');
@@ -51,7 +52,7 @@ export const DeliveryOperations: React.FC = () => {
   });
 
   // Data mapping for PremiumMap
-  const mapWarehouses: MapWarehouse[] = darkStores
+  const mapWarehouses: MapWarehouse[] = realWarehouses
     .filter(store => selectedWarehouseId === 'all' || store.id === selectedWarehouseId)
     .map(store => ({
       id: store.id,
@@ -84,7 +85,7 @@ export const DeliveryOperations: React.FC = () => {
       const driverObj = drivers.find(d => d.id === trip.driver_id);
       
       if (session && session.latest_lat && session.latest_lng) {
-        const lastUpdated = session.last_updated ? new Date(session.last_updated).getTime() : 0;
+        const lastUpdated = session.updated_at ? new Date(session.updated_at).getTime() : 0;
         const isStale = (now - lastUpdated) > DRIVER_GPS_STALE_AFTER_MS;
 
         mapDrivers.push({
@@ -118,7 +119,20 @@ export const DeliveryOperations: React.FC = () => {
       }
     };
 
+    const fetchWarehouses = async () => {
+      try {
+        const { data, error } = await supabase.from('warehouses').select('id, name, lat, lng');
+        if (error) throw error;
+        if (isMounted && data) {
+          setRealWarehouses(data.map((w: any) => ({ id: w.id, name: w.name, lat: w.lat, lng: w.lng })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch warehouses:', err);
+      }
+    };
+
     fetchInitialSessions();
+    fetchWarehouses();
 
     const channel = supabase.channel('admin_live_delivery_map')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions' }, (payload: any) => {
@@ -230,7 +244,7 @@ export const DeliveryOperations: React.FC = () => {
               style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)' }}
             >
               <option value="all">All Warehouses</option>
-              {darkStores.map(ws => (
+              {realWarehouses.map(ws => (
                 <option key={ws.id} value={ws.id}>{ws.name}</option>
               ))}
             </select>
@@ -244,7 +258,7 @@ export const DeliveryOperations: React.FC = () => {
                 const driver = drivers.find(d => d.id === trip.driver_id);
                 const attachedOrders = orders.filter(o => o.trip_id === trip.id);
                 const session = trip.driver_id ? driverSessions[trip.driver_id] : null;
-                const lastUpdated = session?.last_updated ? new Date(session.last_updated).getTime() : 0;
+                const lastUpdated = session?.updated_at ? new Date(session.updated_at).getTime() : 0;
                 const gpsStatus = !session?.latest_lat ? 'No GPS' : (Date.now() - lastUpdated) > DRIVER_GPS_STALE_AFTER_MS ? 'Stale' : 'Fresh';
 
                 return (

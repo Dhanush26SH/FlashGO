@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, Alert, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, Alert, Linking, AppState } from 'react-native';
 import { Bell, HelpCircle, AlertTriangle, ChevronRight, User, LogOut } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -8,45 +8,48 @@ import { useFocusEffect } from '@react-navigation/native';
 export default function FeedScreen({ navigation }: any) {
   const { profile, setRole } = useAuth() as any;
   const [isOnline, setIsOnline] = useState(profile?.is_online || false);
-  const [activeTrip, setActiveTrip] = useState<any>(null);
   const [pendingTrip, setPendingTrip] = useState<any>(null);
-  const [nextGig, setNextGig] = useState<any>(null);
-  
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [todayTrips, setTodayTrips] = useState(0);
+  const [todaySessions, setTodaySessions] = useState(0);
+  const [activeTrip, setActiveTrip] = useState<any>(null);
+  const [nextGig, setNextGig] = useState<any>(null);
+  const [activeCampaign, setActiveCampaign] = useState<any>(null);
+
+  const checkActiveSession = async () => {
+    if (!profile?.id) return;
+    const { data, error } = await supabase
+      .from('driver_sessions')
+      .select(`
+        id,
+        staff_shifts (
+          status,
+          shift_end
+        )
+      `)
+      .eq('driver_id', profile.id)
+      .eq('status', 'active')
+      .single();
+
+    if (data && !error) {
+      const shift = Array.isArray(data.staff_shifts) ? data.staff_shifts[0] : data.staff_shifts;
+      const shiftEnd = shift?.shift_end ? new Date(shift.shift_end) : null;
+      const isExpired = shiftEnd ? shiftEnd < new Date() : false;
+      const isShiftActive = shift?.status === 'active';
+
+      if (!isExpired && isShiftActive) {
+        navigation.reset({ index: 0, routes: [{ name: 'DriverOperationsMapScreen' }] });
+      } else if (isExpired) {
+        // Actively clean up stale session on backend
+        await supabase.rpc('driver_expire_shift');
+        setIsOnline(false);
+      }
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
-      const checkActiveSession = async () => {
-        if (!profile?.id) return;
-        const { data, error } = await supabase
-          .from('driver_sessions')
-          .select(`
-            id,
-            staff_shifts (
-              status,
-              shift_end
-            )
-          `)
-          .eq('driver_id', profile.id)
-          .eq('status', 'active')
-          .single();
-
-        if (data && !error) {
-          const shift = Array.isArray(data.staff_shifts) ? data.staff_shifts[0] : data.staff_shifts;
-          const shiftEnd = shift?.shift_end ? new Date(shift.shift_end) : null;
-          const isExpired = shiftEnd ? shiftEnd < new Date() : false;
-          const isShiftActive = shift?.status === 'active';
-
-          if (!isExpired && isShiftActive) {
-            navigation.reset({ index: 0, routes: [{ name: 'DriverOperationsMapScreen' }] });
-          } else if (isExpired) {
-            // Actively clean up stale session on backend
-            await supabase.rpc('driver_expire_shift');
-            setIsOnline(false);
-          }
-        }
-      };
+      fetchTripsAndMetrics();
       checkActiveSession();
     }, [profile?.id])
   );
@@ -103,30 +106,42 @@ export default function FeedScreen({ navigation }: any) {
       setActiveTrip(null);
     }
 
-    // Fetch Today's Metrics
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString();
+    // Fetch Today's Metrics (Asia/Kolkata boundary)
+    const nowUtc = new Date();
+    const nowIst = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
+    nowIst.setUTCHours(0, 0, 0, 0); // start of day IST
+    const todayStr = new Date(nowIst.getTime() - (5.5 * 60 * 60 * 1000)).toISOString();
 
     const { data: earns } = await supabase
-      .from('driver_earnings')
-      .select('earning_amount')
+      .from('driver_financial_ledger')
+      .select('amount')
       .eq('driver_id', profile.id)
-      .gte('created_at', todayStr);
+      .eq('transaction_type', 'delivery_earning')
+      .gte('occurred_at', todayStr);
 
     if (earns) {
-      setTodayEarnings(earns.reduce((sum, e) => sum + Number(e.earning_amount), 0));
+      setTodayEarnings(earns.reduce((sum, e) => sum + Number(e.amount), 0));
     }
 
     const { count: tripsCount } = await supabase
       .from('logistics_trips')
       .select('*', { count: 'exact', head: true })
       .eq('driver_id', profile.id)
-      .in('status', ['completed', 'delivered'])
-      .gte('updated_at', todayStr);
+      .eq('status', 'completed')
+      .gte('delivered_at', todayStr);
 
     if (tripsCount !== null) {
       setTodayTrips(tripsCount);
+    }
+    
+    const { count: sessionsCount } = await supabase
+      .from('staff_shifts')
+      .select('*', { count: 'exact', head: true })
+      .eq('staff_id', profile.id)
+      .gte('started_at', todayStr);
+      
+    if (sessionsCount !== null) {
+      setTodaySessions(sessionsCount);
     }
     
     // Fetch Next/Current Booked Gig — driver lifecycle:
@@ -150,6 +165,13 @@ export default function FeedScreen({ navigation }: any) {
       } else {
         setNextGig(null);
       }
+      
+      const { data: campaignData } = await supabase.rpc('driver_get_active_campaign');
+      if (campaignData && campaignData.success && campaignData.campaign) {
+        setActiveCampaign(campaignData.campaign);
+      } else {
+        setActiveCampaign(null);
+      }
     }
   };
 
@@ -157,31 +179,38 @@ export default function FeedScreen({ navigation }: any) {
     fetchTripsAndMetrics();
 
     const channel = supabase.channel('trips_feed_channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'logistics_trips' },
-        () => {
-          fetchTripsAndMetrics();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'driver_earnings' },
-        () => {
-          fetchTripsAndMetrics();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'staff_shifts' },
-        () => {
-          fetchTripsAndMetrics();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'logistics_trips' }, () => fetchTripsAndMetrics())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_financial_ledger' }, () => fetchTripsAndMetrics())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_shifts' }, () => fetchTripsAndMetrics())
       .subscribe();
+
+    // AppState for background -> foreground refresh
+    const appStateSub = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        fetchTripsAndMetrics();
+      }
+    });
+
+    // Schedule Midnight IST refresh
+    const now = new Date();
+    const utcMs = now.getTime();
+    const istMs = utcMs + (5.5 * 60 * 60 * 1000);
+    const istDate = new Date(istMs);
+    const tomorrowIst = new Date(istDate);
+    tomorrowIst.setUTCHours(24, 0, 0, 0);
+    const msUntilMidnightIST = tomorrowIst.getTime() - istDate.getTime();
+    
+    // Safety clamp (if very close to midnight, just wait at least 5s, max 24h)
+    const timeoutMs = Math.max(5000, Math.min(msUntilMidnightIST + 1000, 86400000));
+    
+    const midnightTimer = setTimeout(() => {
+      fetchTripsAndMetrics();
+    }, timeoutMs);
 
     return () => {
       supabase.removeChannel(channel);
+      appStateSub.remove();
+      clearTimeout(midnightTimer);
     };
   }, [profile?.id, profile?.warehouse_id]);
 
@@ -241,14 +270,91 @@ export default function FeedScreen({ navigation }: any) {
               <Text style={styles.gridLabel}>Trips ➔</Text>
             </View>
             <View style={styles.gridItem}>
-              <Text style={styles.gridValue}>{isOnline ? '1' : '0'}</Text>
+              <Text style={styles.gridValue}>{todaySessions}</Text>
               <Text style={styles.gridLabel}>Sessions ➔</Text>
             </View>
-            <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('Pocket')}>
+            <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('DeliveryHistory')}>
               <Text style={styles.gridValue}>View</Text>
               <Text style={styles.gridLabel}>History ➔</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Incentive / Earnings Progress */}
+        <View style={[styles.card, { marginTop: 16 }]}>
+          <View style={styles.cardHeader}>
+            <Text style={{ fontSize: 18 }}>🏆</Text>
+            <Text style={styles.cardTitle}>Incentive / Earnings Progress</Text>
+          </View>
+          
+          {activeCampaign ? (
+            <View>
+              <Text style={{ color: '#10b981', fontSize: 12, marginBottom: 12, fontWeight: 'bold' }}>
+                ₹{todayEarnings.toFixed(2)} delivery earnings today!
+              </Text>
+              
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'column', gap: 12, minWidth: '100%', paddingBottom: 8 }}>
+                  {/* Top Row: Incentives */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#9ca3af', fontSize: 10, width: 60, fontWeight: 'bold' }}>INCENTIVE</Text>
+                    {activeCampaign.milestones?.map((m: any, idx: number) => (
+                      <View key={`inc-${idx}`} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 60, alignItems: 'center' }}>
+                          <Text style={{ color: '#10b981', fontWeight: 'bold', fontSize: 12 }}>₹{m.reward_amount}</Text>
+                        </View>
+                        {idx < activeCampaign.milestones.length - 1 && (
+                          <View style={{ width: 40, height: 2, backgroundColor: '#3f3f46' }} />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  
+                  {/* Indicators Row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 60 }} />
+                    {activeCampaign.milestones?.map((m: any, idx: number) => (
+                      <View key={`ind-${idx}`} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 60, alignItems: 'center' }}>
+                          <View style={[
+                            styles.milestoneMarker,
+                            todayEarnings >= m.threshold_amount ? styles.milestoneMarkerActive : styles.milestoneMarkerInactive
+                          ]} />
+                        </View>
+                        {idx < activeCampaign.milestones.length - 1 && (
+                          <View style={[
+                            styles.milestoneLine,
+                            todayEarnings >= activeCampaign.milestones[idx+1].threshold_amount 
+                              ? styles.milestoneLineActive 
+                              : styles.milestoneLineInactive
+                          ]} />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  
+                  {/* Bottom Row: Earnings Target */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#9ca3af', fontSize: 10, width: 60, fontWeight: 'bold' }}>EARNINGS</Text>
+                    {activeCampaign.milestones?.map((m: any, idx: number) => (
+                      <View key={`tgt-${idx}`} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 60, alignItems: 'center' }}>
+                          <Text style={{ color: '#d1d5db', fontSize: 12 }}>₹{m.target_earnings}</Text>
+                        </View>
+                        {idx < activeCampaign.milestones.length - 1 && (
+                          <View style={{ width: 40, backgroundColor: 'transparent' }} />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+            </View>
+          ) : (
+            <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+              <Text style={{ color: '#9ca3af', fontSize: 14 }}>No incentive available today</Text>
+            </View>
+          )}
         </View>
 
         {/* Current Gig / Shift Card */}
@@ -300,12 +406,31 @@ export default function FeedScreen({ navigation }: any) {
           <Text style={styles.sectionTitle}>Active Campaigns</Text>
         </View>
 
-        <View style={styles.offerCard}>
-          <View style={styles.offerLeft}>
-            <Text style={styles.offerTitle}>No active campaigns</Text>
-            <Text style={styles.offerSub}>Check back later for special offers.</Text>
+        {activeCampaign ? (
+          <View style={[styles.offerCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={styles.offerTitle}>Earnings Campaign</Text>
+              <Text style={{ color: '#10b981', fontWeight: 'bold' }}>Active</Text>
+            </View>
+            <Text style={{ color: '#d1d5db', fontSize: 13, marginBottom: 4 }}>
+              Valid today
+            </Text>
+            <Text style={{ color: '#d1d5db', fontSize: 13, marginBottom: 12 }}>
+              Ends at 12:00 AM
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#3f3f46' }}>
+              <Text style={{ color: '#9ca3af', fontSize: 12 }}>Milestones: {activeCampaign.milestones?.length || 0}</Text>
+              <Text style={{ color: '#9ca3af', fontSize: 12 }}>Max Reward: ₹{activeCampaign.milestones?.length ? activeCampaign.milestones[activeCampaign.milestones.length - 1].reward_amount : 0}</Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.offerCard}>
+            <View style={styles.offerLeft}>
+              <Text style={styles.offerTitle}>No active campaigns</Text>
+              <Text style={styles.offerSub}>Check back later for special offers.</Text>
+            </View>
+          </View>
+        )}
 
         {/* Padding for bottom floating banner */}
         <View style={{ height: 100 }} />
@@ -549,5 +674,29 @@ const styles = StyleSheet.create({
     borderColor: '#d4d4d8',
     borderBottomLeftRadius: 4,
     borderBottomRightRadius: 4,
+  },
+  milestoneMarker: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#52525b',
+  },
+  milestoneMarkerActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  milestoneMarkerInactive: {
+    backgroundColor: '#3f3f46',
+  },
+  milestoneLine: {
+    width: 40,
+    height: 2,
+  },
+  milestoneLineActive: {
+    backgroundColor: '#10b981',
+  },
+  milestoneLineInactive: {
+    backgroundColor: '#3f3f46',
   }
 });

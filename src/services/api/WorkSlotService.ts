@@ -15,6 +15,8 @@ export interface WorkSlot {
   picker_incentive_enabled?: boolean;
   picker_incentives?: any[];
   picker_pay_rate?: number | null;
+  driver_incentive_enabled?: boolean;
+  driver_incentives?: any[];
 }
 
 export class WorkSlotService {
@@ -102,6 +104,36 @@ export class WorkSlotService {
       p_milestones: milestones
     });
     if (error) throw error;
+  }
+
+  static async adminSaveDriverDailyIncentives(
+    warehouseId: string,
+    businessDate: string,
+    enabled: boolean,
+    milestones: any[]
+  ): Promise<void> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await supabase.rpc('admin_save_driver_daily_incentive', {
+      p_warehouse_id: warehouseId,
+      p_business_date: businessDate,
+      p_enabled: enabled,
+      p_milestones: milestones
+    });
+    if (error) throw error;
+  }
+
+  static async adminGetDriverDailyIncentives(warehouseId: string, startDate: string, endDate: string): Promise<any[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase.rpc('admin_get_driver_daily_incentives', {
+      p_warehouse_id: warehouseId,
+      p_start_date: startDate,
+      p_end_date: endDate
+    });
+    if (error) {
+      console.error('Error fetching driver daily incentives', error);
+      return [];
+    }
+    return data || [];
   }
 
   static async getAvailableWorkSlots(): Promise<WorkSlot[]> {

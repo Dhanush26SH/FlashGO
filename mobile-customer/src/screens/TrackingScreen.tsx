@@ -17,6 +17,7 @@ export default function TrackingScreen() {
   const [driverInfo, setDriverInfo] = useState<any>(null);
   const [warehouseLocation, setWarehouseLocation] = useState<{lat: number, lng: number} | null>(null);
   const [customerLocation, setCustomerLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [deliveryOtp, setDeliveryOtp] = useState<string | null>(null);
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -37,6 +38,21 @@ export default function TrackingScreen() {
           fetchDriverLocation(payload.new.driver_id);
           subscribeDriver(payload.new.driver_id);
         }
+        if (payload.new.status === 'out_for_delivery' && payload.new.total_amount > 1000) {
+           // Allow trigger to insert notification
+           setTimeout(async () => {
+              const otp = await fetchOrderOtpFromNotification(orderId);
+              setDeliveryOtp(otp);
+           }, 1000);
+        }
+        if (payload.new.status === 'delivered') {
+           if (driverChannelRef.current) {
+             supabase.removeChannel(driverChannelRef.current);
+             driverChannelRef.current = null;
+             subscribedDriverIdRef.current = null;
+           }
+           setDeliveryOtp(null);
+        }
       })
       .subscribe();
 
@@ -50,9 +66,26 @@ export default function TrackingScreen() {
     };
   }, [orderId]);
 
+  const fetchOrderOtpFromNotification = async (id: string) => {
+    const { data } = await supabase
+      .from('notifications')
+      .select('message')
+      .eq('entity_id', id)
+      .eq('type', 'DELIVERY_OTP')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data && data.message) {
+      const match = data.message.match(/is (\d{6})/);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
   const fetchOrderDetails = async () => {
     const { data: orderData } = await supabase.from('orders')
-      .select('*, delivery_address, total_amount, otp_code, payment_status, payment_method, warehouse_id')
+      .select('*, delivery_address, total_amount, payment_status, payment_method, warehouse_id')
       .eq('id', orderId)
       .single();
 
@@ -75,6 +108,11 @@ export default function TrackingScreen() {
             setWarehouseLocation({ lat: wh.warehouse_lat, lng: wh.warehouse_lng });
           }
         }
+      }
+
+      if (['out_for_delivery'].includes(orderData.status) && orderData.total_amount > 1000) {
+        const otp = await fetchOrderOtpFromNotification(orderId);
+        setDeliveryOtp(otp);
       }
 
       if (orderData.driver_id) {
@@ -211,14 +249,7 @@ export default function TrackingScreen() {
     );
   }
 
-  console.log('TRACKING_COORDS', {
-    customerLat: order?.delivery_lat,
-    customerLng: order?.delivery_lng,
-    warehouseLat: warehouseLocation?.lat,
-    warehouseLng: warehouseLocation?.lng,
-    driverLat: driverLocation?.lat,
-    driverLng: driverLocation?.lng,
-  });
+
 
   const mapHtml = `
     <!DOCTYPE html>
@@ -284,7 +315,7 @@ export default function TrackingScreen() {
   `;
 
   const isCODUnpaid = order.payment_method === 'cod' && order.payment_status === 'pending';
-  const showOTP = order.total_amount > 1000 && order.status === 'out_for_delivery' && order.otp_code;
+  const showOTP = order.total_amount > 1000 && order.status === 'out_for_delivery';
   const canCancel = ['placed'].includes(order.status);
 
   return (
@@ -427,10 +458,16 @@ export default function TrackingScreen() {
                 <ShieldAlert size={24} color={theme.colors.warning} />
                 <Text style={styles.otpTitle}>Delivery verification</Text>
               </View>
-              <Text style={styles.otpSub}>Share this OTP with your FlashGO delivery partner only when you receive your order.</Text>
-              <View style={styles.otpValueContainer}>
-                <Text style={styles.otpValue}>{order.otp_code}</Text>
-              </View>
+              {deliveryOtp ? (
+                <>
+                  <Text style={styles.otpSub}>Share this OTP with your FlashGO delivery partner only when you receive your order.</Text>
+                  <View style={styles.otpValueContainer}>
+                    <Text style={styles.otpValue}>{deliveryOtp}</Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.otpSub}>Delivery verification will appear when your order is out for delivery.</Text>
+              )}
             </View>
           )}
 

@@ -84,6 +84,10 @@ export default function SlotsScreen() {
         query = query.eq('warehouse_id', selectedWarehouse.id);
       }
 
+      if (profile?.role) {
+        query = query.eq('target_role', profile.role);
+      }
+
       const { data: allSlots } = await query;
 
       let myBookings: any[] = [];

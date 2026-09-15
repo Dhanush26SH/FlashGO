@@ -4,7 +4,7 @@ import { ArrowLeft, MapPin } from 'lucide-react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { theme } from '../theme';
-import { addAddress } from '../services/api';
+import { addAddress, updateAddress } from '../services/api';
 import { useMobileAppContext } from '../context/MobileAppContext';
 
 type AddressDetailsRouteProp = RouteProp<RootStackParamList, 'AddressDetails'>;
@@ -12,18 +12,18 @@ type AddressDetailsRouteProp = RouteProp<RootStackParamList, 'AddressDetails'>;
 export default function AddressDetailsScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<AddressDetailsRouteProp>();
-  const { lat, lng, name, address } = route.params;
+  const { lat, lng, name, address, existingAddress } = route.params;
 
   const { sessionUser, setCheckoutAddress, refreshAddresses } = useMobileAppContext();
 
   const [forWhom, setForWhom] = useState<'myself' | 'someone_else'>('myself');
-  const [receiverName, setReceiverName] = useState(sessionUser?.user_metadata?.full_name || '');
-  const [receiverPhone, setReceiverPhone] = useState(sessionUser?.phone || '');
+  const [receiverName, setReceiverName] = useState(existingAddress?.receiver_name || sessionUser?.user_metadata?.full_name || '');
+  const [receiverPhone, setReceiverPhone] = useState(existingAddress?.receiver_phone || sessionUser?.phone || '');
   
-  const [saveAs, setSaveAs] = useState<'Home' | 'Work' | 'Hotel' | 'Other'>('Home');
-  const [flatNo, setFlatNo] = useState('');
-  const [floor, setFloor] = useState('');
-  const [landmark, setLandmark] = useState('');
+  const [saveAs, setSaveAs] = useState<'Home' | 'Work' | 'Hotel' | 'Other'>(existingAddress?.label || 'Home');
+  const [flatNo, setFlatNo] = useState(existingAddress?.flat_house_no || '');
+  const [floor, setFloor] = useState(existingAddress?.floor || '');
+  const [landmark, setLandmark] = useState(existingAddress?.landmark || '');
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -32,8 +32,13 @@ export default function AddressDetailsScreen() {
       Alert.alert('Required Field', 'Please enter Flat / House No / Building name');
       return;
     }
-    if (forWhom === 'someone_else' && (!receiverName.trim() || !receiverPhone.trim())) {
+    if (!receiverName.trim() || !receiverPhone.trim()) {
       Alert.alert('Required Field', 'Please provide receiver details');
+      return;
+    }
+    const cleanPhone = receiverPhone.replace(/\D/g, '');
+    if (cleanPhone.length !== 10) {
+      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number');
       return;
     }
 
@@ -50,13 +55,19 @@ export default function AddressDetailsScreen() {
         flat_house_no: flatNo,
         floor,
         landmark,
-        receiver_name: forWhom === 'someone_else' ? receiverName : sessionUser?.user_metadata?.full_name || '',
-        receiver_phone: forWhom === 'someone_else' ? receiverPhone : sessionUser?.phone || ''
+        receiver_name: receiverName.trim(),
+        receiver_phone: cleanPhone
       };
 
-      const newAddress = await addAddress(payload);
+      let updatedAddress;
+      if (existingAddress?.id) {
+        updatedAddress = await updateAddress(existingAddress.id, payload);
+      } else {
+        updatedAddress = await addAddress(payload);
+      }
+
       await refreshAddresses();
-      setCheckoutAddress(newAddress);
+      setCheckoutAddress(updatedAddress);
       
       navigation.reset({
         index: 1,
@@ -108,12 +119,10 @@ export default function AddressDetailsScreen() {
             </TouchableOpacity>
           </View>
 
-          {forWhom === 'someone_else' && (
-            <View style={styles.inputGroup}>
-              <TextInput style={styles.input} placeholder="Receiver Name *" value={receiverName} onChangeText={setReceiverName} />
-              <TextInput style={styles.input} placeholder="Receiver Phone *" value={receiverPhone} onChangeText={setReceiverPhone} keyboardType="phone-pad" />
-            </View>
-          )}
+          <View style={styles.inputGroup}>
+            <TextInput style={styles.input} placeholder="Receiver Name *" value={receiverName} onChangeText={setReceiverName} />
+            <TextInput style={styles.input} placeholder="Receiver Phone (10 digits) *" value={receiverPhone} onChangeText={setReceiverPhone} keyboardType="phone-pad" maxLength={10} />
+          </View>
 
           <Text style={styles.label}>Save address as</Text>
           <View style={styles.row}>
@@ -134,7 +143,7 @@ export default function AddressDetailsScreen() {
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving}>
-            {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save address</Text>}
+            {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{existingAddress?.id ? 'Update address' : 'Save address'}</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

@@ -10,6 +10,7 @@ import MainTabs from './MainTabs';
 import DriverMainTabs from './DriverMainTabs';
 import WarehouseMainTabs from './WarehouseMainTabs';
 import RiderDashboard from '../screens/Rider/RiderDashboard';
+import DriverPayoutsScreen from '../screens/Rider/DriverPayoutsScreen';
 import SlotDetailsScreen from '../screens/Slots/SlotDetailsScreen';
 import ScannerScreen from '../screens/Scanner/ScannerScreen';
 import HandoverScreen from '../screens/Scanner/HandoverScreen';
@@ -34,6 +35,7 @@ import DriverReachDropScreen from '../screens/Rider/DriverReachDropScreen';
 import DriverDropOrderScreen from '../screens/Rider/DriverDropOrderScreen';
 import DriverDeliveryCompleteScreen from '../screens/Rider/DriverDeliveryCompleteScreen';
 import DriverReturnToStoreScreen from '../screens/Rider/DriverReturnToStoreScreen';
+import DeliveryHistoryScreen from '../screens/Rider/DeliveryHistoryScreen';
 import WarehouseStaffQRScreen from '../screens/Warehouse/WarehouseStaffQRScreen';
 import { View, Text } from 'react-native';
 
@@ -70,6 +72,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Notification" component={NotificationScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />
             <Stack.Screen name="SelectLanguage" component={SelectLanguageScreen} />
+            <Stack.Screen name="DriverPayouts" component={DriverPayoutsScreen} />
             <Stack.Screen name="Payouts" component={PayoutsScreen} />
             <Stack.Screen name="Warnings" component={WarningsScreen} />
             <Stack.Screen name="SlotDetails" component={SlotDetailsScreen} />
@@ -82,6 +85,7 @@ export default function AppNavigator() {
             <Stack.Screen name="DriverReturnToStoreScreen" component={DriverReturnToStoreScreen} />
             <Stack.Screen name="NavigationScreen" component={NavigationScreen} />
             <Stack.Screen name="VehicleType" component={require('../screens/DriverOnboarding/UpdateVehicleDetailsScreen').default} />
+            <Stack.Screen name="DeliveryHistory" component={DeliveryHistoryScreen} />
           </>
         );
       case 'warehouse_staff':

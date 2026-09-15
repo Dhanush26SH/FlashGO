@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ArrowLeft, CreditCard, Smartphone, Banknote, ChevronRight, CheckCircle2, ShieldCheck } from 'lucide-react-native';
+import { Platform } from 'react-native';
 import { useMobileAppContext } from '../context/MobileAppContext';
 import { processCheckoutV2 } from '../services/api';
 import { theme } from '../theme';
@@ -40,6 +41,37 @@ export default function PaymentOptionsScreen() {
       return;
     }
 
+    if (!displayAddress.receiver_name || typeof displayAddress.receiver_name !== 'string' || !displayAddress.receiver_name.trim() || !displayAddress.receiver_phone || typeof displayAddress.receiver_phone !== 'string' || !displayAddress.receiver_phone.trim()) {
+      if (Platform.OS === 'web') {
+        const confirmUpdate = window.confirm('Incomplete Address\n\nThis delivery address needs a receiver name and phone number. Click OK to update it.');
+        if (confirmUpdate) {
+          navigation.navigate('AddressDetails', {
+            lat: displayAddress.lat,
+            lng: displayAddress.lng,
+            name: displayAddress.locality || displayAddress.label || 'Current Location',
+            address: displayAddress.street_address || 'Current Location',
+            existingAddress: displayAddress
+          });
+        }
+      } else {
+        Alert.alert(
+          'Incomplete Address',
+          'This delivery address needs a receiver name and phone number.',
+          [{ 
+            text: 'Update Address', 
+            onPress: () => navigation.navigate('AddressDetails', {
+              lat: displayAddress.lat,
+              lng: displayAddress.lng,
+              name: displayAddress.locality || displayAddress.label || 'Current Location',
+              address: displayAddress.street_address || 'Current Location',
+              existingAddress: displayAddress
+            }) 
+          }]
+        );
+      }
+      return;
+    }
+
     submitLockRef.current = true;
     setIsProcessing(true);
     try {
@@ -70,7 +102,39 @@ export default function PaymentOptionsScreen() {
       }
 
     } catch (error: any) {
-      console.error('Checkout error:', error?.message || error);
+      const errMsg = error?.message || '';
+      if (errMsg.includes('Address is missing receiver name') || errMsg.includes('Address is missing receiver phone')) {
+        if (Platform.OS === 'web') {
+          const confirmUpdate = window.confirm('Incomplete Address\n\nThis delivery address needs a receiver name and phone number. Click OK to update it.');
+          if (confirmUpdate) {
+            navigation.navigate('AddressDetails', {
+              lat: displayAddress.lat,
+              lng: displayAddress.lng,
+              name: displayAddress.locality || displayAddress.label || 'Current Location',
+              address: displayAddress.street_address || 'Current Location',
+              existingAddress: displayAddress
+            });
+          }
+        } else {
+          Alert.alert(
+            'Incomplete Address',
+            'This delivery address needs a receiver name and phone number.',
+            [{ 
+              text: 'Update Address', 
+              onPress: () => navigation.navigate('AddressDetails', {
+                lat: displayAddress.lat,
+                lng: displayAddress.lng,
+                name: displayAddress.locality || displayAddress.label || 'Current Location',
+                address: displayAddress.street_address || 'Current Location',
+                existingAddress: displayAddress
+              }) 
+            }]
+          );
+        }
+      } else {
+        console.error('Checkout error:', error?.message || error);
+        Alert.alert('Checkout Failed', errMsg || 'An unexpected error occurred during checkout.');
+      }
       submitLockRef.current = false;
       setIsProcessing(false);
     }

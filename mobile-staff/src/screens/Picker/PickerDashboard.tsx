@@ -510,12 +510,13 @@ export default function PickerDashboard() {
     const qtyStr = totalQty < 10 ? `0${totalQty}` : `${totalQty}`;
 
     // SLA Timer Logic
-    const targetTime = activeOrder.picker_assigned_at ? new Date(activeOrder.picker_assigned_at).getTime() + 150000 : 0;
+    const slaMs = totalQty * 12 * 1000;
+    const targetTime = activeOrder.picker_assigned_at ? new Date(activeOrder.picker_assigned_at).getTime() + slaMs : 0;
     const remainingMs = Math.max(0, targetTime - currentTime);
     const m = Math.floor(remainingMs / 60000);
     const s = Math.floor((remainingMs % 60000) / 1000);
-    const mStr = m < 10 ? `0${m}` : `${m}`;
-    const sStr = s < 10 ? `0${s}` : `${s}`;
+    const mStr = activeOrder.picker_assigned_at && totalQty > 0 ? (m < 10 ? `0${m}` : `${m}`) : '00';
+    const sStr = activeOrder.picker_assigned_at && totalQty > 0 ? (s < 10 ? `0${s}` : `${s}`) : '00';
     
     return (
       <View style={[styles.dashboardCard, { padding: 0 }]}>

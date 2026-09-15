@@ -9,6 +9,29 @@ export class AdminService {
     return data;
   }
 
+  static async getLiveStaffStatus(warehouseId: string, role: string) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    
+    // We map 'Warehouse Staff' to 'warehouse_staff' internally
+    const dbRole = role === 'Warehouse Staff' ? 'warehouse_staff' : role.toLowerCase();
+    
+    // Single clean authoritative read architecture directly from profiles
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, employee_id, is_online')
+      .eq('warehouse_id', warehouseId)
+      .eq('role', dbRole)
+      .order('full_name', { ascending: true })
+      .order('id', { ascending: true });
+      
+    if (error) {
+      console.error('Failed to fetch live staff status:', error.message);
+      throw error;
+    }
+    
+    return data || [];
+  }
+
   static async createWarehouse(warehouse: any) {
     if (!supabase) throw new Error('Supabase client not initialized');
     const { data, error } = await supabase.from('warehouses').insert([warehouse]).select().single();
