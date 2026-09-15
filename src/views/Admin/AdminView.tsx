@@ -52,13 +52,14 @@ import { WorkSlotManagement } from './modules/WorkSlotManagement';
 import { PackingStaging } from './modules/PackingStaging';
 import { DispatchHandoff } from './modules/DispatchHandoff';
 import { DriverApprovals } from './modules/DriverApprovals';
+import { WorkforceActivity } from './modules/WorkforceActivity';
 
 export const AdminView: React.FC = () => {
   const { theme, toggleTheme, currentUser, logout } = useApp();
   
   // Roster tab selection
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'catalog' | 'inventory' | 'putaway' | 'counts' | 'returns' | 'transfers' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'layout' | 'platformSettings' | 'work_slots' | 'packing' | 'dispatch' | 'audit_logs' | 'picker_offers'
+    'overview' | 'orders' | 'catalog' | 'inventory' | 'putaway' | 'counts' | 'returns' | 'transfers' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'layout' | 'platformSettings' | 'work_slots' | 'packing' | 'dispatch' | 'audit_logs' | 'picker_offers' | 'workforce_history'
   >('overview');
 
   React.useEffect(() => {
@@ -91,9 +92,10 @@ export const AdminView: React.FC = () => {
     { id: 'packing', label: 'Packing & Staging', icon: <Package size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'dispatch', label: 'Dispatch & Handoff', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'staff', label: 'Workforce & Shifts', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
+    { id: 'workforce_history', label: 'Staff Work History', icon: <CalendarDays size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'picker_offers', label: 'Picker Offers', icon: <Gift size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'driver_approvals', label: 'Driver Approvals', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
-    { id: 'procurement', label: 'B2B Procurement', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
+    { id: 'procurement', label: 'Procurement & Replenishment', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'finance', label: 'Finance & Settlements', icon: <IndianRupee size={16} />, clearance: ['super_admin'] },
     { id: 'fleet', label: 'Fleet Management', icon: <Navigation size={16} />, clearance: ['super_admin', 'support_ops'] },
     { id: 'layout', label: 'Warehouse Layout', icon: <LayoutGrid size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
@@ -160,6 +162,8 @@ export const AdminView: React.FC = () => {
         return <StockTransfers />;
       case 'staff':
         return <StaffManagement />;
+      case 'workforce_history':
+        return <WorkforceActivity />;
       case 'picker_offers':
         return <PickerOffersManagement />;
       case 'driver_approvals':

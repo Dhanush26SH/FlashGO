@@ -8,7 +8,7 @@ import { ProcurementService } from '../../../services/api/ProcurementService';
 import { VendorsService } from '../../../services/api/VendorsService';
 import { AdminService } from '../../../services/api/AdminService';
 import { supabase } from '../../../services/api/supabaseClient';
-import { Plus, CheckCircle, Package, Trash, AlertCircle } from 'lucide-react';
+import { Plus, CheckCircle, Package, Trash, AlertCircle, X } from 'lucide-react';
 import { DataTable } from '../../../components/Admin/DataTable';
 
 export const ProcurementSupplier: React.FC = () => {
@@ -19,15 +19,16 @@ export const ProcurementSupplier: React.FC = () => {
   const [orders, setOrders] = useState<ProcurementOrder[]>([]);
   const [batches, setBatches] = useState<any[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'suppliers_po' | 'traceability' | 'qc' | 'contracts'>('suppliers_po');
+  const [activeTab, setActiveTab] = useState<'replenishment' | 'suppliers_po' | 'traceability'>('replenishment');
   
   const [showNewPO, setShowNewPO] = useState(false);
   const [poVendor, setPoVendor] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [receivingPO, setReceivingPO] = useState<ProcurementOrder | null>(null);
-  const [batchInputs, setBatchInputs] = useState<Record<string, { batch_number: string, expiry_date: string, accepted_quantity: number, rejected_quantity: number }>>({});
+  const [dispatchingPO, setDispatchingPO] = useState<ProcurementOrder | null>(null);
+  const [dispatchInputs, setDispatchInputs] = useState<Record<string, { batch_number: string, expiry_date: string, dispatched_quantity: number }[]>>({});
+  const [existingDispatches, setExistingDispatches] = useState<any[]>([]);
   const [receiptNumber, setReceiptNumber] = useState('');
   const [receiptNotes, setReceiptNotes] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -35,11 +36,27 @@ export const ProcurementSupplier: React.FC = () => {
   const [vendorSearch, setVendorSearch] = useState('');
   const [traceSearch, setTraceSearch] = useState('');
   
-  const filteredVendors = vendors.filter(v => 
-    v.name.toLowerCase().includes(vendorSearch.toLowerCase()) || 
-    v.email.toLowerCase().includes(vendorSearch.toLowerCase()) ||
-    v.phone.includes(vendorSearch)
-  );
+  // Replenishment state
+  const [replenishments, setReplenishments] = useState<any[]>([]);
+  const [replenishmentWarehouse, setReplenishmentWarehouse] = useState('');
+  const [updatingReplenishment, setUpdatingReplenishment] = useState<string | null>(null);
+  const [poRestrictedSuppliers, setPoRestrictedSuppliers] = useState<any[] | null>(null);
+  const [replenishmentContext, setReplenishmentContext] = useState<any | null>(null);
+
+  const [catalogVendor, setCatalogVendor] = useState<any | null>(null);
+  const [catalogItems, setCatalogItems] = useState<any[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+  const [catalogForm, setCatalogForm] = useState({ product_id: '', vendor_sku: '', purchase_price: '', minimum_order_quantity: '1', is_active: true });
+  const [editMappingForm, setEditMappingForm] = useState<any | null>(null);
+
+  const filteredVendors = vendors.filter(v => {
+    const term = vendorSearch.toLowerCase();
+    return (
+      (v.name && v.name.toLowerCase().includes(term)) || 
+      (v.email && v.email.toLowerCase().includes(term)) ||
+      (v.phone && v.phone.toLowerCase().includes(term))
+    );
+  });
   
   const loadData = () => {
     ProductsService.getProducts().then(setProducts).catch(console.error);
@@ -50,8 +67,17 @@ export const ProcurementSupplier: React.FC = () => {
     }
     if (currentUser?.role === 'admin' || currentUser?.warehouse_id) {
       ProcurementService.getBatchTraceability(currentUser?.warehouse_id).then(setBatches).catch(console.error);
+      setReplenishmentWarehouse(currentUser?.warehouse_id || '');
     }
   };
+
+  useEffect(() => {
+    if (replenishmentWarehouse) {
+      ProcurementService.getReplenishmentRequirements(replenishmentWarehouse).then(setReplenishments).catch(console.error);
+    } else {
+      setReplenishments([]);
+    }
+  }, [replenishmentWarehouse]);
 
   useEffect(() => {
     loadData();
@@ -78,12 +104,6 @@ export const ProcurementSupplier: React.FC = () => {
     } else {
       setVendorProducts([]);
     }
-    // Also clear PO items when vendor changes to prevent invalid cross-vendor lists
-    setPoItems([]);
-    setSelectedProduct('');
-    setBarcodeInput('');
-    setItemQuantity('');
-    setItemCost('');
   }, [poVendor]);
 
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -136,10 +156,58 @@ export const ProcurementSupplier: React.FC = () => {
     setPoItems(poItems.filter((_, i) => i !== index));
   };
 
+  const handleStartReplenishmentPO = async (req: any) => {
+    try {
+      const suppliers = await ProcurementService.getSuppliersForProduct(req.product_id);
+      if (suppliers.length === 0) {
+        addToast('NO SUPPLIER CONFIGURED FOR THIS PRODUCT. Please configure in the vendor catalog first.', 'error');
+        return;
+      }
+      
+      setPoRestrictedSuppliers(suppliers);
+      setReplenishmentContext(req);
+      setSelectedWarehouse(replenishmentWarehouse);
+      setPoVendor('');
+      setPoItems([{ 
+        product_id: req.product_id, 
+        quantity: req.suggested_reorder_quantity > 0 ? req.suggested_reorder_quantity : 1, 
+        cost_per_unit: 0, 
+        product_name: req.product_name 
+      }]);
+      setActiveTab('suppliers_po');
+      setShowNewPO(true);
+    } catch (err: any) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleUpdateReplenishment = async (req: any, thresholdStr: string, targetStr: string) => {
+    setUpdatingReplenishment(req.product_id);
+    try {
+      const threshold = thresholdStr === '' ? null : Number(thresholdStr);
+      const target = targetStr === '' ? null : Number(targetStr);
+      await ProcurementService.updateReplenishmentSettings(replenishmentWarehouse, req.product_id, threshold, target);
+      // Reload replenishments
+      const updated = await ProcurementService.getReplenishmentRequirements(replenishmentWarehouse);
+      setReplenishments(updated);
+      addToast('Replenishment settings updated', 'success');
+    } catch (err: any) {
+      addToast(`Update failed: ${err.message}`, 'error');
+    } finally {
+      setUpdatingReplenishment(null);
+    }
+  };
+
   const handleCreatePO = (e: React.FormEvent) => {
     e.preventDefault();
     if (!poVendor || poItems.length === 0) {
       addToast('Please select a vendor and add at least one item', 'error');
+      return;
+    }
+    
+    const invalidItems = poItems.filter(item => item.cost_per_unit <= 0);
+    if (invalidItems.length > 0) {
+      addToast(`PURCHASE PRICE NOT CONFIGURED for ${invalidItems[0].product_name}. Please set a valid cost per unit > 0.`, 'error');
       return;
     }
     
@@ -163,11 +231,13 @@ export const ProcurementSupplier: React.FC = () => {
           const updated = await ProcurementService.getProcurementOrders();
           setOrders(updated);
           
-          // Clear form on success
-          setShowNewPO(false);
-          setPoVendor('');
           setPoItems([]);
-          addToast('Purchase Order generated successfully', 'success');
+          setPoVendor('');
+          setBarcodeInput('');
+          setShowNewPO(false);
+          setPoRestrictedSuppliers(null);
+          setReplenishmentContext(null);
+          addToast('Purchase order created successfully', 'success');
         } catch (e: any) {
           addToast(`Failed to create PO: ${e.message}`, 'error');
           return;
@@ -190,80 +260,72 @@ export const ProcurementSupplier: React.FC = () => {
   };
 
 
-  const promptReceiveStock = (po: ProcurementOrder) => {
-    setReceivingPO(po);
-    const inputs: Record<string, { batch_number: string, expiry_date: string, accepted_quantity: number, rejected_quantity: number }> = {};
+  
+  const promptDispatchDetails = async (po: ProcurementOrder) => {
+    setDispatchingPO(po);
+    const inputs: Record<string, { batch_number: string, expiry_date: string, dispatched_quantity: number }[]> = {};
     if (po.items) {
       po.items.forEach(i => {
-        const remaining = i.quantity - (i.received_quantity || 0);
-        inputs[i.product_id] = {
-          batch_number: '',
-          expiry_date: '',
-          accepted_quantity: remaining > 0 ? remaining : 0,
-          rejected_quantity: 0
-        };
+        inputs[i.product_id] = [];
       });
     }
-    setBatchInputs(inputs);
-    setReceiptNumber(`GRN-${Date.now().toString().slice(-6)}`);
-    setReceiptNotes('');
+    
+    try {
+      const existing = await ProcurementService.getSupplierDispatchBatches(po.id);
+      setExistingDispatches(existing);
+    } catch (e: any) {
+      addToast('Failed to load existing dispatches', 'error');
+      setExistingDispatches([]);
+    }
+    setDispatchInputs(inputs);
   };
 
-  const confirmReceiveStock = async () => {
-    if (!receivingPO) return;
-    if (!receiptNumber) {
-      addToast('Receipt Number is required', 'error');
-      return;
-    }
+  const confirmDispatchDetails = async () => {
+    if (!dispatchingPO) return;
     
-    // Validate inputs
-    const batches: any[] = [];
-    if (receivingPO.items) {
-      for (const item of receivingPO.items) {
-        const input = batchInputs[item.product_id];
-        if (!input) continue;
-        
-        const totalReceived = input.accepted_quantity + input.rejected_quantity;
-        if (totalReceived > 0) {
-          if (input.accepted_quantity > 0 && (!input.batch_number || !input.expiry_date)) {
-            addToast('Please fill batch details for accepted items', 'error');
+    const submissions: any[] = [];
+    if (dispatchingPO.items) {
+      for (const item of dispatchingPO.items) {
+        const itemInputs = dispatchInputs[item.product_id] || [];
+        for (const input of itemInputs) {
+          if (!input.batch_number || !input.dispatched_quantity || input.dispatched_quantity <= 0) {
+            addToast('Batch number and valid dispatched quantity are required for all entries', 'error');
             return;
           }
-          const remaining = item.quantity - (item.received_quantity || 0);
-          if (totalReceived > remaining) {
-            addToast(`Cannot receive more than remaining ordered quantity for product ${item.product_id}`, 'error');
-            return;
-          }
-          batches.push({
-            procurement_order_item_id: item.id,
-            product_id: item.product_id,
-            batch_number: input.batch_number,
-            expiry_date: input.expiry_date || null,
-            accepted_quantity: input.accepted_quantity,
-            rejected_quantity: input.rejected_quantity,
-            unit_cost: item.cost_per_unit
+          submissions.push({
+            poItemId: item.id,
+            productId: item.product_id,
+            batchNumber: input.batch_number,
+            expiryDate: input.expiry_date || null,
+            dispatchedQuantity: input.dispatched_quantity
           });
         }
       }
     }
 
-    if (batches.length === 0) {
-      addToast('Please receive at least one item', 'error');
+    if (submissions.length === 0) {
+      addToast('Please add at least one dispatch batch', 'error');
       return;
     }
 
     try {
-      if (!currentUser) throw new Error('Not authenticated.');
-      
-      await ProcurementService.receiveProcurementOrder(receivingPO.id, (receivingPO as any).warehouse_id, currentUser.id, receiptNumber, receiptNotes, batches);
-      const updated = await ProcurementService.getProcurementOrders();
-      setOrders(updated);
-      addToast('Stock inwarded to inventory successfully', 'success');
-      setReceivingPO(null);
+      for (const sub of submissions) {
+        await ProcurementService.adminRecordSupplierDispatch(
+          dispatchingPO.id,
+          sub.poItemId,
+          sub.productId,
+          sub.batchNumber,
+          sub.dispatchedQuantity,
+          sub.expiryDate
+        );
+      }
+      addToast('Supplier dispatch recorded successfully', 'success');
+      setDispatchingPO(null);
     } catch (err: any) {
-      addToast(`Failed to receive stock: ${err.message}`, 'error');
+      addToast(`Failed to record dispatch: ${err.message}`, 'error');
     }
   };
+
 
   const handleCancelPO = (id: string) => {
     setConfirmModal({
@@ -315,11 +377,71 @@ export const ProcurementSupplier: React.FC = () => {
     });
   };
 
+  const handleManageCatalog = async (vendor: any) => {
+    setCatalogVendor(vendor);
+    setIsCatalogLoading(true);
+    try {
+      const items = await VendorsService.getVendorCatalog(vendor.id);
+      setCatalogItems(items);
+    } catch (e: any) {
+      addToast(`Failed to load catalog: ${e.message}`, 'error');
+    } finally {
+      setIsCatalogLoading(false);
+    }
+  };
+
+  const handleUpsertCatalogItem = async (e?: React.FormEvent, itemData?: any) => {
+    if (e) e.preventDefault();
+    if (!catalogVendor) return;
+
+    const targetData = itemData || catalogForm;
+    
+    if (!targetData.product_id) {
+      addToast('Please select a product', 'error');
+      return;
+    }
+    
+    const price = Number(targetData.purchase_price);
+    const moq = Number(targetData.minimum_order_quantity);
+    
+    if (targetData.is_active) {
+      if (isNaN(price) || price <= 0) {
+        addToast('Active mapping requires purchase price > 0', 'error');
+        return;
+      }
+      if (isNaN(moq) || moq < 1) {
+        addToast('Active mapping requires minimum order quantity >= 1', 'error');
+        return;
+      }
+    }
+
+    try {
+      await VendorsService.upsertVendorProduct(
+        catalogVendor.id,
+        targetData.product_id,
+        targetData.vendor_sku || null,
+        isNaN(price) ? null : price,
+        isNaN(moq) ? null : moq,
+        targetData.is_active
+      );
+      
+      const items = await VendorsService.getVendorCatalog(catalogVendor.id);
+      setCatalogItems(items);
+      addToast(itemData ? 'Catalog item updated' : 'Product added to catalog', 'success');
+      
+      if (!itemData) {
+        setCatalogForm({ product_id: '', vendor_sku: '', purchase_price: '', minimum_order_quantity: '1', is_active: true });
+      }
+    } catch (err: any) {
+      addToast(`Failed to update catalog: ${err.message}`, 'error');
+    }
+  };
+
   return (
     <div className="container">
       <div className=" ">
         <div>
-          <h2 className="title">B2B Procurement & Suppliers</h2>
+          <h2 className="title">Procurement & Replenishment</h2>
           <p className="subtitle">Manage vendor catalogs, issue purchase orders, and process inward warehouse stock.</p>
         </div>
         <Package size={36} color="var(--primary)" />
@@ -327,6 +449,7 @@ export const ProcurementSupplier: React.FC = () => {
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', padding: '4px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)', width: 'max-content', overflowX: 'auto' }}>
         {[
+          { id: 'replenishment', label: 'Replenishment Required' },
           { id: 'suppliers_po', label: 'Suppliers & Purchase Orders' },
           { id: 'traceability', label: 'Batch Traceability' }
         ].map(tab => (
@@ -339,6 +462,107 @@ export const ProcurementSupplier: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {activeTab === 'replenishment' && (
+      <div className="grid">
+        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+          <div className="panel-header">
+            <h3 className="panel-title">Replenishment Required</h3>
+            {currentUser?.role === 'admin' && (
+              <select 
+                value={replenishmentWarehouse} 
+                onChange={e => setReplenishmentWarehouse(e.target.value)} 
+                className="input" 
+                style={{ width: '250px' }}
+              >
+                <option value="">-- Choose Warehouse --</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            )}
+          </div>
+          
+          {!replenishmentWarehouse ? (
+            <div className="empty-state">Please select a warehouse to view replenishment needs.</div>
+          ) : (
+            <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '8px' }}>
+              <DataTable
+                data={replenishments}
+                keyExtractor={r => r.product_id}
+                columns={[
+                  { key: 'product', header: 'PRODUCT', sortable: true, render: r => (
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{r.product_name}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>SKU: {r.sku}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Barcode: {r.internal_barcode}</div>
+                    </div>
+                  )},
+                  { key: 'inventory', header: 'INVENTORY', render: r => (
+                    <div style={{ fontSize: '0.8rem' }}>
+                      <div>Physical: <strong>{r.physical_quantity}</strong></div>
+                      <div style={{ color: 'var(--danger)' }}>Reserved: {r.reserved_quantity}</div>
+                      <div style={{ color: 'var(--success)' }}>Available: <strong>{r.available_to_sell}</strong></div>
+                    </div>
+                  )},
+                  { key: 'settings', header: 'REPLENISHMENT CONFIG', render: r => {
+                    const isConfigured = r.reorder_threshold !== null && r.target_stock_level !== null;
+                    return (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <input 
+                            type="number" 
+                            className="input" 
+                            style={{ padding: '4px 8px', width: '80px', fontSize: '0.8rem' }}
+                            placeholder="Thresh"
+                            defaultValue={r.reorder_threshold ?? ''}
+                            onBlur={(e) => handleUpdateReplenishment(r, e.target.value, (e.target.nextElementSibling as HTMLInputElement).value)}
+                            disabled={updatingReplenishment === r.product_id}
+                          />
+                          <input 
+                            type="number" 
+                            className="input" 
+                            style={{ padding: '4px 8px', width: '80px', fontSize: '0.8rem' }}
+                            placeholder="Target"
+                            defaultValue={r.target_stock_level ?? ''}
+                            onBlur={(e) => handleUpdateReplenishment(r, (e.target.previousElementSibling as HTMLInputElement).value, e.target.value)}
+                            disabled={updatingReplenishment === r.product_id}
+                          />
+                        </div>
+                        {!isConfigured && <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Not Configured</div>}
+                      </div>
+                    );
+                  }},
+                  { key: 'status', header: 'STATUS', sortable: true, render: r => {
+                    let colorClass = 'admin-badge-warning';
+                    if (r.replenishment_status === 'OK') colorClass = 'admin-badge-success';
+                    if (r.replenishment_status === 'OUT OF STOCK') colorClass = 'admin-badge-danger';
+                    if (r.replenishment_status === 'NOT CONFIGURED') colorClass = 'admin-badge-neutral';
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span className={colorClass}>{r.replenishment_status}</span>
+                        {r.suggested_reorder_quantity > 0 && (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)' }}>Sugg: {r.suggested_reorder_quantity}</span>
+                        )}
+                      </div>
+                    );
+                  }},
+                  { key: 'actions', header: 'ACTIONS', render: r => (
+                    r.replenishment_status !== 'NOT CONFIGURED' && r.replenishment_status !== 'OK' && (
+                      <button 
+                        onClick={() => handleStartReplenishmentPO(r)}
+                        className="btn-primary" 
+                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                      >
+                        Create PO
+                      </button>
+                    )
+                  )}
+                ]}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+      )}
 
       {activeTab === 'suppliers_po' && (
       <div className="grid">
@@ -394,6 +618,11 @@ export const ProcurementSupplier: React.FC = () => {
                 <div className="vendor-detail">Contact: {v.contact_person}</div>
                 <div className="vendor-detail">Email: {v.email}</div>
                 <div className="vendor-detail">Phone: {v.phone}</div>
+                <div style={{ marginTop: '12px' }}>
+                  <button className="btn-primary" onClick={() => handleManageCatalog(v)} style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                    <Package size={14} /> Manage Catalog
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -402,7 +631,13 @@ export const ProcurementSupplier: React.FC = () => {
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
           <div className="panel-header">
             <h3 className="panel-title">Purchase Orders (POs)</h3>
-            <button onClick={() => setShowNewPO(!showNewPO)} className="btn-primary">
+            <button onClick={() => {
+              setShowNewPO(!showNewPO);
+              if (!showNewPO) {
+                setPoRestrictedSuppliers(null);
+                setReplenishmentContext(null);
+              }
+            }} className="btn-primary">
               <Plus size={14} /> New PO
             </button>
           </div>
@@ -415,14 +650,48 @@ export const ProcurementSupplier: React.FC = () => {
                   <select 
                     value={poVendor} 
                     onChange={e => {
-                      setPoVendor(e.target.value);
-                      setSelectedProduct(''); // Clear selected product when vendor changes
+                      const newVendorId = e.target.value;
+                      setPoVendor(newVendorId);
+                      
+                      if (replenishmentContext && poRestrictedSuppliers && poItems.length > 0) {
+                        const supplier = poRestrictedSuppliers.find(s => s.vendor_id === newVendorId);
+                        if (supplier) {
+                          const suggestedQty = replenishmentContext.suggested_reorder_quantity > 0 ? replenishmentContext.suggested_reorder_quantity : 1;
+                          const finalQty = Math.max(suggestedQty, supplier.minimum_order_quantity || 1);
+                          const price = supplier.purchase_price;
+                          
+                          if (price === null || price <= 0) {
+                            addToast('PURCHASE PRICE NOT CONFIGURED for this supplier. Please manually enter a valid cost per unit.', 'warning');
+                          }
+                          
+                          if (supplier.minimum_order_quantity > suggestedQty) {
+                            addToast(`Suggested requirement: ${suggestedQty}, Supplier MOQ: ${supplier.minimum_order_quantity}. Quantity adjusted to MOQ.`, 'warning');
+                          }
+
+                          setPoItems([{
+                            ...poItems[0],
+                            quantity: finalQty,
+                            cost_per_unit: price !== null && price > 0 ? price : 0
+                          }]);
+                        }
+                      } else {
+                        // Clear items if standard flow vendor is changed to prevent cross-vendor POs
+                        setPoItems([]);
+                        setSelectedProduct('');
+                        setBarcodeInput('');
+                        setItemQuantity('');
+                        setItemCost('');
+                      }
                     }} 
                     className="input" 
                     required
                   >
                     <option value="">-- Choose Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    {(poRestrictedSuppliers || vendors).map(v => (
+                      <option key={v.vendor_id || v.id} value={v.vendor_id || v.id}>
+                        {v.vendor?.name || v.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -494,7 +763,35 @@ export const ProcurementSupplier: React.FC = () => {
                     <div style={{ fontSize: '0.75rem', fontWeight: 800 }}>Order Items:</div>
                     {poItems.map((item, idx) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: 'var(--bg-surface)', borderRadius: '4px', fontSize: '0.75rem' }}>
-                        <div>{item.quantity}x {item.product_name} (@ ₹{item.cost_per_unit.toFixed(2)})</div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input 
+                            type="number" 
+                            className="input" 
+                            style={{ width: '60px', padding: '4px', fontSize: '0.75rem' }} 
+                            value={item.quantity} 
+                            onChange={e => {
+                              const newItems = [...poItems];
+                              newItems[idx].quantity = Number(e.target.value);
+                              setPoItems(newItems);
+                            }}
+                            min="1"
+                          />
+                          <span>x {item.product_name} (@ ₹</span>
+                          <input 
+                            type="number" 
+                            className="input" 
+                            style={{ width: '70px', padding: '4px', fontSize: '0.75rem' }} 
+                            value={item.cost_per_unit || ''} 
+                            onChange={e => {
+                              const newItems = [...poItems];
+                              newItems[idx].cost_per_unit = Number(e.target.value);
+                              setPoItems(newItems);
+                            }}
+                            min="0.01"
+                            step="0.01"
+                          />
+                          <span>)</span>
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <span style={{ fontWeight: 800 }}>₹{(item.quantity * item.cost_per_unit).toFixed(2)}</span>
                           <button type="button" onClick={() => handleRemoveItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><Trash size={14}/></button>
@@ -548,7 +845,7 @@ export const ProcurementSupplier: React.FC = () => {
                       <button onClick={() => handleApprovePO(r.id)} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Approve PO</button>
                     )}
                     {(r.status === 'approved' || r.status === 'partially_received') && (
-                      <button onClick={() => promptReceiveStock(r as any)} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={12}/> Inward</button>
+                      <button onClick={() => promptDispatchDetails(r as any)} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><Package size={12}/> Dispatch Details</button>
                     )}
                     {(r.status === 'pending' || r.status === 'approved') && (
                       <button onClick={() => handleCancelPO(r.id)} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--danger, #ef4444)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><Trash size={12}/> Cancel</button>
@@ -673,8 +970,9 @@ export const ProcurementSupplier: React.FC = () => {
         </div>
       )}
 
-      {/* Receiving Modal */}
-      {receivingPO && (
+      
+      {/* Dispatch Details Modal */}
+      {dispatchingPO && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
           backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999,
@@ -682,64 +980,258 @@ export const ProcurementSupplier: React.FC = () => {
           backdropFilter: 'blur(3px)'
         }}>
           <div className="glass-panel" style={{
-            padding: '32px', borderRadius: '16px', maxWidth: '600px', width: '90%', maxHeight: '80vh', overflowY: 'auto',
+            padding: '32px', borderRadius: '16px', maxWidth: '800px', width: '90%', maxHeight: '80vh', overflowY: 'auto',
             backgroundColor: 'var(--bg-base)', boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
             border: '1px solid var(--border-light)',
             animation: 'fadeIn 0.2s ease-out'
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'var(--text-primary)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-primary)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Package size={20} color="var(--primary)" />
-              Inward Stock (PO #{receivingPO.id.slice(-6).toUpperCase()})
+              Dispatch Details (PO #{dispatchingPO.id.slice(-6).toUpperCase()})
             </h3>
             
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="label">GRN / Receipt Number</label>
-                <input className="input" value={receiptNumber} onChange={e => setReceiptNumber(e.target.value)} required />
-              </div>
-              <div className="form-group" style={{ flex: 2 }}>
-                <label className="label">Notes</label>
-                <input className="input" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} placeholder="Optional receiving notes..." />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-              {receivingPO.items?.map((item, idx) => {
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
+              {dispatchingPO.items?.map((item, idx) => {
                 const prod = products.find(p => p.id === item.product_id);
-                const input = batchInputs[item.product_id] || { accepted_quantity: 0, rejected_quantity: 0, batch_number: '', expiry_date: '' };
-                const remaining = item.quantity - (item.received_quantity || 0);
+                const inputs = dispatchInputs[item.product_id] || [];
                 
+                // Calculate already dispatched from existing
+                const existingForItem = existingDispatches.filter(d => d.procurement_order_item_id === item.id);
+                const alreadyDispatched = existingForItem.reduce((sum, d) => sum + d.dispatched_quantity, 0);
+                const remaining = item.quantity - alreadyDispatched;
+
                 return (
-                  <div key={idx} style={{ padding: '12px', border: '1px solid var(--border-light)', borderRadius: '8px', backgroundColor: 'var(--bg-surface)' }}>
-                    <div style={{ fontWeight: 700, marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{prod?.name || item.product_id}</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Pending: {remaining} of {item.quantity}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                      <div className="form-group" style={{ flex: 1, minWidth: '120px' }}>
-                        <label className="label">Batch Number</label>
-                        <input className="input" value={input.batch_number} onChange={e => setBatchInputs({...batchInputs, [item.product_id]: {...input, batch_number: e.target.value}})} placeholder="e.g. BAT-001" />
-                      </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
-                        <label className="label">Expiry Date</label>
-                        <input className="input" type="date" value={input.expiry_date} onChange={e => setBatchInputs({...batchInputs, [item.product_id]: {...input, expiry_date: e.target.value}})} />
-                      </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '100px' }}>
-                        <label className="label" style={{ color: 'var(--success)' }}>Accepted Qty</label>
-                        <input className="input" type="number" max={remaining - input.rejected_quantity} min={0} value={input.accepted_quantity} onChange={e => setBatchInputs({...batchInputs, [item.product_id]: {...input, accepted_quantity: Number(e.target.value)}})} required />
-                      </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '100px' }}>
-                        <label className="label" style={{ color: 'var(--danger)' }}>Rejected Qty</label>
-                        <input className="input" type="number" max={remaining - input.accepted_quantity} min={0} value={input.rejected_quantity} onChange={e => setBatchInputs({...batchInputs, [item.product_id]: {...input, rejected_quantity: Number(e.target.value)}})} required />
+                  <div key={idx} style={{ padding: '16px', border: '1px solid var(--border-light)', borderRadius: '8px', backgroundColor: 'var(--bg-surface)' }}>
+                    <div style={{ fontWeight: 700, marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px' }}>
+                      <span style={{ fontSize: '1.1rem' }}>{prod?.name || item.product_id}</span>
+                      <div style={{ display: 'flex', gap: '16px', fontSize: '0.85rem' }}>
+                        <span>Ordered: <strong>{item.quantity}</strong></span>
+                        <span>Already Dispatched: <strong style={{ color: 'var(--primary)' }}>{alreadyDispatched}</strong></span>
+                        <span>Remaining: <strong style={{ color: remaining > 0 ? 'var(--warning)' : 'var(--success)' }}>{remaining}</strong></span>
                       </div>
                     </div>
+                    
+                    {existingForItem.length > 0 && (
+                      <div style={{ marginBottom: '16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ fontWeight: 600, marginBottom: '4px' }}>Previously Recorded Batches:</div>
+                        {existingForItem.map(d => (
+                          <div key={d.id} style={{ display: 'flex', gap: '16px', padding: '4px 0' }}>
+                            <span style={{ fontFamily: 'monospace' }}>{d.batch_number}</span>
+                            <span>Qty: {d.dispatched_quantity}</span>
+                            <span>Exp: {d.expiry_date || 'N/A'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {remaining > 0 ? (
+                      <div>
+                        {inputs.map((input, i) => (
+                          <div key={i} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'flex-end' }}>
+                            <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
+                              <label className="label">Batch Number</label>
+                              <input className="input" value={input.batch_number} onChange={e => {
+                                const newInputs = [...inputs];
+                                newInputs[i].batch_number = e.target.value;
+                                setDispatchInputs({...dispatchInputs, [item.product_id]: newInputs});
+                              }} placeholder="e.g. BAT-001" />
+                            </div>
+                            <div className="form-group" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
+                              <label className="label">Expiry Date</label>
+                              <input className="input" type="date" value={input.expiry_date} onChange={e => {
+                                const newInputs = [...inputs];
+                                newInputs[i].expiry_date = e.target.value;
+                                setDispatchInputs({...dispatchInputs, [item.product_id]: newInputs});
+                              }} />
+                            </div>
+                            <div className="form-group" style={{ flex: 1, minWidth: '120px', marginBottom: 0 }}>
+                              <label className="label" style={{ color: 'var(--primary)' }}>Dispatch Qty</label>
+                              <input className="input" type="number" min={1} max={remaining} value={input.dispatched_quantity || ''} onChange={e => {
+                                const newInputs = [...inputs];
+                                newInputs[i].dispatched_quantity = Number(e.target.value);
+                                setDispatchInputs({...dispatchInputs, [item.product_id]: newInputs});
+                              }} required />
+                            </div>
+                            <button className="btn-secondary" style={{ padding: '8px 12px', height: '42px' }} onClick={() => {
+                              const newInputs = inputs.filter((_, idx) => idx !== i);
+                              setDispatchInputs({...dispatchInputs, [item.product_id]: newInputs});
+                            }}><Trash size={16} /></button>
+                          </div>
+                        ))}
+                        
+                        <button className="btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 12px', marginTop: '8px' }} onClick={() => {
+                          setDispatchInputs({...dispatchInputs, [item.product_id]: [...inputs, { batch_number: '', expiry_date: '', dispatched_quantity: 0 }]});
+                        }}>+ Add Another Batch</button>
+                      </div>
+                    ) : (
+                      <div style={{ color: 'var(--success)', fontWeight: 600, fontSize: '0.9rem' }}>
+                        Fully dispatched.
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
+            
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button className="btn-secondary" onClick={() => setReceivingPO(null)}>Cancel</button>
-              <button className="btn-primary" onClick={confirmReceiveStock}>Confirm Inward</button>
+              <button className="btn-secondary" onClick={() => setDispatchingPO(null)}>Cancel</button>
+              <button className="btn-primary" onClick={confirmDispatchDetails}>Record Dispatch Details</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Catalog Modal */}
+      {catalogVendor && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div className="glass-panel" style={{
+            padding: '32px', borderRadius: '16px', maxWidth: '800px', width: '90%', maxHeight: '80vh', overflowY: 'auto',
+            backgroundColor: 'var(--bg-base)', boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+            border: '1px solid var(--border-light)',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{catalogVendor.name} - Product Catalog</h2>
+              <button onClick={() => {
+                setCatalogVendor(null);
+                setEditMappingForm(null);
+              }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={20}/></button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ padding: '16px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Add Product to Catalog</h4>
+                <form onSubmit={handleUpsertCatalogItem} style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ flex: '2 1 200px', margin: 0 }}>
+                    <label className="label">FlashGO Product</label>
+                    <select className="input" value={catalogForm.product_id} onChange={e => setCatalogForm({...catalogForm, product_id: e.target.value})} required>
+                      <option value="">-- Select Product --</option>
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ flex: '1 1 100px', margin: 0 }}>
+                    <label className="label">Vendor SKU</label>
+                    <input type="text" className="input" placeholder="Optional" value={catalogForm.vendor_sku} onChange={e => setCatalogForm({...catalogForm, vendor_sku: e.target.value})} />
+                  </div>
+                  <div className="form-group" style={{ flex: '1 1 80px', margin: 0 }}>
+                    <label className="label">Price (₹)</label>
+                    <input type="number" step="0.01" min="0.01" className="input" value={catalogForm.purchase_price} onChange={e => setCatalogForm({...catalogForm, purchase_price: e.target.value})} required={catalogForm.is_active} />
+                  </div>
+                  <div className="form-group" style={{ flex: '1 1 80px', margin: 0 }}>
+                    <label className="label">MOQ</label>
+                    <input type="number" min="1" className="input" value={catalogForm.minimum_order_quantity} onChange={e => setCatalogForm({...catalogForm, minimum_order_quantity: e.target.value})} required={catalogForm.is_active} />
+                  </div>
+                  <button type="submit" className="btn-primary" style={{ padding: '10px 16px', height: '42px' }}>Add Mapping</button>
+                </form>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Existing Mappings</h4>
+                {isCatalogLoading ? (
+                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-secondary)' }}>Loading catalog...</div>
+                ) : catalogItems.length === 0 ? (
+                  <div className="empty-state">No products mapped to this vendor.</div>
+                ) : (
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                      <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--bg-base)', borderBottom: '2px solid var(--border-light)' }}>
+                        <tr>
+                          <th style={{ padding: '8px', textAlign: 'left' }}>Product</th>
+                          <th style={{ padding: '8px', textAlign: 'left' }}>Vendor SKU</th>
+                          <th style={{ padding: '8px', textAlign: 'right' }}>Price (₹)</th>
+                          <th style={{ padding: '8px', textAlign: 'right' }}>MOQ</th>
+                          <th style={{ padding: '8px', textAlign: 'center' }}>Status</th>
+                          <th style={{ padding: '8px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {catalogItems.map(item => {
+                          const isEditing = editMappingForm?.product_id === item.product_id;
+                          return (
+                          <tr key={item.id} style={{ borderBottom: '1px solid var(--border-light)', opacity: item.is_active ? 1 : 0.6 }}>
+                            <td style={{ padding: '8px', fontWeight: 600 }}>{item.product?.name} <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>{item.product?.sku}</span></td>
+                            <td style={{ padding: '8px' }}>
+                              {isEditing ? (
+                                <input type="text" className="input" value={editMappingForm.vendor_sku} onChange={e => setEditMappingForm({...editMappingForm, vendor_sku: e.target.value})} style={{ padding: '4px', fontSize: '0.7rem', width: '80px' }} />
+                              ) : (
+                                item.vendor_sku || '-'
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700 }}>
+                              {isEditing ? (
+                                <input type="number" step="0.01" min="0.01" className="input" value={editMappingForm.purchase_price} onChange={e => setEditMappingForm({...editMappingForm, purchase_price: e.target.value})} required={item.is_active} style={{ padding: '4px', fontSize: '0.7rem', width: '60px', textAlign: 'right' }} />
+                              ) : (
+                                item.purchase_price != null ? item.purchase_price.toFixed(2) : '-'
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right' }}>
+                              {isEditing ? (
+                                <input type="number" min="1" className="input" value={editMappingForm.minimum_order_quantity} onChange={e => setEditMappingForm({...editMappingForm, minimum_order_quantity: e.target.value})} required={item.is_active} style={{ padding: '4px', fontSize: '0.7rem', width: '60px', textAlign: 'right' }} />
+                              ) : (
+                                item.minimum_order_quantity || '-'
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>
+                              <span className={item.is_active ? 'admin-badge-success' : 'admin-badge-neutral'} style={{ fontSize: '0.65rem' }}>
+                                {item.is_active ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              {isEditing ? (
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                  <button onClick={async () => {
+                                    await handleUpsertCatalogItem(undefined, {
+                                      ...item,
+                                      vendor_sku: editMappingForm.vendor_sku,
+                                      purchase_price: editMappingForm.purchase_price,
+                                      minimum_order_quantity: editMappingForm.minimum_order_quantity
+                                    });
+                                    setEditMappingForm(null);
+                                  }} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save</button>
+                                  <button onClick={() => setEditMappingForm(null)} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => setEditMappingForm({
+                                    product_id: item.product_id,
+                                    vendor_sku: item.vendor_sku || '',
+                                    purchase_price: item.purchase_price?.toString() || '',
+                                    minimum_order_quantity: item.minimum_order_quantity?.toString() || '1'
+                                  })} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--bg-surface)', color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: '4px', cursor: 'pointer' }}>Edit</button>
+                                  {item.is_active ? (
+                                    <button onClick={() => handleUpsertCatalogItem(undefined, { ...item, is_active: false })} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--danger)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Deactivate</button>
+                                  ) : (
+                                    <button onClick={() => {
+                                      // Pre-fill form to encourage fixing price/MOQ before reactivating if missing
+                                      if (!item.purchase_price || item.purchase_price <= 0 || !item.minimum_order_quantity || item.minimum_order_quantity < 1) {
+                                        setCatalogForm({
+                                          product_id: item.product_id,
+                                          vendor_sku: item.vendor_sku || '',
+                                          purchase_price: item.purchase_price?.toString() || '',
+                                          minimum_order_quantity: item.minimum_order_quantity?.toString() || '1',
+                                          is_active: true
+                                        });
+                                        addToast('Please enter a valid Price and MOQ to reactivate.', 'warning');
+                                      } else {
+                                        handleUpsertCatalogItem(undefined, { ...item, is_active: true });
+                                      }
+                                    }} style={{ padding: '4px 8px', fontSize: '0.7rem', backgroundColor: 'var(--success)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reactivate</button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -2,8 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LayoutDashboard, Package, Layers, User } from 'lucide-react-native';
 import WarehouseTaskScreen from '../screens/Warehouse/WarehouseTaskScreen';
-import WarehousePerformancePlaceholder from '../screens/Warehouse/WarehousePerformancePlaceholder';
-import WarehouseOffersPlaceholder from '../screens/Warehouse/WarehouseOffersPlaceholder';
+
 import WarehouseProfile from '../screens/Warehouse/WarehouseProfile';
 
 const Tab = createBottomTabNavigator();
@@ -28,20 +27,6 @@ export default function WarehouseMainTabs() {
         component={WarehouseTaskScreen} 
         options={{
           tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} />
-        }}
-      />
-      <Tab.Screen 
-        name="Performance" 
-        component={WarehousePerformancePlaceholder} 
-        options={{
-          tabBarIcon: ({ color, size }) => <Package color={color} size={size} />
-        }}
-      />
-      <Tab.Screen 
-        name="Offers" 
-        component={WarehouseOffersPlaceholder} 
-        options={{
-          tabBarIcon: ({ color, size }) => <Layers color={color} size={size} />
         }}
       />
       <Tab.Screen 

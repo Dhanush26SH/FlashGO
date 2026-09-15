@@ -1,0 +1,9 @@
+SELECT
+    (SELECT json_agg(row_to_json(sdb)) FROM public.supplier_dispatch_batches sdb WHERE procurement_order_id = 'd76bd1d2-3ab0-478a-8a9c-96d1971050d3') as supplier_batches,
+    (SELECT json_build_object('id', po.id, 'status', po.status, 'items', (SELECT json_agg(row_to_json(poi)) FROM public.procurement_order_items poi WHERE poi.procurement_order_id = po.id)) FROM public.procurement_orders po WHERE id = 'd76bd1d2-3ab0-478a-8a9c-96d1971050d3') as procurement_order,
+    (SELECT json_build_object('grn', row_to_json(grn), 'items', (SELECT json_agg(row_to_json(gri)) FROM public.goods_receipt_items gri WHERE gri.receipt_id = grn.id)) FROM public.goods_receipts grn WHERE procurement_order_id = 'd76bd1d2-3ab0-478a-8a9c-96d1971050d3' ORDER BY created_at DESC LIMIT 1) as goods_receipt,
+    (SELECT json_agg(row_to_json(ws)) FROM public.warehouse_stock ws WHERE product_id = '44c85d6c-e21e-4c08-9328-13d699e66f12' AND warehouse_id = (SELECT warehouse_id FROM public.procurement_orders WHERE id = 'd76bd1d2-3ab0-478a-8a9c-96d1971050d3')) as warehouse_stock,
+    (SELECT json_agg(row_to_json(pb)) FROM public.product_batches pb WHERE product_id = '44c85d6c-e21e-4c08-9328-13d699e66f12' ORDER BY created_at DESC LIMIT 1) as product_batches,
+    (SELECT json_agg(row_to_json(pt)) FROM public.putaway_tasks pt WHERE product_id = '44c85d6c-e21e-4c08-9328-13d699e66f12' ORDER BY created_at DESC LIMIT 1) as putaway_tasks,
+    (SELECT SUM(quantity) FROM public.warehouse_product_placements WHERE product_id = '44c85d6c-e21e-4c08-9328-13d699e66f12' AND warehouse_id = (SELECT warehouse_id FROM public.procurement_orders WHERE id = 'd76bd1d2-3ab0-478a-8a9c-96d1971050d3')) as total_placements,
+    (SELECT json_agg(row_to_json(ss)) FROM public.staff_shifts ss WHERE staff_id = (SELECT received_by FROM public.goods_receipts WHERE procurement_order_id = 'd76bd1d2-3ab0-478a-8a9c-96d1971050d3' ORDER BY created_at DESC LIMIT 1) ORDER BY created_at DESC LIMIT 1) as staff_shift;

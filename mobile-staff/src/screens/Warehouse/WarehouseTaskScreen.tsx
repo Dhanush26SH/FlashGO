@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PutterWorkflow from './PutterWorkflow';
 import AuditorWorkflow from './AuditorWorkflow';
+import InwardDamageWorkflow from './InwardDamageWorkflow';
 
 const DUTIES = [
   { id: 'putaway', title: 'Putter (Putaway)', subtitle: 'Place received stock into assigned rack/shelf locations.' },
@@ -149,13 +150,41 @@ export default function WarehouseTaskScreen() {
     };
   }, [isFocused, shift?.status, reconcileShift]);
 
+  // Realtime subscription for shift updates (e.g. Admin assigning duty)
+  useEffect(() => {
+    if (!profile?.id) return;
+    
+    const channel = supabase.channel(`staff_shifts_${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'staff_shifts',
+          filter: `staff_id=eq.${profile.id}`
+        },
+        (payload) => {
+          // If the shift duty changed externally, reload shift data
+          fetchShiftData();
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, fetchShiftData]);
+
+
   // Active hours counter
   useEffect(() => {
     if (shift?.status === 'active' && shift?.started_at) {
       const updateTimer = () => {
         const start = new Date(shift.started_at).getTime();
+        const endBound = shift.shift_end ? new Date(shift.shift_end).getTime() : new Date().getTime();
         const now = new Date().getTime();
-        const diffMs = Math.max(0, now - start);
+        const end = Math.min(now, endBound);
+        const diffMs = Math.max(0, end - start);
         const hours = Math.floor(diffMs / (1000 * 60 * 60));
         const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
         setActiveHours(`${hours}h ${mins}m`);
@@ -219,6 +248,41 @@ export default function WarehouseTaskScreen() {
       Alert.alert("Duty Selection Failed", e.message);
     } finally {
       setSettingDuty(false);
+    }
+  };
+
+  const handleReleaseDuty = async (): Promise<void> => {
+    if (!shift) throw new Error("No active shift available for duty release.");
+    try {
+      const { data, error } = await supabase.rpc('warehouse_staff_release_duty', {
+        p_shift_id: shift.id
+      });
+      
+      if (error) throw error;
+      
+      if (data.success) {
+        // Authoritative post-release refetch
+        const { data: shiftData, error: shiftError } = await supabase
+          .from('staff_shifts')
+          .select('current_duty')
+          .eq('id', shift.id)
+          .single();
+          
+        if (shiftError) throw shiftError;
+        
+        if (shiftData.current_duty === null) {
+          // Verified NULL in DB, transition UI
+          setCurrentDuty(null);
+          await fetchShiftData();
+        } else {
+          throw new Error("Duty was not successfully cleared in the database.");
+        }
+      } else {
+        throw new Error(data.message || 'Failed to release duty.');
+      }
+    } catch (e: any) {
+      Alert.alert('Cannot Release Duty', e.message);
+      throw e; // propagate so workflow doesn't transition to empty state
     }
   };
 
@@ -308,54 +372,6 @@ export default function WarehouseTaskScreen() {
     );
   }
 
-  // PRE-SHIFT / NO_SHIFT (Success)
-  if (shiftState !== 'ACTIVE') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Tasks</Text>
-        </View>
-        
-        {shiftState !== 'NO_SHIFT' && <IdentityHeader />}
-        
-        <View style={styles.content}>
-          {shiftState === 'NO_SHIFT' && (
-            <View style={styles.centerContainer}>
-              <Clock size={48} color="#64748b" style={{ marginBottom: 16 }} />
-              <Text style={styles.statusTitle}>No Upcoming Shifts</Text>
-              <Text style={styles.statusSubtitle}>You have no shifts scheduled right now.</Text>
-            </View>
-          )}
-
-          {shiftState === 'UPCOMING' && (
-            <View style={styles.centerContainer}>
-              <Clock size={48} color="#64748b" style={{ marginBottom: 16 }} />
-              <Text style={styles.statusTitle}>Shift Upcoming</Text>
-              <Text style={styles.statusSubtitle}>
-                Your shift at {warehouse?.name || 'Warehouse'} starts at {formatTime(slot?.start_time)}.
-              </Text>
-              <Text style={styles.statusSubtitle}>You can check in 5 minutes early.</Text>
-            </View>
-          )}
-
-          {shiftState === 'READY' && (
-            <View style={styles.readyContainer}>
-              <View style={styles.iconContainer}>
-                <QrCode size={48} color="#10b981" />
-              </View>
-              <Text style={styles.readyTitle}>Get Started with your Shift!</Text>
-              <Text style={styles.readySubtitle}>Scan QR code inside the store</Text>
-              
-              <TouchableOpacity style={styles.startButton} onPress={handleStartShift}>
-                <Text style={styles.startButtonText}>Start shift</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const getDutyObj = (dutyKey: string | null) => {
     if (!dutyKey) return null;
     if (['inward_damage', 'inward_receiver', 'damage_expiry', 'fnv'].includes(dutyKey)) {
@@ -365,7 +381,7 @@ export default function WarehouseTaskScreen() {
   };
   const selectedDutyObj = getDutyObj(currentDuty);
 
-  // ACTIVE SHIFT DASHBOARD
+  // MAIN DASHBOARD
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <IdentityHeader />
@@ -375,48 +391,77 @@ export default function WarehouseTaskScreen() {
           <View style={styles.summaryCard}>
             <Timer size={24} color="#10b981" style={styles.cardIcon} />
             <Text style={styles.cardValue}>{activeHours}</Text>
-            <Text style={styles.cardLabel}>Active hours</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Star size={24} color="#f59e0b" style={styles.cardIcon} />
-            <Text style={styles.cardValue}>--</Text>
-            <Text style={styles.cardLabel}>Today's points</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Medal size={24} color="#3b82f6" style={styles.cardIcon} />
-            <Text style={styles.cardValue}>-</Text>
-            <Text style={styles.cardLabel}>Current rank</Text>
+            <Text style={styles.cardLabel}>Current Shift Active Hours</Text>
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.selectRoleButton, currentDuty ? styles.selectRoleButtonActive : null]}
-          onPress={() => setShowDutySelector(true)}
-          disabled={!!currentDuty}
-        >
-          <View>
-            <Text style={styles.selectRoleLabel}>{currentDuty ? 'Current duty' : 'Select duty for'}</Text>
-            <Text style={styles.selectRoleName}>
-              {currentDuty ? selectedDutyObj?.title : (profile?.full_name || 'Worker')}
-            </Text>
+        {shiftState === 'NO_SHIFT' && (
+          <View style={[styles.centerContainer, { marginTop: 40 }]}>
+            <Clock size={48} color="#64748b" style={{ marginBottom: 16 }} />
+            <Text style={styles.statusTitle}>No Upcoming Shifts</Text>
+            <Text style={styles.statusSubtitle}>You have no shifts scheduled right now.</Text>
           </View>
-          {!currentDuty && <ChevronDown size={24} color={'#0f172a'} />}
-        </TouchableOpacity>
+        )}
 
-        {currentDuty === 'putaway' && isOnline ? (
-          <PutterWorkflow onWorkflowComplete={() => {}} />
-        ) : currentDuty === 'auditor' && isOnline ? (
-          <AuditorWorkflow onWorkflowComplete={() => {}} />
-        ) : (
-          <View style={styles.lowerWorkArea}>
-            <Clock size={48} color="#cbd5e1" style={{ marginBottom: 16 }} />
-            <Text style={styles.emptyStateTitle}>
-              {currentDuty && isOnline ? "Waiting for tasks..." : "Attention Required"}
+        {shiftState === 'UPCOMING' && (
+          <View style={[styles.centerContainer, { marginTop: 40 }]}>
+            <Clock size={48} color="#64748b" style={{ marginBottom: 16 }} />
+            <Text style={styles.statusTitle}>Shift Upcoming</Text>
+            <Text style={styles.statusSubtitle}>
+              Your shift at {warehouse?.name || 'Warehouse'} starts at {formatTime(slot?.start_time)}.
             </Text>
-            <Text style={styles.emptyStateSubtitle}>
-              {getEmptyStateMessage()}
-            </Text>
+            <Text style={styles.statusSubtitle}>You can check in 5 minutes early.</Text>
           </View>
+        )}
+
+        {shiftState === 'READY' && (
+          <View style={[styles.readyContainer, { marginTop: 40 }]}>
+            <View style={styles.iconContainer}>
+              <QrCode size={48} color="#10b981" />
+            </View>
+            <Text style={styles.readyTitle}>Get Started with your Shift!</Text>
+            <Text style={styles.readySubtitle}>Scan QR code inside the store</Text>
+            
+            <TouchableOpacity style={styles.startButton} onPress={handleStartShift}>
+              <Text style={styles.startButtonText}>Start shift</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {shiftState === 'ACTIVE' && (
+          <>
+            <TouchableOpacity 
+              style={[styles.selectRoleButton, currentDuty ? styles.selectRoleButtonActive : null]}
+              onPress={() => setShowDutySelector(true)}
+              disabled={!!currentDuty}
+            >
+              <View>
+                <Text style={styles.selectRoleLabel}>{currentDuty ? 'Current duty' : 'Select duty for'}</Text>
+                <Text style={styles.selectRoleName}>
+                  {currentDuty ? selectedDutyObj?.title : (profile?.full_name || 'Worker')}
+                </Text>
+              </View>
+              {!currentDuty && <ChevronDown size={24} color={'#0f172a'} />}
+            </TouchableOpacity>
+
+            {currentDuty === 'putaway' && isOnline ? (
+              <PutterWorkflow onWorkflowComplete={handleReleaseDuty} />
+            ) : currentDuty === 'auditor' && isOnline ? (
+              <AuditorWorkflow onWorkflowComplete={handleReleaseDuty} />
+            ) : currentDuty === 'inward_damage' && isOnline ? (
+              <InwardDamageWorkflow onWorkflowComplete={handleReleaseDuty} />
+            ) : (
+              <View style={styles.lowerWorkArea}>
+                <Clock size={48} color="#cbd5e1" style={{ marginBottom: 16 }} />
+                <Text style={styles.emptyStateTitle}>
+                  {currentDuty && isOnline ? "Waiting for tasks..." : (isOnline ? "No duty assigned" : "Attention Required")}
+                </Text>
+                <Text style={styles.emptyStateSubtitle}>
+                  {isOnline && !currentDuty ? "Waiting for your next warehouse duty." : getEmptyStateMessage()}
+                </Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 

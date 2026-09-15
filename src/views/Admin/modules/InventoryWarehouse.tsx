@@ -41,6 +41,23 @@ export const InventoryWarehouse: React.FC = () => {
   // Search state
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
   
+  // Expanded multi-product location state
+  const [expandedLocationIds, setExpandedLocationIds] = useState<Set<string>>(new Set());
+
+  const toggleLocationExpanded = (locId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedLocationIds(prev => {
+      const next = new Set(prev);
+      if (next.has(locId)) {
+        next.delete(locId);
+      } else {
+        next.clear(); // only one expanded at a time
+        next.add(locId);
+      }
+      return next;
+    });
+  };
+  
   // Audits state
   const [audits, setAudits] = useState<any[]>([]);
   const [loadingAudits, setLoadingAudits] = useState(false);
@@ -426,16 +443,25 @@ export const InventoryWarehouse: React.FC = () => {
                   <span style={{ fontWeight: 700 }}>{r.name}</span>
                 </div>
               )},
-              { key: 'physical_stock', header: 'PHYSICAL STOCK', sortable: true, render: (r) => (
-                <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{r.physical_stock}</span>
+              { key: 'placed', header: 'PLACED / SELLABLE', sortable: true, render: (r) => (
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.physical_stock}</span>
               )},
-              { key: 'reserved_stock', header: 'RESERVED', sortable: true, render: (r) => (
+              { key: 'staging', header: 'RECEIVING / STAGING', sortable: true, render: (r) => (
+                <span style={{ fontWeight: 700, color: r.staging_quantity > 0 ? '#10b981' : 'var(--text-muted)' }}>{r.staging_quantity || 0}</span>
+              )},
+              { key: 'reserved', header: 'RESERVED', sortable: true, render: (r) => (
                 <span style={{ fontWeight: 700, color: r.reserved_stock > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{r.reserved_stock}</span>
               )},
-              { key: 'sellable_stock', header: 'SELLABLE (LIVE)', sortable: true, render: (r) => (
-                <span className={r.is_low_stock ? 'admin-badge-warning' : 'admin-badge-success'}>
-                  {r.sellable_stock} Units
-                </span>
+              { key: 'available', header: 'AVAILABLE (LIVE)', sortable: true, render: (r) => {
+                const available = r.physical_stock - r.reserved_stock;
+                return (
+                  <span className={available < 20 ? 'admin-badge-warning' : 'admin-badge-success'}>
+                    {available}
+                  </span>
+                )
+              }},
+              { key: 'total', header: 'PHYSICAL TOTAL', sortable: true, render: (r) => (
+                <span style={{ fontWeight: 800, color: 'var(--text-secondary)' }}>{r.physical_stock + (r.staging_quantity || 0)}</span>
               )},
             ]}
           />
@@ -520,69 +546,111 @@ export const InventoryWarehouse: React.FC = () => {
                   <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No warehouse locations found.</td></tr>
                 ) : (
                   filteredLocations.map((l: any) => {
-                    const used = l.warehouse_product_placements?.reduce((a:any, b:any) => a + b.quantity, 0) || 0;
+                    const placements = l.warehouse_product_placements || [];
+                    const used = placements.reduce((a:any, b:any) => a + b.quantity, 0);
                     const free = l.capacity - used;
                     const isFull = used >= l.capacity;
+                    const isMulti = placements.length > 1;
+                    const isExpanded = expandedLocationIds.has(l.id);
+
                     return (
-                    <tr key={l.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <td 
-                        style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 800, whiteSpace: 'nowrap', cursor: 'pointer' }}
-                        onClick={() => setSelectedLocationForQr(l)}
-                        title="Click to view details and print QR"
-                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.textDecoration = 'underline'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.textDecoration = 'none'; }}
-                      >
-                        {l.location_code}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
-                        {l.warehouse_product_placements?.map((p: any, i: number) => (
-                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
-                            {p.product?.name}
-                          </div>
-                        ))}
-                        {(!l.warehouse_product_placements || l.warehouse_product_placements.length === 0) && <span style={{ color: 'var(--text-muted)' }}>Empty</span>}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
-                        {l.warehouse_product_placements?.map((p: any, i: number) => (
-                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
-                            {p.product?.sku || 'N/A'}
-                          </div>
-                        ))}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
-                        {l.warehouse_product_placements?.map((p: any, i: number) => (
-                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
-                            {p.product?.manufacturer_barcode_verified ? (
-                              <span style={{ color: '#10b981', fontWeight: 'bold' }}>{p.product?.manufacturer_barcode}</span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>Not verified</span>
+                      <React.Fragment key={l.id}>
+                        <tr style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--border-light)' }}>
+                          <td 
+                            style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 800, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                            onClick={() => setSelectedLocationForQr(l)}
+                            title="Click to view details and print QR"
+                            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.textDecoration = 'underline'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.textDecoration = 'none'; }}
+                          >
+                            {l.location_code}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
+                            {placements.length === 0 && <span style={{ color: 'var(--text-muted)' }}>Empty</span>}
+                            {placements.length === 1 && (
+                              <div style={{ fontSize: '0.85rem' }}>
+                                {placements[0].product?.name}
+                              </div>
                             )}
-                          </div>
-                        ))}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
-                        {l.warehouse_product_placements?.map((p: any, i: number) => (
-                          <div key={i} style={{ fontSize: '0.8rem', padding: '2px 0' }}>
-                            <strong>{p.quantity}</strong>
-                          </div>
-                        ))}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{used} / {l.capacity}</span>
-                        </div>
-                        <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--border-light)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
-                          <div style={{ height: '100%', width: `${Math.min(100, (used/l.capacity)*100)}%`, backgroundColor: isFull ? '#ef4444' : '#10b981' }}></div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 600 }}>{free}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                         <span className={isFull ? 'admin-badge-warning' : 'admin-badge-success'}>
-                           {isFull ? 'FULL' : 'AVAILABLE'}
-                         </span>
-                      </td>
-                    </tr>
-                  )})
+                            {isMulti && (
+                              <div 
+                                onClick={(e) => toggleLocationExpanded(l.id, e)}
+                                style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                {placements.length} Products {isExpanded ? '▴' : '▾'}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
+                            {placements.length === 1 && (
+                              <div style={{ fontSize: '0.85rem' }}>{placements[0].product?.sku || 'N/A'}</div>
+                            )}
+                            {isMulti && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>-</div>}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>
+                            {placements.length === 1 && (
+                              <div style={{ fontSize: '0.85rem' }}>
+                                {placements[0].product?.manufacturer_barcode_verified ? (
+                                  <span style={{ color: '#10b981', fontWeight: 'bold' }}>{placements[0].product?.manufacturer_barcode}</span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>Not verified</span>
+                                )}
+                              </div>
+                            )}
+                            {isMulti && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>-</div>}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--text-primary)' }}>
+                            <div style={{ fontSize: '0.85rem' }}>
+                              <strong>{used}</strong>
+                              {isMulti && <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>(Total)</span>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{used} / {l.capacity}</span>
+                            </div>
+                            <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--border-light)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
+                              <div style={{ height: '100%', width: `${Math.min(100, (used/l.capacity)*100)}%`, backgroundColor: isFull ? '#ef4444' : '#10b981' }}></div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 600 }}>{free}</td>
+                          <td style={{ padding: '12px 16px' }}>
+                             <span className={isFull ? 'admin-badge-warning' : 'admin-badge-success'}>
+                               {isFull ? 'FULL' : 'AVAILABLE'}
+                             </span>
+                          </td>
+                        </tr>
+                        
+                        {isExpanded && isMulti && (
+                          <tr style={{ borderBottom: '1px solid var(--border-light)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                            <td colSpan={8} style={{ padding: '16px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                                {placements.map((p: any, i: number) => (
+                                  <div key={i} style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{p.product?.name}</h4>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Product Code:</span> {p.product?.sku || 'N/A'}
+                                    </div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Manufacturer Barcode:</span>{' '}
+                                      {p.product?.manufacturer_barcode_verified ? (
+                                        <span style={{ color: '#10b981', fontWeight: 'bold' }}>{p.product?.manufacturer_barcode}</span>
+                                      ) : (
+                                        <span style={{ color: 'var(--text-muted)' }}>Not verified</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Qty:</span> <strong>{p.quantity}</strong>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })
                 )}
               </tbody>
             </table>

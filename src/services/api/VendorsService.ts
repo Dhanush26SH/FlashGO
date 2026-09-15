@@ -53,4 +53,45 @@ export class VendorsService {
     
     if (error) throw error;
   }
+
+  static async getVendorCatalog(vendorId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('vendor_products')
+      .select(`
+        id,
+        vendor_id,
+        product_id,
+        vendor_sku,
+        purchase_price,
+        minimum_order_quantity,
+        is_active,
+        product:products(name, sku, image_url)
+      `)
+      .eq('vendor_id', vendorId)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async upsertVendorProduct(
+    vendorId: string,
+    productId: string,
+    vendorSku: string | null,
+    purchasePrice: number | null,
+    minimumOrderQuantity: number | null,
+    isActive: boolean
+  ): Promise<any> {
+    const { data, error } = await supabase.rpc('admin_upsert_vendor_product', {
+      p_vendor_id: vendorId,
+      p_product_id: productId,
+      p_vendor_sku: vendorSku,
+      p_purchase_price: purchasePrice,
+      p_minimum_order_quantity: minimumOrderQuantity,
+      p_is_active: isActive
+    });
+
+    if (error) throw error;
+    return data;
+  }
 }

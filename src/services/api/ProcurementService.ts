@@ -103,6 +103,39 @@ export class ProcurementService {
     if (error) throw error;
   }
 
+  static async adminRecordSupplierDispatch(
+    poId: string,
+    poItemId: string,
+    productId: string,
+    batchNumber: string,
+    dispatchedQuantity: number,
+    expiryDate: string | null
+  ): Promise<void> {
+    const { error, data } = await supabase.rpc('admin_record_supplier_dispatch', {
+      p_procurement_order_id: poId,
+      p_procurement_order_item_id: poItemId,
+      p_product_id: productId,
+      p_batch_number: batchNumber,
+      p_dispatched_quantity: dispatchedQuantity,
+      p_expiry_date: expiryDate
+    });
+    if (error) throw error;
+    if (data && data.success === false) {
+      throw new Error(data.message || 'Failed to record supplier dispatch');
+    }
+  }
+
+  static async getSupplierDispatchBatches(poId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('supplier_dispatch_batches')
+      .select('*')
+      .eq('procurement_order_id', poId)
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  }
+
   static async getBatchTraceability(warehouseId?: string | null): Promise<any[]> {
     let query = supabase
       .from('product_batches')
@@ -149,5 +182,48 @@ export class ProcurementService {
     
     if (error) throw error;
     return data || [];
+  }
+
+  static async getSuppliersForProduct(productId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('vendor_products')
+      .select(`
+        vendor_id, 
+        purchase_price, 
+        minimum_order_quantity,
+        vendor:vendors(name)
+      `)
+      .eq('product_id', productId)
+      .eq('is_active', true);
+      
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async getReplenishmentRequirements(warehouseId: string): Promise<any[]> {
+    if (!warehouseId) return [];
+    
+    const { data, error } = await supabase.rpc('get_replenishment_requirements', {
+      p_warehouse_id: warehouseId
+    });
+    
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async updateReplenishmentSettings(
+    warehouseId: string, 
+    productId: string, 
+    reorderThreshold: number | null, 
+    targetStockLevel: number | null
+  ): Promise<void> {
+    const { error } = await supabase.rpc('admin_update_replenishment_settings', {
+      p_warehouse_id: warehouseId,
+      p_product_id: productId,
+      p_reorder_threshold: reorderThreshold,
+      p_target_stock_level: targetStockLevel
+    });
+    
+    if (error) throw error;
   }
 }

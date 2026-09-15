@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { CameraView } from 'expo-camera';
-import { useNavigation } from '@react-navigation/native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -20,9 +20,11 @@ export default function SharedWarehouseQRScanner({
   loadingMessage = "Verifying shift..."
 }: SharedWarehouseQRScannerProps) {
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { profile } = useAuth() as any;
   const [loading, setLoading] = useState(false);
   const [hasScanned, setHasScanned] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
 
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
     if (hasScanned || loading) return;
@@ -38,15 +40,54 @@ export default function SharedWarehouseQRScanner({
     }
   };
 
+  if (!permission) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <ChevronLeft color="#fff" size={28} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>{title}</Text>
+            <View style={{ width: 44 }} />
+          </View>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+            <Text style={{ color: '#fff', fontSize: 18, marginBottom: 16, textAlign: 'center', fontWeight: 'bold' }}>
+              Camera Permission Required
+            </Text>
+            <Text style={{ color: '#9ca3af', fontSize: 14, marginBottom: 32, textAlign: 'center' }}>
+              We need access to your camera to scan the warehouse QR code.
+            </Text>
+            <TouchableOpacity 
+              style={{ backgroundColor: '#10b981', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 12, width: '100%', alignItems: 'center' }}
+              onPress={requestPermission}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Grant Permission</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <CameraView 
-        style={styles.camera} 
-        facing="back" 
-        onBarcodeScanned={hasScanned ? undefined : handleBarcodeScanned}
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-      >
-        <SafeAreaView style={styles.overlay}>
+      {isFocused && (
+        <CameraView 
+          style={StyleSheet.absoluteFillObject} 
+          facing="back" 
+          onBarcodeScanned={hasScanned ? undefined : handleBarcodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        >
+          <SafeAreaView style={styles.overlay}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -91,6 +132,7 @@ export default function SharedWarehouseQRScanner({
           </View>
         </SafeAreaView>
       </CameraView>
+      )}
     </View>
   );
 }

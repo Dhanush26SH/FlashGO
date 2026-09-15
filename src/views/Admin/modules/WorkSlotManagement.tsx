@@ -20,6 +20,11 @@ export const WorkSlotManagement: React.FC = () => {
   const [slotBookings, setSlotBookings] = useState<any[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   
+  // Active shift duty assignment state
+  const [assignDutyShiftId, setAssignDutyShiftId] = useState<string | null>(null);
+  const [assignDutyValue, setAssignDutyValue] = useState<string>('putaway');
+  const [assignDutyLoading, setAssignDutyLoading] = useState(false);
+  
   const [warehouseId, setWarehouseId] = useState('');
   const [targetRole, setTargetRole] = useState<'picker' | 'driver' | 'warehouse_staff'>('picker');
   const [startTime, setStartTime] = useState('');
@@ -106,7 +111,7 @@ export const WorkSlotManagement: React.FC = () => {
       const { data, error } = await supabase!
         .from('staff_shifts')
         .select(`
-          id, shift_start, shift_end, status,
+          id, shift_start, shift_end, status, current_duty,
           profiles ( id, full_name, email, phone )
         `)
         .eq('work_slot_id', slotId)
@@ -134,6 +139,28 @@ export const WorkSlotManagement: React.FC = () => {
     }
   };
 
+  const handleAssignActiveDuty = async (shiftId: string) => {
+    if (!assignDutyValue) return;
+    setAssignDutyLoading(true);
+    try {
+      const { data, error } = await supabase!.rpc('admin_change_active_shift_duty', {
+        p_shift_id: shiftId,
+        p_new_duty: assignDutyValue
+      });
+      if (error) throw error;
+      addToast('Duty changed successfully', 'success');
+      setAssignDutyShiftId(null);
+      if (expandedSlotId) {
+        await loadSlotBookings(expandedSlotId);
+      }
+    } catch (e: any) {
+      console.error(e);
+      addToast(e.message || 'Error assigning duty', 'error');
+    } finally {
+      setAssignDutyLoading(false);
+    }
+  };
+
   const toLocalDT = (isoStr: string) => {
     const d = new Date(isoStr);
     return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0,16);
@@ -156,9 +183,14 @@ export const WorkSlotManagement: React.FC = () => {
     
     if (slot.target_role === 'warehouse_staff') {
       const shifts = await loadSlotBookings(slot.id);
-      setWarehouseStaffIds(shifts.map(s => (s.profiles as any)?.id || (s.profiles as any)?.[0]?.id).filter(Boolean));
+      setWarehouseStaffAssignments(
+        shifts.map(s => ({
+          staffId: ((s.profiles as any)?.id || (s.profiles as any)?.[0]?.id) as string, 
+          duty: (s as any).current_duty || 'putaway'
+        })).filter(a => a.staffId)
+      );
     } else {
-      setWarehouseStaffIds([]);
+      setWarehouseStaffAssignments([]);
     }
     
     setShowForm(true);
@@ -661,6 +693,49 @@ export const WorkSlotManagement: React.FC = () => {
                             <p style={{ fontWeight: '600', fontSize: '0.9rem', margin: 0 }}>{booking.profiles?.full_name || 'Unknown Worker'}</p>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{booking.profiles?.phone || 'No phone'}</p>
                             {dutyLabel && <p style={{ fontSize: '0.8rem', color: '#10b981', margin: '4px 0 0 0', fontWeight: 'bold' }}>{dutyLabel}</p>}
+                            
+                            {booking.status === 'active' && new Date(booking.shift_end).getTime() > Date.now() && (
+                              <div style={{ marginTop: '8px' }}>
+                                {assignDutyShiftId === booking.id ? (
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <select 
+                                      value={assignDutyValue}
+                                      onChange={(e) => setAssignDutyValue(e.target.value)}
+                                      style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}
+                                      disabled={assignDutyLoading}
+                                    >
+                                      <option value="putaway">Putter (Putaway)</option>
+                                      <option value="auditor">Auditor</option>
+                                      <option value="inward_damage">Inward + Damage/Expiry</option>
+                                    </select>
+                                    <button 
+                                      onClick={() => handleAssignActiveDuty(booking.id)}
+                                      disabled={assignDutyLoading}
+                                      style={{ padding: '6px 12px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                                    >
+                                      {assignDutyLoading ? 'Saving...' : 'Confirm'}
+                                    </button>
+                                    <button 
+                                      onClick={() => setAssignDutyShiftId(null)}
+                                      disabled={assignDutyLoading}
+                                      style={{ padding: '6px 12px', background: 'transparent', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '0.75rem' }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button 
+                                    onClick={() => {
+                                      setAssignDutyShiftId(booking.id);
+                                      setAssignDutyValue(booking.current_duty || 'putaway');
+                                    }}
+                                    style={{ padding: '4px 12px', border: '1px solid var(--primary)', color: 'var(--primary)', background: 'transparent', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                                  >
+                                    {!booking.current_duty ? 'Assign Duty' : 'Change Duty'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', 

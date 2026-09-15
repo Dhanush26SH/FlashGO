@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Package, ScanLine, CheckCircle2, ArrowRight, X, LocateFixed } from 'lucide-react-native';
+import { Package, ScanLine, CheckCircle, ArrowRight, X, LocateFixed } from 'lucide-react-native';
 
 interface PutterWorkflowProps {
-  onWorkflowComplete: () => void;
+  onWorkflowComplete: () => Promise<void>;
 }
 
 export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowProps) {
@@ -18,6 +18,9 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
   const [scannedLocationQr, setScannedLocationQr] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [completing, setCompleting] = useState(false);
+  
+  // Partial Putaway State
+  const [putawayQuantity, setPutawayQuantity] = useState<string>('');
   const [releasing, setReleasing] = useState(false);
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -148,7 +151,8 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
       });
       if (error) throw error;
       if (res.status === 'success') {
-        setScannedLocationQr(data);
+        setScannedLocationQr(res.location_id); // Ensure we set the ID, not the code
+        setPutawayQuantity(task.quantity.toString()); // Default to remaining task quantity
         setStep('confirm_location');
       } else {
         Alert.alert("Wrong Location", `Expected: ${res.expected}\nScanned: ${res.scanned || 'Unknown'}`);
@@ -160,19 +164,38 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
 
   const handleComplete = async () => {
     if (!task || !product) return;
+    
+    const qty = parseInt(putawayQuantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      Alert.alert("Invalid Quantity", "Please enter a valid quantity greater than 0.");
+      return;
+    }
+    
     setCompleting(true);
     try {
       const { data, error } = await supabase.rpc('warehouse_putaway_complete', {
         p_task_id: task.id,
-        p_scanned_product_barcode: product.internal_barcode,
-        p_scanned_location_qr: scannedLocationQr
+        p_scanned_barcode: product.internal_barcode,
+        p_location_id: scannedLocationQr, // this is now the UUID
+        p_quantity: qty
       });
       if (error) throw error;
       if (data.status === 'success') {
-        Alert.alert("Success", "Product successfully put away!");
-        setTask(null);
-        setProduct(null);
-        onWorkflowComplete(); // Refresh parent stats if needed
+        Alert.alert("Success", `Put away ${data.placed_quantity} units!`);
+        if (data.remaining <= 0) {
+          try {
+            await onWorkflowComplete();
+            setTask(null);
+            setProduct(null);
+          } catch (releaseErr) {
+            // handleReleaseDuty already surfaced an alert. 
+            // We just stop here so we don't transition away or refresh incorrectly.
+            return;
+          }
+        } else {
+          // Task still active, fetch updated state
+          setStep('pending_list'); // Go back to pending list to show remaining
+        }
         fetchTaskState();
       } else {
         throw new Error(data.message);
@@ -263,7 +286,7 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
         {isLocationStep ? (
           <>
             <View style={styles.successHeader}>
-              <CheckCircle2 size={32} color="#10b981" style={{ marginBottom: 8 }} />
+              <CheckCircle size={32} color="#10b981" style={{ marginBottom: 8 }} />
               <Text style={styles.successTitle}>Product Verified</Text>
             </View>
             <View style={styles.productInfoBox}>
@@ -296,37 +319,51 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
     );
   }
 
-  // 5. IN_PROGRESS - LOCATION CONFIRMATION
+  // 6. CONFIRM LOCATION (FINAL STEP)
   if (step === 'confirm_location') {
     return (
-      <View style={styles.activeContainer}>
-        <View style={styles.successHeader}>
-          <CheckCircle2 size={48} color="#10b981" style={{ marginBottom: 16 }} />
-          <Text style={styles.successTitle}>Location Verified ✓</Text>
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <CheckCircle size={24} color="#10b981" />
+          <Text style={styles.cardTitle}>Ready to Place</Text>
         </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.detailText}>Product: {product?.name}</Text>
+          <Text style={styles.detailText}>Destination: {task?.destination_location}</Text>
+          
+          <Text style={{ marginTop: 16, fontSize: 16, fontWeight: 'bold', color: '#0f172a' }}>Quantity to Put Away:</Text>
+          <TextInput
+            style={{
+              borderWidth: 1,
+              borderColor: '#cbd5e1',
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 8,
+              fontSize: 18,
+              backgroundColor: '#fff',
+              color: '#0f172a',
+            }}
+            keyboardType="numeric"
+            value={putawayQuantity}
+            onChangeText={setPutawayQuantity}
+          />
 
-        <View style={styles.locationBox}>
-          <LocateFixed size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
-          <Text style={styles.locationLabel}>Placing item at</Text>
-          <Text style={styles.locationValue}>{task?.destination_location}</Text>
-        </View>
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity 
-            style={[styles.secondaryBtn, completing && styles.disabledBtn]} 
-            onPress={handleRelease}
-            disabled={completing}
-          >
-            <Text style={styles.secondaryBtnText}>Cancel</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.primaryBtn, { flex: 2, marginLeft: 12 }, completing && styles.disabledBtn]} 
-            onPress={handleComplete}
-            disabled={completing}
-          >
-            {completing ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Confirm Placement</Text>}
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 }}>
+            <TouchableOpacity 
+              style={[styles.secondaryBtn, { flex: 1, marginRight: 8 }]} 
+              onPress={() => setStep('scanning_location_qr')}
+            >
+              <Text style={styles.secondaryBtnText}>Rescan Loc</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.primaryBtn, { flex: 2, marginLeft: 8, marginTop: 0 }, completing && styles.disabledBtn]} 
+              onPress={handleComplete}
+              disabled={completing}
+            >
+              {completing ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Confirm Placement</Text>}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
