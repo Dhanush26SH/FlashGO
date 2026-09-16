@@ -145,13 +145,59 @@ export class FinanceService {
     return data;
   }
 
+  static async getStaffRoster(): Promise<any[]> {
+    if (!supabase) return [];
+    
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, employee_id, warehouse_id')
+      .in('role', ['picker', 'driver', 'warehouse_staff'])
+      .order('full_name', { ascending: true });
+    
+    if (error) throw error;
+    if (!profiles) return [];
+    
+    const { data: warehouses } = await supabase.from('warehouses').select('id, name');
+    const warehouseMap = (warehouses || []).reduce((acc: any, w: any) => { acc[w.id] = w.name; return acc; }, {});
+
+    return profiles.map((p: any) => ({
+      ...p,
+      warehouses: { name: p.warehouse_id ? (warehouseMap[p.warehouse_id] || 'Unassigned') : 'Unassigned' }
+    }));
+  }
+
   static async getPickerSettlements(warehouseId?: string): Promise<any[]> {
     if (!supabase) return [];
-    let query = supabase.from('picker_settlements').select('*, profiles!staff_id(full_name, id, role), picker_settlement_items(*)').order('created_at', { ascending: false });
+    let query = supabase.from('picker_settlements').select('*, profiles!staff_id(full_name, id, role, employee_id), picker_settlement_items(*)').order('created_at', { ascending: false });
     if (warehouseId) query = query.eq('warehouse_id', warehouseId);
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+    if (!data) return [];
+
+    const { data: warehouses } = await supabase.from('warehouses').select('id, name');
+    const warehouseMap = (warehouses || []).reduce((acc: any, w: any) => { acc[w.id] = w.name; return acc; }, {});
+
+    return data.map((s: any) => ({
+      ...s,
+      warehouses: { name: s.warehouse_id ? (warehouseMap[s.warehouse_id] || 'Unassigned') : 'Unassigned' }
+    }));
+  }
+
+  static async getDriverSettlements(warehouseId?: string): Promise<any[]> {
+    if (!supabase) return [];
+    let query = supabase.from('driver_settlements').select('*, profiles!driver_id(full_name, id, role, employee_id), driver_settlement_items(*)').order('created_at', { ascending: false });
+    if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data) return [];
+
+    const { data: warehouses } = await supabase.from('warehouses').select('id, name');
+    const warehouseMap = (warehouses || []).reduce((acc: any, w: any) => { acc[w.id] = w.name; return acc; }, {});
+
+    return data.map((s: any) => ({
+      ...s,
+      warehouses: { name: s.warehouse_id ? (warehouseMap[s.warehouse_id] || 'Unassigned') : 'Unassigned' }
+    }));
   }
 
   // --- Warehouse Payroll ---
@@ -210,5 +256,22 @@ export class FinanceService {
       .order('generated_at', { ascending: false });
     if (error) throw error;
     return data || [];
+  }
+
+  static async getWarehouseStaffSalaryConfig(staffId: string): Promise<any> {
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from('warehouse_staff_salary_configs')
+      .select('*')
+      .eq('staff_id', staffId)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 is not found
+      throw error;
+    }
+    return data;
   }
 }

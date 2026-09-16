@@ -37,28 +37,30 @@ const getDynamicWeeklyOptions = () => {
   const today = new Date();
   
   const currentDay = today.getDay();
-  const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+  // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  // Days to previous Wednesday
+  const daysToWednesday = currentDay >= 3 ? currentDay - 3 : currentDay + 4;
   
-  const currentMonday = new Date(today);
-  currentMonday.setDate(today.getDate() - daysToMonday);
+  const currentWednesday = new Date(today);
+  currentWednesday.setDate(today.getDate() - daysToWednesday);
 
   options.push({
-    label: `${formatDateLabel(currentMonday)} - ${formatDateLabel(today)}`,
-    start: formatIsoDate(currentMonday),
+    label: `${formatDateLabel(currentWednesday)} - ${formatDateLabel(today)}`,
+    start: formatIsoDate(currentWednesday),
     end: formatIsoDate(today)
   });
 
   for (let i = 1; i <= 3; i++) {
-    const prevSunday = new Date(currentMonday);
-    prevSunday.setDate(currentMonday.getDate() - 1 - (i - 1) * 7);
+    const prevTuesday = new Date(currentWednesday);
+    prevTuesday.setDate(currentWednesday.getDate() - 1 - (i - 1) * 7);
     
-    const prevMonday = new Date(prevSunday);
-    prevMonday.setDate(prevSunday.getDate() - 6);
+    const prevWednesday = new Date(prevTuesday);
+    prevWednesday.setDate(prevTuesday.getDate() - 6);
     
     options.push({
-      label: `${formatDateLabel(prevMonday)} - ${formatDateLabel(prevSunday)}`,
-      start: formatIsoDate(prevMonday),
-      end: formatIsoDate(prevSunday)
+      label: `${formatDateLabel(prevWednesday)} - ${formatDateLabel(prevTuesday)}`,
+      start: formatIsoDate(prevWednesday),
+      end: formatIsoDate(prevTuesday)
     });
   }
   return options;

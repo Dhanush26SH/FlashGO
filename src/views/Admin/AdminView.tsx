@@ -29,7 +29,6 @@ import { OverviewDashboard } from './modules/OverviewDashboard';
 import { OrderManagement } from './modules/OrderManagement';
 import { ProductCatalog } from './modules/ProductCatalog';
 import { InventoryWarehouse } from './modules/InventoryWarehouse';
-import { StaffManagement } from './modules/StaffManagement';
 import { PickerOffersManagement } from './modules/PickerOffersManagement';
 import { AdminProfile } from './modules/AdminProfile';
 import { MarketingCMS } from './modules/MarketingCMS';
@@ -53,9 +52,8 @@ export const AdminView: React.FC = () => {
   
   const [showStoreQR, setShowStoreQR] = useState(false);
   
-  // Roster tab selection
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'catalog' | 'inventory' | 'warehouse_tasks' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
+    'overview' | 'orders' | 'catalog' | 'inventory' | 'warehouse_tasks' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
   >('overview');
 
   React.useEffect(() => {
@@ -82,7 +80,6 @@ export const AdminView: React.FC = () => {
     { id: 'catalog', label: 'Catalog Manager', icon: <BookOpen size={16} />, clearance: ['super_admin', 'warehouse_lead'] },
     { id: 'inventory', label: 'Inventory & Stock', icon: <Warehouse size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'warehouse_tasks', label: 'Warehouse Tasks', icon: <Map size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'staff', label: 'Workforce & Shifts', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'workforce_history', label: 'Staff Work History', icon: <CalendarDays size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'picker_offers', label: 'Picker Offers', icon: <Gift size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'driver_approvals', label: 'Staff Approvals', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
@@ -143,8 +140,6 @@ export const AdminView: React.FC = () => {
       case 'warehouse_tasks':
         return <WarehouseTasks />;
 
-      case 'staff':
-        return <StaffManagement />;
       case 'workforce_history':
         return <WorkforceActivity />;
       case 'picker_offers':
