@@ -119,13 +119,7 @@ export const ProductCatalog: React.FC = () => {
   const [editCategory, setEditCategory] = useState('');
   const [editSku, setEditSku] = useState('');
   const [editBarcode, setEditBarcode] = useState('');
-  const [editManufacturerBarcode, setEditManufacturerBarcode] = useState('');
-  const [editManufacturerBarcodeVerified, setEditManufacturerBarcodeVerified] = useState(false);
-
-  // Bulk Discount states
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkCategory, setBulkCategory] = useState('');
-  const [bulkPercentage, setBulkPercentage] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
 
   // Filter state
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
@@ -201,8 +195,7 @@ export const ProductCatalog: React.FC = () => {
     setEditCategory(p.category_id);
     setEditSku(p.sku || '');
     setEditBarcode(p.barcode || '');
-    setEditManufacturerBarcode(p.manufacturer_barcode || '');
-    setEditManufacturerBarcodeVerified(p.manufacturer_barcode_verified || false);
+    setEditImageUrl(p.image_url || '');
   };
 
   const isValidEAN13 = (ean: string): boolean => {
@@ -228,8 +221,7 @@ export const ProductCatalog: React.FC = () => {
     }
     if (editSku && editSku !== original.sku) updates.sku = editSku;
     if (editBarcode && editBarcode !== original.barcode) updates.barcode = editBarcode;
-    if (editManufacturerBarcode !== (original.manufacturer_barcode || '')) updates.manufacturer_barcode = editManufacturerBarcode;
-    if (editManufacturerBarcodeVerified !== !!original.manufacturer_barcode_verified) updates.manufacturer_barcode_verified = editManufacturerBarcodeVerified;
+    if (editImageUrl !== (original.image_url || '')) updates.image_url = editImageUrl;
 
     if (Object.keys(updates).length === 0) {
       setEditingProductId(null);
@@ -245,11 +237,6 @@ export const ProductCatalog: React.FC = () => {
       const basePrice = updates.price ?? original.price;
       if (updates.discount_price > basePrice) {
         addToast('Discount price cannot exceed base price', 'error'); return;
-      }
-    }
-    if (updates.manufacturer_barcode && updates.manufacturer_barcode_verified) {
-      if (!isValidEAN13(updates.manufacturer_barcode)) {
-        addToast('Invalid EAN-13: Must be 13 digits with correct check digit', 'error'); return;
       }
     }
 
@@ -290,37 +277,6 @@ export const ProductCatalog: React.FC = () => {
     } catch (err: any) {
       addToast(`Error reactivating product: ${err.message}`, 'error');
     }
-  };
-
-  const handleBulkDiscountSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bulkCategory) { addToast('Please select a category', 'error'); return; }
-    const pct = parseFloat(bulkPercentage);
-    if (isNaN(pct) || pct <= 0 || pct >= 100) {
-      addToast('Please enter a percentage between 1 and 99', 'error'); return;
-    }
-
-    setConfirmModal({
-      isOpen: true,
-      title: 'Confirm Mass Discount',
-      message: `Apply ${pct}% discount to ALL active products in this category? Existing discount prices will be overwritten.`,
-      onConfirm: async () => {
-        setConfirmModal(null);
-        setIsSubmitting(true);
-        try {
-          const count = await ProductsService.applyBulkDiscount(bulkCategory, pct);
-          await refreshData();
-          addToast(`Bulk discount applied to ${count} products.`, 'success');
-          setShowBulkModal(false);
-          setBulkCategory('');
-          setBulkPercentage('');
-        } catch (err: any) {
-          addToast(`Error applying bulk discount: ${err.message}`, 'error');
-        } finally {
-          setIsSubmitting(false);
-        }
-      }
-    });
   };
 
   const handleFileSelect = (e: any) => {
@@ -501,15 +457,6 @@ export const ProductCatalog: React.FC = () => {
                   <option value="inactive">Inactive ({products.filter(p => p.is_active === false).length})</option>
                 </select>
 
-                {/* Bulk Discount */}
-                <button
-                  className="secondary-btn"
-                  onClick={() => setShowBulkModal(true)}
-                  style={{ height: '38px', borderRadius: '8px', backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent)', border: '1px solid var(--accent)', display: 'flex', alignItems: 'center', gap: '6px', padding: '0 14px', fontSize: '0.82rem' }}
-                >
-                  <Tag size={14} /> Bulk Discount
-                </button>
-
                 {/* Add Product */}
                 <button
                   className="secondary-btn"
@@ -520,48 +467,6 @@ export const ProductCatalog: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            {/* Bulk Discount modal */}
-            {showBulkModal && (
-              <div className="admin-form-panel animate-slide-up" style={{ backgroundColor: 'rgba(59,130,246,0.05)', border: '1px solid var(--accent)', marginBottom: '16px' }}>
-                <h3 className="panel-title" style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Tag size={18} /> Run Festival Mass-Discount Campaign
-                </h3>
-                <p className="subtitle" style={{ marginBottom: '16px' }}>
-                  Sets discount_price = base price × (1 − pct%) for all active products in the selected category.
-                </p>
-                <form onSubmit={handleBulkDiscountSubmit}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Target Category</label>
-                      <CustomDropdown
-                        value={bulkCategory}
-                        onChange={setBulkCategory}
-                        options={categories.map(c => ({ label: c.name, value: c.id }))}
-                        placeholder="-- Select Category --"
-                      />
-                    </div>
-                    <div>
-                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Discount Percentage (%)</label>
-                      <input
-                        type="number" placeholder="e.g. 20"
-                        value={bulkPercentage} onChange={e => setBulkPercentage(e.target.value)}
-                        className="admin-input" style={{ height: '42px', borderRadius: '8px' }}
-                        required min="1" max="99"
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button type="submit" disabled={isSubmitting} className="admin-btn-primary" style={{ backgroundColor: 'var(--accent)', border: 'none', borderRadius: '8px', flex: 1 }}>
-                      {isSubmitting ? 'Applying...' : 'Apply Discount'}
-                    </button>
-                    <button type="button" onClick={() => setShowBulkModal(false)} className="admin-btn-secondary" style={{ borderRadius: '8px', flex: 1 }}>
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
 
             <div
               onDragOver={e => { e.preventDefault(); setIsDraggingCSV(true); }}
@@ -594,7 +499,26 @@ export const ProductCatalog: React.FC = () => {
                 columns={[
                   {
                     key: 'image', header: 'IMG',
-                    render: p => (
+                    render: p => editingProductId === p.id ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <img 
+                          src={editImageUrl} 
+                          alt="Preview" 
+                          style={{ width: '48px', height: '48px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #e5e7eb' }} 
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/48?text=Error';
+                          }}
+                        />
+                        <input 
+                          type="text" 
+                          value={editImageUrl} 
+                          onChange={e => setEditImageUrl(e.target.value)}
+                          className="small-input-field" 
+                          placeholder="Image URL" 
+                          style={{ padding: '4px', width: '120px' }} 
+                        />
+                      </div>
+                    ) : (
                       <div 
                         style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }}
                         onClick={(e) => {
@@ -629,49 +553,17 @@ export const ProductCatalog: React.FC = () => {
                       )
                   },
                   {
-                    key: 'sku', header: 'IDENTIFIERS', sortable: true,
+                    key: 'sku', header: 'PRODUCT CODE / SKU', sortable: true,
                     render: p => editingProductId === p.id
                       ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <input type="text" value={editSku} onChange={e => setEditSku(e.target.value)}
                             className="small-input-field" placeholder="Product Code (e.g. FG-ARD-008)" style={{ padding: '4px', width: '200px' }} />
-                          <input type="text" value={editManufacturerBarcode} onChange={e => setEditManufacturerBarcode(e.target.value)}
-                            className="small-input-field" placeholder="Manufacturer EAN-13" style={{ padding: '4px', width: '200px' }} />
-                          <input type="text" value={p.internal_barcode || ''} readOnly
-                            className="small-input-field" placeholder="FlashGO Barcode" style={{ padding: '4px', width: '200px', backgroundColor: '#f3f4f6', cursor: 'not-allowed' }} title="FlashGO Barcode is auto-generated and immutable" />
-                          <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-primary)' }}>
-                            <input type="checkbox" checked={editManufacturerBarcodeVerified} onChange={e => setEditManufacturerBarcodeVerified(e.target.checked)} />
-                            Mfg Verified
-                          </label>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
                           <div>
-                            <div style={{ color: '#9ca3af', fontSize: '0.65rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Product Code</div>
-                            <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem', marginBottom: '8px' }}>{p.sku || 'N/A'}</div>
-                            {p.internal_barcode && (
-                              <div>
-                                <div style={{ color: '#9ca3af', fontSize: '0.65rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>FlashGO Barcode</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: '#fff', padding: '4px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
-                                  <ReactBarcode value={p.internal_barcode} format="CODE128" width={1.2} height={30} fontSize={12} margin={0} background="#ffffff" />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            {p.manufacturer_barcode && p.manufacturer_barcode_verified ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: '#fff', padding: '4px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
-                                <span style={{color: '#6b7280', fontSize: '0.6rem', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px'}}>Manufacturer EAN-13</span>
-                                <ReactBarcode value={p.manufacturer_barcode} format="EAN13" width={1.2} height={30} fontSize={12} margin={0} background="#ffffff" />
-                              </div>
-                            ) : (
-                              <div>
-                                <div style={{ color: '#9ca3af', fontSize: '0.65rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Manufacturer EAN-13</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                  {(p.manufacturer_barcode === '8901234567890' ? null : p.manufacturer_barcode) || 'N/A'} <span style={{ fontSize: '0.65rem', marginLeft: '4px' }}>{p.manufacturer_barcode_verified ? '(✓)' : '(Not verified)'}</span>
-                                </div>
-                              </div>
-                            )}
+                            <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem' }}>{p.sku || 'N/A'}</div>
                           </div>
                         </div>
                       )
@@ -719,6 +611,9 @@ export const ProductCatalog: React.FC = () => {
                         <div style={{ display: 'flex', gap: '4px' }}>
                           <button onClick={() => handleStartEdit(p)} className="small-edit-btn" title="Edit catalog metadata">
                             <Edit2 size={12} />
+                          </button>
+                          <button onClick={() => setSelectedBarcodeProduct(p)} className="small-edit-btn" title="View Barcode" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }}>
+                            <Barcode size={12} />
                           </button>
                           {p.is_active !== false
                             ? (

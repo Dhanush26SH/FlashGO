@@ -20,6 +20,7 @@ interface DataTableProps<T> {
   filterableColumns?: { key: Extract<keyof T, string>; label: string; options: { label: string; value: string }[] }[];
   onRowClick?: (row: T) => void;
   selectedRowId?: string;
+  dateFilterMode?: 'none' | 'single' | 'range';
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -32,7 +33,8 @@ export function DataTable<T extends Record<string, any>>({
   exportFilename = 'export',
   filterableColumns = [],
   onRowClick,
-  selectedRowId
+  selectedRowId,
+  dateFilterMode = 'range'
 }: DataTableProps<T>) {
   
   const [search, setSearch] = useState('');
@@ -73,8 +75,9 @@ export function DataTable<T extends Record<string, any>>({
         if (!rowDateStr) return true; // skip if no date field
         const rowTime = new Date(rowDateStr).getTime();
         
-        const start = dateRange.start ? new Date(dateRange.start).getTime() : 0;
-        const end = dateRange.end ? new Date(dateRange.end).setHours(23, 59, 59, 999) : Infinity;
+        // Parse explicitly using +05:30 (IST) boundaries regardless of device timezone
+        const start = dateRange.start ? new Date(`${dateRange.start}T00:00:00+05:30`).getTime() : 0;
+        const end = dateRange.end ? new Date(`${dateRange.end}T23:59:59.999+05:30`).getTime() : Infinity;
         
         return rowTime >= start && rowTime <= end;
       });
@@ -181,21 +184,34 @@ export function DataTable<T extends Record<string, any>>({
           </div>
         ))}
 
-        {/* Date Range */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-          <AdminInput 
-            type="date" 
-            label="Start Date" 
-            value={dateRange.start}
-            onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-          />
-          <AdminInput 
-            type="date" 
-            label="End Date" 
-            value={dateRange.end}
-            onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-          />
-        </div>
+        {/* Date Filter */}
+        {dateFilterMode === 'range' && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <AdminInput 
+              type="date" 
+              label="Start Date" 
+              value={dateRange.start}
+              onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+            />
+            <AdminInput 
+              type="date" 
+              label="End Date" 
+              value={dateRange.end}
+              onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+            />
+          </div>
+        )}
+        
+        {dateFilterMode === 'single' && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <AdminInput 
+              type="date" 
+              label="Date" 
+              value={dateRange.start}
+              onChange={e => setDateRange({ start: e.target.value, end: e.target.value })}
+            />
+          </div>
+        )}
 
         <AdminButton onClick={exportCSV} icon={<Download size={14} />}>
           Export CSV

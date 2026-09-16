@@ -196,6 +196,7 @@ export const OrderManagement: React.FC = () => {
         <div style={{ flex: '1.2' }}>
           <DataTable
             data={orders}
+            dateFilterMode="single"
             filterableColumns={[
               {
                 key: 'status',

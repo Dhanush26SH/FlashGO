@@ -16,6 +16,8 @@ import FloatingCartBar from '../components/FloatingCartBar';
 import { getActiveMerchandising, SeasonalConfig } from '../utils/seasonalMerchandising';
 import { fetchTrendingByTag } from '../services/api';
 import ActiveOrderBanner from '../components/ActiveOrderBanner';
+import FlashGoPageEnd from '../components/FlashGoPageEnd';
+import HomeProductSections from '../components/HomeProductSections';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -501,6 +503,7 @@ export default function HomeScreen() {
                           updateCart(id, Math.max(0, (cart[id] || 0) + change));
                         }}
                         cardWidth={'100%' as any}
+                        variant="compact"
                       />
                     </View>
                   ))}
@@ -508,6 +511,9 @@ export default function HomeScreen() {
               )}
             </View>
           )}
+          
+          <HomeProductSections />
+          <FlashGoPageEnd />
         </ScrollView>
         )}
       </View>
@@ -573,7 +579,7 @@ const styles = StyleSheet.create({
   horizontalScroll: { paddingHorizontal: 16 },
   gridSection: { paddingVertical: 20, backgroundColor: '#ffffff', borderTopWidth: 8, borderTopColor: '#F9FAFB' },
   productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 16 },
-  gridItem: { width: '48%', marginBottom: 20 },
+  gridItem: { width: '32%', marginBottom: 20 },
   emptyState: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 32 },
   emptyStateTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 16, marginBottom: 8 },
   emptyStateSub: { fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 24 },

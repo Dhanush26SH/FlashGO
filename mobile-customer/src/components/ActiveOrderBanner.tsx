@@ -44,7 +44,7 @@ export default function ActiveOrderBanner() {
         .from('orders')
         .select('id, status, created_at, total_amount')
         .eq('customer_id', sessionUser?.id)
-        .in('status', ['placed', 'picking', 'packed', 'driver_assigned', 'handed_off', 'out_for_delivery'])
+        .in('status', ['placed', 'picking', 'packed', 'staged', 'handed_off', 'out_for_delivery'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -73,7 +73,7 @@ export default function ActiveOrderBanner() {
       case 'placed': return { label: 'Order Placed', icon: Clock, color: theme.colors.primary };
       case 'picking': return { label: 'Order Picking', icon: Box, color: theme.colors.primary };
       case 'packed': return { label: 'Order Packed', icon: Box, color: theme.colors.primary };
-      case 'driver_assigned': return { label: 'Driver Assigned', icon: Bike, color: theme.colors.primary };
+      case 'staged': return { label: 'Order Staged', icon: Box, color: theme.colors.primary };
       case 'out_for_delivery': return { label: 'Out for Delivery', icon: Bike, color: '#f59e0b' }; // Orange for out for delivery
       default: return { label: 'Processing', icon: Clock, color: theme.colors.primary };
     }

@@ -101,7 +101,8 @@ export default function WarehouseInventory() {
     fetchInventory();
     
     if (profile?.warehouse_id) {
-      const channel = supabase.channel(`inventory-ws-${profile.warehouse_id}`)
+      const channelName = `inventory_ws_${profile.warehouse_id}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const channel = supabase.channel(channelName)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'warehouse_stock', filter: `warehouse_id=eq.${profile.warehouse_id}` }, fetchInventory)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_reservations', filter: `warehouse_id=eq.${profile.warehouse_id}` }, fetchInventory)
         .subscribe();

@@ -78,17 +78,6 @@ export default function ProfileScreen() {
           <Text style={styles.quickActionTitle}>My Orders</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.quickActionCard} 
-          onPress={() => Alert.alert('FlashGO Wallet', `Your current balance is ₹${walletBalance.toFixed(2)}.\n\nYou can use this balance during checkout.`)}
-        >
-          <View style={[styles.iconCircle, { backgroundColor: '#eff6ff' }]}>
-            <Wallet size={22} color="#3b82f6" />
-          </View>
-          <Text style={styles.quickActionTitle}>FlashGO Wallet</Text>
-          <Text style={styles.walletBalanceText}>₹{walletBalance.toFixed(2)}</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.quickActionCard} onPress={() => navigation.navigate('SupportStack')}>
           <View style={[styles.iconCircle, { backgroundColor: '#fef2f2' }]}>
             <HeadphonesIcon size={22} color={theme.colors.danger} />
@@ -159,7 +148,7 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account & App</Text>
         <View style={styles.cardGroup}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('About FlashGO', 'FlashGO v1.0.0 (Build 54)\n\nYour premium quick-commerce delivery app.')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('AboutFlashGo')}>
             <View style={styles.menuLeft}>
               <View style={styles.menuIconBox}>
                 <Info size={20} color={theme.colors.text} />
@@ -273,7 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.xl,
     padding: theme.spacing.md,
     alignItems: 'center',
-    width: '31%',
+    width: '48%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,

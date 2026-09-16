@@ -394,7 +394,7 @@ export const getSupportMessages = async (ticketId: string) => {
   return data;
 };
 
-export const sendSupportMessage = async (payload: any) => {
+export const sendSupportMessage = async (payload: { ticket_id: string; sender_id: string; message: string; }) => {
   const { data, error } = await supabase
     .from('support_ticket_messages')
     .insert(payload)
@@ -414,4 +414,85 @@ export const fetchTrendingByTag = async (warehouseId: string, tag: string, limit
   });
   if (error) throw error;
   return data ? data.map((item: any) => ({ ...item, id: item.id })) : [];
+};
+
+export const getWishlist = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('customer_wishlist')
+    .select('product_id')
+    .eq('customer_id', userId);
+  if (error) throw error;
+  return data ? data.map((d: any) => d.product_id) : [];
+};
+
+export const toggleWishlist = async (userId: string, productId: string, action: 'add' | 'remove') => {
+  if (action === 'add') {
+    const { error } = await supabase
+      .from('customer_wishlist')
+      .insert([{ customer_id: userId, product_id: productId }]);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('customer_wishlist')
+      .delete()
+      .match({ customer_id: userId, product_id: productId });
+    if (error) throw error;
+  }
+};
+
+export const getISTMondayMidnightISO = (): string => {
+  // Current UTC time
+  const now = new Date();
+  
+  // Convert to IST by adding 5.5 hours
+  const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  
+  // Get day of week in IST (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+  const day = istTime.getUTCDay();
+  
+  // Calculate days to subtract to get to Monday
+  const diff = day === 0 ? 6 : day - 1;
+  
+  // Set to Monday 00:00:00.000 in IST
+  istTime.setUTCDate(istTime.getUTCDate() - diff);
+  istTime.setUTCHours(0, 0, 0, 0);
+  
+  // Convert back to UTC to get the true ISO string
+  const utcTime = new Date(istTime.getTime() - (5.5 * 60 * 60 * 1000));
+  
+  return utcTime.toISOString();
+};
+
+export const getWeeklyBestSellers = async (warehouseId: string) => {
+  const { data, error } = await supabase.rpc('get_weekly_best_sellers', {
+    p_warehouse_id: warehouseId
+  });
+  if (error) throw error;
+  return data ? data.map((item: any) => item.product_id) : [];
+};
+
+export const getCustomerWeeklyPurchases = async () => {
+  const istMonday = getISTMondayMidnightISO();
+  
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      order_items ( product_id )
+    `)
+    .eq('status', 'delivered')
+    .gte('created_at', istMonday);
+    
+  if (error) throw error;
+  
+  const productIds = new Set<string>();
+  data.forEach((order: any) => {
+    order.order_items.forEach((item: any) => {
+      if (item.product_id) {
+        productIds.add(item.product_id);
+      }
+    });
+  });
+  
+  return Array.from(productIds);
 };

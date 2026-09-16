@@ -8,7 +8,8 @@ import {
   Alert,
   ScrollView,
   TextInput,
-  Image
+  Image,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -44,6 +45,10 @@ export default function DriverDropOrderScreen() {
   const [completing, setCompleting] = useState(false);
   
   const [codCollected, setCodCollected] = useState(false);
+
+  const [showFailModal, setShowFailModal] = useState(false);
+  const [failReason, setFailReason] = useState('customer_unavailable');
+  const [failing, setFailing] = useState(false);
 
   useEffect(() => {
     fetchDelivery();
@@ -144,9 +149,34 @@ export default function DriverDropOrderScreen() {
       }
     } catch (err: any) {
       console.log('DELIVERY_COMPLETE_ERROR', err);
-      Alert.alert('Error', err.message);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'DriverOperationsMapScreen' }]
+      });
     } finally {
       setCompleting(false);
+    }
+  };
+
+  const handleFailDelivery = async () => {
+    if (!data) return;
+    setFailing(true);
+    try {
+      const { error } = await supabase.rpc('driver_mark_delivery_failed', {
+        p_trip_id: data.trip_id,
+        p_reason: failReason
+      });
+      if (error) throw error;
+      
+      setShowFailModal(false);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'DriverReturnToStoreScreen' }]
+      });
+    } catch (err: any) {
+      Alert.alert('Failure Error', err.message);
+    } finally {
+      setFailing(false);
     }
   };
 
@@ -291,7 +321,7 @@ export default function DriverDropOrderScreen() {
         <TouchableOpacity 
           style={[styles.completeBtn, !isCompleteEnabled && styles.completeBtnDisabled]} 
           onPress={handleComplete}
-          disabled={!isCompleteEnabled || completing}
+          disabled={!isCompleteEnabled || completing || failing}
         >
           {completing ? (
              <ActivityIndicator color="#000" />
@@ -301,7 +331,53 @@ export default function DriverDropOrderScreen() {
              </Text>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.failBtn} 
+          onPress={() => setShowFailModal(true)}
+          disabled={completing || failing}
+        >
+          <Text style={styles.failBtnText}>Unable to Deliver</Text>
+        </TouchableOpacity>
       </View>
+
+      <Modal visible={showFailModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delivery Failed</Text>
+            <Text style={styles.modalSub}>Please select the reason for failure:</Text>
+            
+            {['customer_unavailable', 'customer_refused', 'location_inaccessible', 'unreachable'].map(reason => (
+              <TouchableOpacity 
+                key={reason} 
+                style={[styles.reasonBtn, failReason === reason && styles.reasonBtnActive]}
+                onPress={() => setFailReason(reason)}
+              >
+                <Text style={[styles.reasonText, failReason === reason && styles.reasonTextActive]}>
+                  {reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.modalCancel} 
+                onPress={() => setShowFailModal(false)}
+                disabled={failing}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalConfirm} 
+                onPress={handleFailDelivery}
+                disabled={failing}
+              >
+                {failing ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalConfirmText}>Confirm Failure</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -443,5 +519,63 @@ const styles = StyleSheet.create({
     borderWidth: 1
   },
   completeBtnText: { color: '#000', fontSize: 17, fontWeight: 'bold' },
-  completeBtnTextDisabled: { color: '#6b7280' }
+  completeBtnTextDisabled: { color: '#6b7280' },
+  
+  failBtn: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+    borderRadius: 12,
+    backgroundColor: '#450a0a'
+  },
+  failBtnText: { color: '#fca5a5', fontSize: 16, fontWeight: 'bold' },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: 20
+  },
+  modalContent: {
+    backgroundColor: '#18181b',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#27272a'
+  },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  modalSub: { color: '#9ca3af', fontSize: 14, marginBottom: 20 },
+  reasonBtn: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderRadius: 10,
+    marginBottom: 10,
+    backgroundColor: '#09090b'
+  },
+  reasonBtnActive: {
+    borderColor: '#ef4444',
+    backgroundColor: '#450a0a'
+  },
+  reasonText: { color: '#d1d5db', fontSize: 15 },
+  reasonTextActive: { color: '#fca5a5', fontWeight: 'bold' },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  modalCancel: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: '#27272a'
+  },
+  modalCancelText: { color: '#fff', fontWeight: 'bold' },
+  modalConfirm: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: '#ef4444'
+  },
+  modalConfirmText: { color: '#fff', fontWeight: 'bold' }
 });

@@ -21,11 +21,9 @@ import { FlashGoDB } from '../../../services/db';
 import { SupportService } from '../../../services/api/SupportService';
 import type { SupportTicket, SupportTicketMessage } from '../../../services/api/SupportService';
 import { WalletService } from '../../../services/api/WalletService';
-import { UserCouponWallet } from './UserCouponWallet';
 
 export const SupportSettings: React.FC = () => {
   const { addToast, currentUser } = useApp();
-  const [mainTab, setMainTab] = useState<'tickets' | 'loyalty'>('tickets');
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string>('');
@@ -92,6 +90,10 @@ export const SupportSettings: React.FC = () => {
   };
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
+
+  const activeTickets = tickets.filter(
+    t => t.status === 'open' || t.status === 'in_progress'
+  );
 
   const triggerPhysicalReturn = async (ticket: any) => {
     if (!ticket.related_order_id) return addToast('No order attached', 'error');
@@ -169,20 +171,7 @@ export const SupportSettings: React.FC = () => {
 
   return (
     <div className="container">
-      {/* Sub tabs nav bar */}
-      <div className="catalog-tab-bar glass-panel" style={{ marginBottom: '24px' }}>
-        <button onClick={() => setMainTab('tickets')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: mainTab === 'tickets' ? 'var(--primary)' : 'transparent', color: mainTab === 'tickets' ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
-          🎧 Support Tickets
-        </button>
-        <button onClick={() => setMainTab('loyalty')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: mainTab === 'loyalty' ? 'var(--primary)' : 'transparent', color: mainTab === 'loyalty' ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
-          🎁 CRM & Promotions
-        </button>
-      </div>
 
-      {mainTab === 'loyalty' && <div style={{ marginTop: '-20px' }}><UserCouponWallet /></div>}
-
-      {mainTab === 'tickets' && (
-        <>
           {/* Header */}
       <div className="welcome-banner">
         <div>
@@ -202,14 +191,14 @@ export const SupportSettings: React.FC = () => {
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               {/* Removed demo data button */}
-              <span className="ticket-badge">{tickets.filter(t => t.status !== 'resolved').length} Open Tickets</span>
+              <span className="ticket-badge">{activeTickets.length} Open Tickets</span>
             </div>
           </div>
 
           <div className="workspace-grid">
             {/* Ticket Roster list */}
             <div className="ticket-list">
-              {tickets.filter(t => t.status !== 'resolved' || t.id === selectedTicketId).map(t => (
+              {activeTickets.map(t => (
                 <div 
                   key={t.id} 
                   onClick={() => setSelectedTicketId(t.id)}
@@ -356,7 +345,7 @@ export const SupportSettings: React.FC = () => {
           </div>
         </div>
       </div>
-      </>)}
+
 
       {/* Fullscreen Image Modal */}
       {fullscreenImage && (

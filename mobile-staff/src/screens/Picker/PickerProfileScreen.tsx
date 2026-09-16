@@ -7,12 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { 
   Bell, 
   ChevronRight, 
-  Globe, 
-  Landmark, 
-  MapPin, 
-  HelpCircle, 
   CreditCard, 
-  Star, 
   LogOut 
 } from 'lucide-react-native';
 
@@ -130,44 +125,9 @@ export default function PickerProfileScreen() {
         {/* Menu Section */}
         <View style={styles.card}>
           <MenuItem 
-            icon={<Globe size={22} color="#10b981" />} 
-            title="App Language" 
-            onPress={() => {}} 
-          />
-          <View style={styles.divider} />
-          
-          <MenuItem 
-            icon={<Landmark size={22} color="#10b981" />} 
-            title="Bank Details" 
-            onPress={() => {}} 
-          />
-          <View style={styles.divider} />
-          
-          <MenuItem 
-            icon={<MapPin size={22} color="#10b981" />} 
-            title="Preferred Stores" 
-            onPress={() => {}} 
-          />
-          <View style={styles.divider} />
-          
-          <MenuItem 
-            icon={<HelpCircle size={22} color="#10b981" />} 
-            title="Help & Support" 
-            onPress={() => {}} 
-          />
-          <View style={styles.divider} />
-          
-          <MenuItem 
             icon={<CreditCard size={22} color="#10b981" />} 
             title="Payouts" 
             onPress={() => navigation.navigate('Payouts')} 
-          />
-          <View style={styles.divider} />
-          
-          <MenuItem 
-            icon={<Star size={22} color="#10b981" />} 
-            title="Your Rating" 
-            onPress={() => {}} 
           />
         </View>
 

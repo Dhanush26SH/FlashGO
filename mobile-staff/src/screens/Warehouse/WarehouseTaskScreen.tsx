@@ -30,6 +30,7 @@ export default function WarehouseTaskScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [currentDuty, setCurrentDuty] = useState<string | null>(null);
+  const [activeReturnIntake, setActiveReturnIntake] = useState<any>(null);
   
   const [activeHours, setActiveHours] = useState('0h 0m');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -86,12 +87,28 @@ export default function WarehouseTaskScreen() {
           setIsOnline(profileData.warehouse_is_online);
           setEmployeeId(profileData.employee_id || null);
         }
+
+        try {
+          const { data: activeIntakeData, error: activeIntakeError } = await supabase.rpc('staff_get_my_active_return_intake');
+          if (activeIntakeError) throw activeIntakeError;
+          
+          if (activeIntakeData) {
+            setActiveReturnIntake(activeIntakeData);
+          } else {
+            setActiveReturnIntake(null);
+          }
+        } catch (err: any) {
+          console.error('Active intake fetch error', err);
+          setActiveReturnIntake(null);
+          Alert.alert('Intake Recovery Error', err.message || 'Failed to check active return intakes.');
+        }
       } else {
         setShift(null);
         setSlot(null);
         setWarehouse(null);
         setIsOnline(false);
         setCurrentDuty(null);
+        setActiveReturnIntake(null);
       }
     } catch (e: any) {
       console.error('Fetch shift error:', e);
@@ -154,7 +171,8 @@ export default function WarehouseTaskScreen() {
   useEffect(() => {
     if (!profile?.id) return;
     
-    const channel = supabase.channel(`staff_shifts_${profile.id}`)
+    const channelName = `staff_shifts_${profile.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -430,6 +448,40 @@ export default function WarehouseTaskScreen() {
 
         {shiftState === 'ACTIVE' && (
           <>
+            {activeReturnIntake ? (
+              <TouchableOpacity 
+                style={[styles.selectRoleButton, { borderColor: '#10b981', backgroundColor: '#ecfdf5', padding: 16, marginBottom: 16 }]}
+                onPress={() => navigation.navigate('ReturnIntakeSummaryScreen', { intakeId: activeReturnIntake.id })}
+              >
+                <View style={{ flex: 1, paddingRight: 16 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#065f46', marginBottom: 4 }}>Return Intake in Progress</Text>
+                  <Text style={{ fontSize: 13, color: '#059669', lineHeight: 18, marginBottom: 12 }}>
+                    Driver: {activeReturnIntake.driver_name}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <QrCode size={16} color="#059669" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#059669' }}>Continue Return Intake</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.selectRoleButton, { borderColor: '#3b82f6', backgroundColor: '#eff6ff', padding: 16, marginBottom: 16 }]}
+                onPress={() => navigation.navigate('WarehouseReturnQRScannerScreen', { shiftId: shift?.id })}
+              >
+                <View style={{ flex: 1, paddingRight: 16 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e3a8a', marginBottom: 4 }}>Return Intake</Text>
+                  <Text style={{ fontSize: 13, color: '#3b82f6', lineHeight: 18, marginBottom: 12 }}>
+                    Scan a Driver return handover and verify returned products.
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <QrCode size={16} color="#2563eb" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#2563eb' }}>Scan Return QR</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity 
               style={[styles.selectRoleButton, currentDuty ? styles.selectRoleButtonActive : null]}
               onPress={() => setShowDutySelector(true)}

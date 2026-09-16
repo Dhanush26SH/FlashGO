@@ -25,7 +25,7 @@ export interface ExtendedProfile extends Profile {
 }
 import { FinanceService } from '../../../services/api/FinanceService';
 import { DataTable } from '../../../components/Admin/DataTable';
-import { WarehouseQRDisplay } from '../components/WarehouseQRDisplay';
+
 
 export const StaffManagement: React.FC = () => {
   const { addToast } = useApp();
@@ -90,11 +90,6 @@ export const StaffManagement: React.FC = () => {
     }
   };
 
-  // Removed RBAC Simulator state as it was moved to PlatformSettings
-
-  const [activeTab, setActiveTab] = useState<'directory' | 'shifts'>('directory');
-  const [selectedProfile, setSelectedProfile] = useState<ExtendedProfile | null>(null);
-
   // Form states
   const [newShiftStaffId, setNewShiftStaffId] = useState('');
   const [newShiftStart, setNewShiftStart] = useState('');
@@ -106,83 +101,9 @@ export const StaffManagement: React.FC = () => {
   const [editShiftStart, setEditShiftStart] = useState('');
   const [editShiftEnd, setEditShiftEnd] = useState('');
 
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Get active staff and filter by search query
+  // Get active staff for shift assignments dropdown
   const staffMembers = profiles
-    .filter(p => p.role !== 'customer')
-    .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
-
-  const [pendingWarehouseAssignments, setPendingWarehouseAssignments] = useState<Record<string, string>>({});
-  const [pendingRoleAssignments, setPendingRoleAssignments] = useState<Record<string, string>>({});
-
-  // Get pending staff
-  const pendingStaff = profiles
-    .filter(p => (p as any).is_pending_staff === true);
-
-    const handleApproveStaff = async (staffId: string, name: string) => {
-    try {
-      // FIX: Use requested_role as fallback, NOT current role (which is usually 'customer')
-      const targetStaff = pendingStaff.find(p => p.id === staffId);
-      const selectedRole = pendingRoleAssignments[staffId] || (targetStaff as any)?.requested_role || 'picker';
-      const selectedWarehouseId = pendingWarehouseAssignments[staffId];
-
-      console.log("[DEV] STAFF_APPROVAL_REQUEST", {
-        staffId,
-        selectedRole,
-        selectedWarehouseId,
-        name
-      });
-
-      if (!selectedWarehouseId) {
-        addToast('Please assign a warehouse before approving', 'error');
-        return;
-      }
-
-      const cleanName = name;
-      
-      if (supabase) {
-        console.log("[DEV] STAFF_APPROVAL_PAYLOAD", { p_user_id: staffId, p_role: selectedRole, p_clean_name: cleanName, p_warehouse_id: selectedWarehouseId });
-        await UsersService.approveStaffRole(staffId, selectedRole, cleanName, selectedWarehouseId);
-        console.log("[DEV] STAFF_APPROVAL_RESULT: Success");
-        loadData(); // Re-fetch to get the server-generated employee_id
-      }
-      
-      addToast(`Approved ${cleanName}`, 'success');
-    } catch (err: any) {
-      console.error("[DEV] STAFF_APPROVAL_ERROR", err);
-      // Show backend error message directly so it's not swallowed by generic toast
-      addToast(`Failed to approve: ${err.message || 'Unknown error'}`, 'error');
-    }
-  };
-
-  const handleRejectStaff = async (staffId: string) => {
-    try {
-      if (supabase) {
-        await UsersService.rejectStaffAccess(staffId);
-      }
-      setProfiles(prev => prev.map(p => p.id === staffId ? { ...p, is_pending_staff: false, requested_role: null } as any : p));
-      addToast('Rejected staff request', 'info');
-    } catch (err) {
-      console.error("Failed to reject staff:", err);
-      addToast('Failed to reject staff member', 'error');
-    }
-  };
-
-  const toggleSuspension = async (staffId: string, name: string, isSuspended: boolean) => {
-    try {
-      if (isSuspended) {
-        await UsersService.unsuspendProfile(staffId);
-        addToast(`Access privileges restored for ${name}`, 'success');
-      } else {
-        await UsersService.suspendProfile(staffId, 'Suspended by admin');
-        addToast(`Staff member ${name} suspended from system`, 'warning');
-      }
-      loadData();
-    } catch (e: any) {
-      addToast('Failed to change suspension status: ' + e.message, 'error');
-    }
-  };
+    .filter(p => p.role !== 'customer');
 
   // Add shift
   const handleCreateShift = async (e: React.FormEvent) => {
@@ -252,200 +173,36 @@ export const StaffManagement: React.FC = () => {
     }
   };
 
-  // RBAC permissions migrated to PlatformSettings.tsx
-
-  // RBAC permissions migrated to PlatformSettings.tsx
-
   return (
     <div className="container">
       {/* Header Banner */}
       <div className=" ">
         <div>
-          <h2 className="title">Staff Center & Dispatch Roster</h2>
-          <p className="subtitle">Track packer picking speeds, courier ratings, schedule shifts, and audit RBAC security parameters</p>
+          <h2 className="title">Shifts & Attendance</h2>
+          <p className="subtitle">Schedule shifts, view attendance registers, and monitor workforce metrics</p>
         </div>
-        <Users size={36} color="var(--primary)" />
+        <Calendar size={36} color="var(--primary)" />
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '8px', padding: '4px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)', width: 'max-content', overflowX: 'auto' }}>
-        {[
-          { id: 'directory', label: 'Employee Directory & RBAC' },
-          { id: 'shifts', label: 'Shifts & Attendance' }
-        ].map(tab => (
-          <button 
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: activeTab === tab.id ? 'var(--primary)' : 'transparent', color: activeTab === tab.id ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Roster & Stats Grid */}
-      {activeTab === 'directory' && (
-      <div>
-        
-        {/* Left Hand: Staff List & suspension controls */}
-        <div className=" ">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-            <div>
-              <h3 className="panel-title">Active Logistics & Fulfillment Staff</h3>
-              <p className="panel-desc">Oversee system access, suspend bad actors, and monitor individual productivity</p>
-            </div>
-            
-            <div style={{ position: 'relative', width: '300px' }}>
-              <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
-                type="text" 
-                placeholder="Search staff by name..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', fontSize: '0.9rem', outline: 'none' }}
-              />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', marginTop: '16px' }}>
+        <div className="glass-panel" style={{ padding: '24px' }}>
+          <div className="panel-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={24} color="var(--primary)" />
+              <h3 className="panel-title" style={{ fontSize: '1.2rem' }}>Shift Planner & Scheduler</h3>
             </div>
           </div>
+          <p className="panel-desc">Provision shifts for all warehouse staff, pickers, and drivers.</p>
 
-          {pendingStaff.length > 0 && (
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ color: 'var(--warning)', fontSize: '0.9rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertCircle size={16} /> Pending Approvals ({pendingStaff.length})
-              </h4>
-              <div className="staff-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {pendingStaff.map(staff => {
-                  const reqRole = ((staff as any).requested_role || 'UNKNOWN').toUpperCase();
-                  const displayName = staff.full_name || 'No Name';
-                  
-                  const activeSelectedRole = pendingRoleAssignments[staff.id] || (staff as any).requested_role || 'picker';
-
-                  return (
-                    <div key={staff.id} style={{ ...staffItemStyle, border: '1px solid var(--warning)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div className="staff-avatar-wrapper">
-                            <div style={staffAvatarStyle('customer')}>{(displayName || '?').charAt(0)}</div>
-                          </div>
-                          <h4 className="staff-name" style={{ margin: 0, minWidth: '160px' }}>{displayName}</h4>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--warning)', padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(234, 179, 8, 0.1)' }}>
-                            REQUESTED: {reqRole.replace('_', ' ')}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', backgroundColor: 'var(--bg-base)', padding: '12px', borderRadius: '8px' }}>
-                        <div style={{ flex: 1, minWidth: '200px' }}>
-                          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 'bold' }}>Assign Role</label>
-                          <select 
-                            value={activeSelectedRole}
-                            onChange={(e) => setPendingRoleAssignments({...pendingRoleAssignments, [staff.id]: e.target.value})}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                          >
-                            <option value="picker">Warehouse Picker</option>
-                            <option value="driver">Delivery Rider</option>
-                            <option value="warehouse_staff">Warehouse Staff</option>
-                          </select>
-                        </div>
-                        <div style={{ flex: 1, minWidth: '200px' }}>
-                          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 'bold' }}>Assign Warehouse (Required)</label>
-                          <select 
-                            value={pendingWarehouseAssignments[staff.id] || ''}
-                            onChange={(e) => setPendingWarehouseAssignments({...pendingWarehouseAssignments, [staff.id]: e.target.value})}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                          >
-                            <option value="">-- Select Warehouse --</option>
-                            {warehouses.map(w => (
-                              <option key={w.id} value={w.id}>{w.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                          <button onClick={() => handleApproveStaff(staff.id, staff.full_name)} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', height: '35px' }}>Approve</button>
-                          <button onClick={() => handleRejectStaff(staff.id)} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', height: '35px' }}>Reject</button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="staff-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {staffMembers.map(staff => {
-              const isSuspended = (staff as any).is_suspended;
-              
-              return (
-                <div key={staff.id} style={{ ...staffItemStyle, cursor: 'pointer', border: isSuspended ? '1px dashed var(--danger)' : '1px solid var(--border-light)' }} onClick={() => setSelectedProfile(staff)}>
-                  <div className="staff-avatar-wrapper">
-                    <div style={staffAvatarStyle(staff.role)}>{(staff.full_name || '?').charAt(0)}</div>
-                    {isSuspended && <div className="suspended-dot" />}
-                  </div>
-
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <h4 className="staff-name" style={{ margin: 0, minWidth: '160px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {staff.full_name}
-                        {staff.employee_id && (
-                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-light)', borderRadius: '4px', color: 'var(--text-secondary)' }}>
-                            {staff.employee_id}
-                          </span>
-                        )}
-                      </h4>
-                      <span style={roleBadgeStyle(staff.role)}>{(staff.role || '').replace('_', ' ').toUpperCase()}</span>
-                      
-                      {/* Gig Worker vs Warehouse Status Indicator */}
-                      {(staff.role === 'picker' || staff.role === 'driver') ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 800, color: staff.is_online ? '#10b981' : 'var(--text-secondary)', minWidth: '70px' }}>
-                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: staff.is_online ? '#10b981' : 'var(--text-secondary)' }} />
-                          {staff.is_online ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--info)', minWidth: '70px' }}>DAY SHIFT</span>
-                      )}
-                    </div>
-                    
-                    </div>
-
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); toggleSuspension(staff.id, staff.full_name, (staff as any).is_suspended); }}
-                    style={suspendBtnStyle(isSuspended)}
-                  >
-                    {isSuspended ? (
-                      <><UserCheck size={14} /> Restore</>
-                    ) : (
-                      <><UserX size={14} /> Suspend</>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-      </div>
-      )}
-
-      {activeTab === 'shifts' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <div className="panel-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Calendar size={24} color="var(--primary)" />
-                <h3 className="panel-title" style={{ fontSize: '1.2rem' }}>Shift Planner & Scheduler</h3>
-              </div>
-            </div>
-            <p className="panel-desc">Provision shifts for all warehouse staff, pickers, and drivers.</p>
-
-            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-              <form onSubmit={handleCreateShift} className="shift-form" style={{ flex: 2, minWidth: '300px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="input-label">STAFF OPERATOR</label>
-                  <select 
-                    value={newShiftStaffId} 
-                    onChange={(e) => setNewShiftStaffId(e.target.value)} 
-                    className="dropdown"
-                  >
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <form onSubmit={handleCreateShift} className="shift-form" style={{ flex: 2, minWidth: '300px' }}>
+              <div style={{ flex: 1 }}>
+                <label className="input-label">STAFF OPERATOR</label>
+                <select 
+                  value={newShiftStaffId} 
+                  onChange={(e) => setNewShiftStaffId(e.target.value)} 
+                  className="dropdown"
+                >
                   <option value="">Select Staff...</option>
                   {staffMembers.map(staff => (
                     <option key={staff.id} value={staff.id}>
@@ -480,43 +237,39 @@ export const StaffManagement: React.FC = () => {
                 <Plus size={16} /> Schedule
               </button>
             </form>
+          </div>
 
-            <div style={{ flex: 1, minWidth: '300px' }}>
-              <WarehouseQRDisplay />
-            </div>
-            </div>
+          <div className="divider" style={{ margin: '32px 0' }} />
 
-            <div className="divider" style={{ margin: '32px 0' }} />
-
-            <div className="shift-list-container">
-              <h4 className="sub-header-title">WORKFORCE SHIFT ATTENDANCE REGISTER</h4>
-              {shifts.length === 0 ? (
-                <div className="empty-state">No shifts scheduled for today</div>
-              ) : (
-                shifts.map(shift => {
-                  const sRole = staffMembers.find(p => p.id === shift.staff_id)?.role || 'staff';
-                  return (
-                    <div key={shift.id} className="shift-item" style={{ padding: '16px', backgroundColor: 'var(--bg-surface)' }}>
-                      <div style={{ flex: 1 }}>
-                        <div className="shift-name" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {shift.staff_name}
-                          {shift.work_slot_id && (
-                            <span style={{ fontSize: '0.7rem', padding: '2px 6px', backgroundColor: 'var(--primary)', color: '#fff', borderRadius: '4px', fontWeight: 'bold' }}>
-                              SELF-BOOKED
-                            </span>
-                          )}
-                        </div>
-                        <div className="shift-meta">
-                          {new Date(shift.shift_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.shift_end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} | <span style={{ textTransform: 'capitalize' }}>{sRole.replace('_', ' ')}</span>
-                        </div>
+          <div className="shift-list-container">
+            <h4 className="sub-header-title">WORKFORCE SHIFT ATTENDANCE REGISTER</h4>
+            {shifts.length === 0 ? (
+              <div className="empty-state">No shifts scheduled for today</div>
+            ) : (
+              shifts.map(shift => {
+                const sRole = staffMembers.find(p => p.id === shift.staff_id)?.role || 'staff';
+                return (
+                  <div key={shift.id} className="shift-item" style={{ padding: '16px', backgroundColor: 'var(--bg-surface)' }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="shift-name" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {shift.staff_name}
+                        {shift.work_slot_id && (
+                          <span style={{ fontSize: '0.7rem', padding: '2px 6px', backgroundColor: 'var(--primary)', color: '#fff', borderRadius: '4px', fontWeight: 'bold' }}>
+                            SELF-BOOKED
+                          </span>
+                        )}
                       </div>
+                      <div className="shift-meta">
+                        {new Date(shift.shift_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.shift_end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} | <span style={{ textTransform: 'capitalize' }}>{sRole.replace('_', ' ')}</span>
+                      </div>
+                    </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {!shift.work_slot_id && (
-                          <button 
-                            type="button" 
-                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
-                            onClick={() => {
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {!shift.work_slot_id && (
+                        <button 
+                          type="button" 
+                          style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                          onClick={() => {
                             setEditingShiftId(shift.id);
                             setEditShiftStaffId(shift.staff_id);
                             
@@ -530,120 +283,25 @@ export const StaffManagement: React.FC = () => {
                         >
                           Edit
                         </button>
-                        )}
-                        <select 
-                          value={shift.status}
-                          onChange={(e) => handleUpdateAttendance(shift.id, e.target.value as any)}
-                          style={attendanceSelectStyle(shift.status)}
-                        >
-                          <option value="scheduled">⏳ PENDING</option>
-                          <option value="present">✓ PRESENT</option>
-                          <option value="absent">✗ ABSENT</option>
-                          <option value="cancelled">🚫 CANCELLED</option>
-                        </select>
-                      </div>
+                      )}
+                      <select 
+                        value={shift.status}
+                        onChange={(e) => handleUpdateAttendance(shift.id, e.target.value as any)}
+                        style={attendanceSelectStyle(shift.status)}
+                      >
+                        <option value="scheduled">⏳ PENDING</option>
+                        <option value="present">✓ PRESENT</option>
+                        <option value="absent">✗ ABSENT</option>
+                        <option value="cancelled">🚫 CANCELLED</option>
+                      </select>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
-      )}
-
-
-
-      {/* Staff Profile Modal Overlay */}
-      {selectedProfile && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel" style={{ width: '500px', backgroundColor: 'var(--bg-base)', padding: '24px', borderRadius: '12px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                <div style={{ ...staffAvatarStyle(selectedProfile.role), width: '64px', height: '64px', fontSize: '2rem' }}>
-                  {(selectedProfile.full_name || '?').charAt(0)}
-                </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {selectedProfile.full_name}
-                    {selectedProfile.employee_id && (
-                      <span style={{ fontSize: '0.8rem', padding: '4px 8px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                        {selectedProfile.employee_id}
-                      </span>
-                    )}
-                  </h2>
-                  <span style={{ ...roleBadgeStyle(selectedProfile.role), display: 'inline-block', marginTop: '6px' }}>{(selectedProfile.role || '').replace('_', ' ').toUpperCase()}</span>
-                </div>
-              </div>
-              <button onClick={() => setSelectedProfile(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>&times;</button>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>EMAIL</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{selectedProfile.email}</div>
-              </div>
-              <div style={{ padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>PHONE</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{selectedProfile.phone}</div>
-              </div>
-              <div style={{ padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>WALLET BALANCE</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)' }}>₹{(selectedProfile.wallet_balance ?? 0).toFixed(2)}</div>
-              </div>
-              <div style={{ padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>JOINED DATE</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{new Date(selectedProfile.created_at).toLocaleDateString()}</div>
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '16px', marginBottom: '16px' }}>
-               <h4 style={{ fontSize: '0.85rem', marginBottom: '12px' }}>Warehouse Assignment</h4>
-               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                 <select
-                   value={selectedProfile.warehouse_id || ''}
-                   onChange={async (e) => {
-                     const wid = e.target.value;
-                     if (!wid) return;
-                     try {
-                       if (supabase) {
-                         await UsersService.updateStaffWarehouse(selectedProfile.id, wid);
-                       }
-                       setSelectedProfile({ ...selectedProfile, warehouse_id: wid });
-                       setProfiles(prev => prev.map(p => p.id === selectedProfile.id ? { ...p, warehouse_id: wid } as any : p));
-                       addToast('Warehouse assigned successfully', 'success');
-                     } catch (err: any) {
-                       addToast('Failed to assign warehouse: ' + err.message, 'error');
-                     }
-                   }}
-                   className="dropdown"
-                   style={{ flex: 1 }}
-                 >
-                   <option value="">No Warehouse Assigned</option>
-                   {warehouses.map(w => (
-                     <option key={w.id} value={w.id}>{w.name}</option>
-                   ))}
-                 </select>
-               </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
-               <h4 style={{ fontSize: '0.85rem', marginBottom: '12px' }}>Recent Shifts</h4>
-               {shifts.filter(s => s.staff_id === selectedProfile.id).length > 0 ? (
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
-                   {shifts.filter(s => s.staff_id === selectedProfile.id).map(shift => (
-                     <div key={shift.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.8rem' }}>
-                       <span>{new Date(shift.shift_start).toLocaleDateString()} ({new Date(shift.shift_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})})</span>
-                       <span style={{ fontWeight: 700, color: shift.status === 'present' ? '#10b981' : shift.status === 'absent' || shift.status === 'cancelled' ? 'var(--danger)' : 'var(--info)' }}>{shift.status.toUpperCase()}</span>
-                     </div>
-                   ))}
-                 </div>
-               ) : (
-                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>No recent shifts found.</div>
-               )}
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Edit Shift Modal Overlay */}
       {editingShiftId && (
@@ -713,8 +371,6 @@ export const StaffManagement: React.FC = () => {
     </div>
   );
 };
-
-// --- STYLING SPECIFICATIONS ---
 
 
 

@@ -109,7 +109,8 @@ export default function DriverPickupScreen() {
 
   useEffect(() => {
     if (!delivery?.order?.id) return;
-    const channel = supabase.channel(`driver-pickup-${delivery.order.id}`)
+    const channelName = `driver_pickup_${delivery.order.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(channelName)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${delivery.order.id}` },

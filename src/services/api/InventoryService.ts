@@ -296,19 +296,32 @@ export class InventoryService {
     if (!supabase) return [];
     const { data, error } = await supabase
       .from('order_unpack_queue')
-      .select('*, order:orders(*), processed_by:profiles!processed_by(full_name)')
+      .select('*, order:orders(*)')
       .eq('warehouse_id', warehouseId)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   }
 
-  static async processOrderUnpack(unpackId: string, disposition: 'restocked' | 'damaged' | 'quarantine', userId: string): Promise<void> {
+  static async getActiveLocations(warehouseId: string): Promise<any[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('warehouse_locations')
+      .select('id, location_code, zone')
+      .eq('warehouse_id', warehouseId)
+      .eq('is_active', true)
+      .order('location_code', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async processOrderUnpack(unpackId: string, disposition: 'restocked' | 'damaged' | 'quarantine', userId: string, locationId?: string): Promise<void> {
     if (!supabase) return;
     const { error } = await supabase.rpc('process_order_unpack', {
       p_unpack_id: unpackId,
       p_disposition: disposition,
-      p_user_id: userId
+      p_user_id: userId,
+      p_location_id: locationId || null
     });
     if (error) throw error;
   }

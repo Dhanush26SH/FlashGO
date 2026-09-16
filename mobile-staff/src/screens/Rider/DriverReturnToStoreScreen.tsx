@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { MapPin, QrCode, ArrowLeft } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import * as Location from 'expo-location';
@@ -16,6 +16,7 @@ import { CameraView, Camera } from 'expo-camera';
 
 export default function DriverReturnToStoreScreen() {
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [task, setTask] = useState<any>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -24,8 +25,10 @@ export default function DriverReturnToStoreScreen() {
   const [errorState, setErrorState] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchReturnTask();
-  }, []);
+    if (isFocused) {
+      fetchReturnTask();
+    }
+  }, [isFocused]);
 
   const fetchReturnTask = async () => {
     try {
@@ -48,6 +51,16 @@ export default function DriverReturnToStoreScreen() {
         navigation.replace('DriverOperationsMapScreen');
         return;
       }
+      
+      const { data: statusData, error: statusError } = await supabase.rpc('driver_get_return_handover_status', { p_task_id: data.id });
+      
+      if (!statusError && statusData) {
+        if (statusData.intake_status === 'scanning' || statusData.qr_consumed) {
+          navigation.replace('DriverReturnHandoverScreen', { taskId: data.id });
+          return;
+        }
+      }
+
       setTask(data);
     } catch (err: any) {
       console.error(err);
@@ -188,9 +201,44 @@ export default function DriverReturnToStoreScreen() {
 
         <View style={{ flex: 1 }} />
 
-        <TouchableOpacity style={styles.scanBtn} onPress={handleScanPress}>
-          <QrCode color="#000" size={24} />
-          <Text style={styles.scanBtnText}>Scan QR at Store</Text>
+        <TouchableOpacity 
+          style={[styles.scanBtn, { backgroundColor: '#3b82f6', marginBottom: 16 }]} 
+          onPress={async () => {
+            if (processing) return;
+            setProcessing(true);
+            try {
+              const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
+              if (locStatus !== 'granted') throw new Error('Location permission is required.');
+              
+              const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+              
+              const { data: res, error } = await supabase.rpc('driver_verify_warehouse_arrival', {
+                p_task_id: task.id,
+                p_lat: loc.coords.latitude,
+                p_lng: loc.coords.longitude
+              });
+              
+              if (error) throw error;
+              
+              if (res?.success) {
+                navigation.navigate('DriverReturnHandoverScreen', { taskId: task.id });
+              } else {
+                Alert.alert('Too Far', 'You must be at the warehouse to start handover.');
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err.message);
+            } finally {
+              setProcessing(false);
+            }
+          }}
+        >
+          <QrCode color="#fff" size={24} />
+          <Text style={[styles.scanBtnText, { color: '#fff' }]}>Handover to Warehouse</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.scanBtn, { backgroundColor: '#27272a' }]} onPress={handleScanPress}>
+          <QrCode color="#a1a1aa" size={20} />
+          <Text style={[styles.scanBtnText, { color: '#a1a1aa', fontSize: 15 }]}>Legacy: Scan QR at Store</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

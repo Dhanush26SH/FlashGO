@@ -27,6 +27,8 @@ interface MobileAppContextProps {
   setSearchQuery: (query: string) => void;
   isResolvingLocation: boolean;
   requireLocationForShopping: () => boolean;
+  wishlistProductIds: Set<string>;
+  toggleWishlistItem: (productId: string) => Promise<void>;
 }
 
 const MobileAppContext = createContext<MobileAppContextProps | undefined>(undefined);
@@ -34,6 +36,7 @@ const MobileAppContext = createContext<MobileAppContextProps | undefined>(undefi
 export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [wishlistProductIds, setWishlistProductIds] = useState<Set<string>>(new Set());
 
   // Re-use the existing logic to manage cart, warehouse, and products
   const mobileApp = useMobileApp(sessionUser?.id || null);
@@ -44,6 +47,33 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       navigationRef.navigate('LocationSelector');
     }
     return false;
+  };
+
+  const toggleWishlistItem = async (productId: string) => {
+    if (!sessionUser) return;
+    const isWishlisted = wishlistProductIds.has(productId);
+    
+    // Optimistic UI update
+    setWishlistProductIds(prev => {
+      const next = new Set(prev);
+      if (isWishlisted) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+
+    try {
+      const { toggleWishlist } = await import('../services/api');
+      await toggleWishlist(sessionUser.id, productId, isWishlisted ? 'remove' : 'add');
+    } catch (err) {
+      console.error('Failed to toggle wishlist:', err);
+      // Revert optimistic update on error
+      setWishlistProductIds(prev => {
+        const next = new Set(prev);
+        if (isWishlisted) next.add(productId);
+        else next.delete(productId);
+        return next;
+      });
+    }
   };
 
   useEffect(() => {
@@ -94,6 +124,15 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       
       setSessionUser(user);
+
+      // Load wishlist
+      try {
+        const { getWishlist } = await import('../services/api');
+        const wishlistIds = await getWishlist(user.id);
+        setWishlistProductIds(new Set(wishlistIds));
+      } catch (err) {
+        console.error('Failed to load wishlist:', err);
+      }
     } catch (err) {
       console.error(err);
       setSessionUser(null);
@@ -126,6 +165,8 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setSearchQuery: mobileApp.setSearchQuery,
       isResolvingLocation: mobileApp.isResolvingLocation,
       requireLocationForShopping,
+      wishlistProductIds,
+      toggleWishlistItem,
     }}>
       {children}
     </MobileAppContext.Provider>

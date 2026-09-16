@@ -18,11 +18,10 @@ import {
   LogOut,
   Bell,
   Navigation,
-  LayoutGrid,
-  Sliders,
   Calendar,
   CalendarDays,
-  Package
+  QrCode,
+  X
 } from 'lucide-react';
 
 // Import newly refactored sub-modules
@@ -33,33 +32,30 @@ import { InventoryWarehouse } from './modules/InventoryWarehouse';
 import { StaffManagement } from './modules/StaffManagement';
 import { PickerOffersManagement } from './modules/PickerOffersManagement';
 import { AdminProfile } from './modules/AdminProfile';
-import { UserCouponWallet } from './modules/UserCouponWallet';
 import { MarketingCMS } from './modules/MarketingCMS';
 import { SupportSettings } from './modules/SupportSettings';
 import { NotificationCenter as NotificationWidget } from '../../components/NotificationCenter';
 import { DeliveryOperations } from './modules/DeliveryOperations';
-import { PutawayModule, CycleCountsModule, ReturnsDispositionModule } from './modules/WarehouseOperations';
+
+import { WarehouseTasks } from './modules/WarehouseTasks';
 import { FinanceSettlements } from './modules/FinanceSettlements';
 import { ProcurementSupplier } from './modules/ProcurementSupplier';
 import { AnalyticsReports } from './modules/AnalyticsReports';
 import { NotificationCenter } from './modules/NotificationCenter';
-import { AuditLogs } from './modules/AuditLogs';
-import { StockTransfers } from './modules/StockTransfers';
 import { FleetManagement } from './modules/FleetManagement';
-import { WarehouseLayout } from './modules/WarehouseLayout';
-import { PlatformSettings } from './modules/PlatformSettings';
 import { WorkSlotManagement } from './modules/WorkSlotManagement';
-import { PackingStaging } from './modules/PackingStaging';
-import { DispatchHandoff } from './modules/DispatchHandoff';
 import { DriverApprovals } from './modules/DriverApprovals';
 import { WorkforceActivity } from './modules/WorkforceActivity';
+import { WarehouseQRDisplay } from './components/WarehouseQRDisplay';
 
 export const AdminView: React.FC = () => {
   const { theme, toggleTheme, currentUser, logout } = useApp();
   
+  const [showStoreQR, setShowStoreQR] = useState(false);
+  
   // Roster tab selection
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'catalog' | 'inventory' | 'putaway' | 'counts' | 'returns' | 'transfers' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'layout' | 'platformSettings' | 'work_slots' | 'packing' | 'dispatch' | 'audit_logs' | 'picker_offers' | 'workforce_history'
+    'overview' | 'orders' | 'catalog' | 'inventory' | 'warehouse_tasks' | 'staff' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
   >('overview');
 
   React.useEffect(() => {
@@ -85,25 +81,17 @@ export const AdminView: React.FC = () => {
     { id: 'delivery', label: 'Live Delivery Map', icon: <Map size={16} />, clearance: ['super_admin', 'support_ops'] },
     { id: 'catalog', label: 'Catalog Manager', icon: <BookOpen size={16} />, clearance: ['super_admin', 'warehouse_lead'] },
     { id: 'inventory', label: 'Inventory & Stock', icon: <Warehouse size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'putaway', label: 'Putaway', icon: <Map size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'counts', label: 'Cycle Counts', icon: <LayoutGrid size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'returns', label: 'Returns & Disposition', icon: <Package size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'transfers', label: 'Stock Transfers', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'packing', label: 'Packing & Staging', icon: <Package size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
-    { id: 'dispatch', label: 'Dispatch & Handoff', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
+    { id: 'warehouse_tasks', label: 'Warehouse Tasks', icon: <Map size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'staff', label: 'Workforce & Shifts', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'workforce_history', label: 'Staff Work History', icon: <CalendarDays size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'picker_offers', label: 'Picker Offers', icon: <Gift size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
-    { id: 'driver_approvals', label: 'Driver Approvals', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
+    { id: 'driver_approvals', label: 'Staff Approvals', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'procurement', label: 'Procurement & Replenishment', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'finance', label: 'Finance & Settlements', icon: <IndianRupee size={16} />, clearance: ['super_admin'] },
     { id: 'fleet', label: 'Fleet Management', icon: <Navigation size={16} />, clearance: ['super_admin', 'support_ops'] },
-    { id: 'layout', label: 'Warehouse Layout', icon: <LayoutGrid size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'work_slots', label: 'Work Slot Management', icon: <Calendar size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
 
     { id: 'settings', label: 'Support & CRM', icon: <Settings size={16} />, clearance: ['super_admin'] },
-    { id: 'platformSettings', label: 'Platform Settings', icon: <Sliders size={16} />, clearance: ['super_admin'] },
-    { id: 'audit_logs', label: 'System Audit Logs', icon: <ShieldCheck size={16} />, clearance: ['super_admin'] },
 
     // --- HIDDEN PAGES (Under Development - Uncomment to restore) ---
     // { id: 'marketing', label: 'Marketing CMS Alerts', icon: <Megaphone size={16} />, clearance: ['super_admin'] },
@@ -152,14 +140,9 @@ export const AdminView: React.FC = () => {
         return <ProductCatalog />;
       case 'inventory':
         return <InventoryWarehouse />;
-      case 'putaway':
-        return <PutawayModule />;
-      case 'counts':
-        return <CycleCountsModule />;
-      case 'returns':
-        return <ReturnsDispositionModule />;
-      case 'transfers':
-        return <StockTransfers />;
+      case 'warehouse_tasks':
+        return <WarehouseTasks />;
+
       case 'staff':
         return <StaffManagement />;
       case 'workforce_history':
@@ -172,8 +155,6 @@ export const AdminView: React.FC = () => {
         return <AdminProfile />;
       case 'procurement':
         return <ProcurementSupplier />;
-      case 'customers':
-        return <UserCouponWallet />;
       case 'finance':
         return <FinanceSettlements />;
       case 'marketing':
@@ -186,18 +167,8 @@ export const AdminView: React.FC = () => {
         return <NotificationCenter />;
       case 'fleet':
         return <FleetManagement />;
-      case 'layout':
-        return <WarehouseLayout />;
       case 'work_slots':
         return <WorkSlotManagement />;
-      case 'packing':
-        return <PackingStaging />;
-      case 'dispatch':
-        return <DispatchHandoff />;
-      case 'platformSettings':
-        return <PlatformSettings />;
-      case 'audit_logs':
-        return <AuditLogs />;
       default:
         return <OverviewDashboard />;
     }
@@ -258,6 +229,25 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button 
+              onClick={() => setShowStoreQR(true)} 
+              style={{
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px', 
+                backgroundColor: 'var(--bg-base)', 
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-light)',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                transition: 'all var(--transition-fast)'
+              }}
+            >
+              <QrCode size={16} /> Store QR
+            </button>
             <NotificationWidget />
             <button 
               onClick={() => setActiveTab('profile')} 
@@ -297,6 +287,32 @@ export const AdminView: React.FC = () => {
             </button>
           </div>
         </header>
+
+        {showStoreQR && (
+          <div 
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }} 
+            onClick={() => setShowStoreQR(false)}
+          >
+            <div 
+              className="form-container glass-panel animate-slide-up" 
+              style={{ padding: '0', borderRadius: '12px', width: '90%', maxWidth: '420px', backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column' }} 
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', padding: '16px 24px' }}>
+                <div style={{ fontWeight: 700, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
+                  <QrCode size={20} />
+                  Store QR
+                </div>
+                <button onClick={() => setShowStoreQR(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <X size={22} />
+                </button>
+              </div>
+              <div style={{ padding: 0 }}>
+                <WarehouseQRDisplay />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Core Sub-view Container */}
         <main style={workspaceContentStyle}>

@@ -4,7 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { theme } from '../theme';
-import { Plus, Minus } from 'lucide-react-native';
+import { Plus, Minus, Heart } from 'lucide-react-native';
+import { useMobileAppContext } from '../context/MobileAppContext';
 
 interface ProductCardProps {
   product: {
@@ -19,12 +20,17 @@ interface ProductCardProps {
   onUpdateCart: (id: string, change: number) => void;
   cardWidth: number;
   animateOnPress?: boolean;
+  variant?: 'default' | 'compact';
 }
 
-export default function ProductCard({ product, quantityInCart, onUpdateCart, cardWidth, animateOnPress = false }: ProductCardProps) {
+export default function ProductCard({ product, quantityInCart, onUpdateCart, cardWidth, animateOnPress = false, variant = 'default' }: ProductCardProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const isAvailable = (product.is_active !== false) && (product.stock_quantity === undefined || product.stock_quantity > 0);
   const [imgError, setImgError] = React.useState(false);
+  const { wishlistProductIds, toggleWishlistItem, sessionUser } = useMobileAppContext();
+  const isCompact = variant === 'compact';
+
+  const isWishlisted = wishlistProductIds.has(product.id);
 
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
@@ -72,6 +78,18 @@ export default function ProductCard({ product, quantityInCart, onUpdateCart, car
             resizeMode="cover" 
             onError={() => setImgError(true)}
           />
+          {sessionUser && (
+            <TouchableOpacity 
+              style={styles.wishlistBtn}
+              onPress={() => toggleWishlistItem(product.id)}
+            >
+              <Heart 
+                size={20} 
+                color={isWishlisted ? theme.colors.primary : "#999"} 
+                fill={isWishlisted ? theme.colors.primary : "transparent"} 
+              />
+            </TouchableOpacity>
+          )}
           {!isAvailable && (
             <View style={styles.overlay}>
               <Text style={styles.overlayText}>Out of Stock</Text>
@@ -79,35 +97,35 @@ export default function ProductCard({ product, quantityInCart, onUpdateCart, car
           )}
         </View>
 
-        <View style={styles.contentTop}>
-          <Text style={styles.title} numberOfLines={2}>{product.name}</Text>
-          <Text style={styles.unit}>1 pc</Text>
+        <View style={[styles.contentTop, isCompact && styles.contentTopCompact]}>
+          <Text style={[styles.title, isCompact && styles.titleCompact]} numberOfLines={2}>{product.name}</Text>
+          <Text style={[styles.unit, isCompact && styles.unitCompact]}>1 pc</Text>
         </View>
       </Pressable>
       
-      <View style={styles.contentBottom}>
+      <View style={[styles.contentBottom, isCompact && styles.contentBottomCompact]}>
         <View style={styles.footer}>
-          <Text style={styles.price}>₹{product.price.toFixed(2)}</Text>
+          <Text style={[styles.price, isCompact && styles.priceCompact]}>₹{product.price.toFixed(2)}</Text>
           
           {isAvailable ? (
             quantityInCart > 0 ? (
-              <View style={styles.counterGroup}>
-                <TouchableOpacity style={styles.counterBtn} onPress={() => onUpdateCart(product.id, -1)}>
-                  <Minus size={14} color="#fff" />
+              <View style={[styles.counterGroup, isCompact && styles.counterGroupCompact]}>
+                <TouchableOpacity style={[styles.counterBtn, isCompact && styles.counterBtnCompact]} onPress={() => onUpdateCart(product.id, -1)}>
+                  <Minus size={isCompact ? 12 : 14} color="#fff" />
                 </TouchableOpacity>
-                <Text style={styles.counterText}>{quantityInCart}</Text>
-                <TouchableOpacity style={styles.counterBtn} onPress={() => onUpdateCart(product.id, 1)}>
-                  <Plus size={14} color="#fff" />
+                <Text style={[styles.counterText, isCompact && styles.counterTextCompact]}>{quantityInCart}</Text>
+                <TouchableOpacity style={[styles.counterBtn, isCompact && styles.counterBtnCompact]} onPress={() => onUpdateCart(product.id, 1)}>
+                  <Plus size={isCompact ? 12 : 14} color="#fff" />
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.addBtn} onPress={() => onUpdateCart(product.id, 1)}>
-                <Text style={styles.addBtnText}>ADD</Text>
+              <TouchableOpacity style={[styles.addBtn, isCompact && styles.addBtnCompact]} onPress={() => onUpdateCart(product.id, 1)}>
+                <Text style={[styles.addBtnText, isCompact && styles.addBtnTextCompact]}>ADD</Text>
               </TouchableOpacity>
             )
           ) : (
-            <View style={styles.disabledBtn}>
-              <Text style={styles.disabledBtnText}>N/A</Text>
+            <View style={[styles.disabledBtn, isCompact && styles.disabledBtnCompact]}>
+              <Text style={[styles.disabledBtnText, isCompact && styles.disabledBtnTextCompact]}>N/A</Text>
             </View>
           )}
         </View>
@@ -232,5 +250,64 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '700',
     fontSize: 11,
+  },
+  wishlistBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 16,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  contentTopCompact: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+  },
+  contentBottomCompact: {
+    paddingHorizontal: 8,
+    paddingTop: 4,
+  },
+  titleCompact: {
+    fontSize: 11,
+    lineHeight: 14,
+    minHeight: 28,
+  },
+  unitCompact: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  priceCompact: {
+    fontSize: 12,
+  },
+  addBtnCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  addBtnTextCompact: {
+    fontSize: 10,
+  },
+  counterGroupCompact: {
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  counterBtnCompact: {
+    padding: 2,
+  },
+  counterTextCompact: {
+    fontSize: 11,
+    marginHorizontal: 4,
+  },
+  disabledBtnCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  disabledBtnTextCompact: {
+    fontSize: 10,
   }
 });

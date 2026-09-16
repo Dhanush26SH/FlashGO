@@ -5,6 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { theme } from '../theme';
 import ProductCard from '../components/ProductCard';
 import FloatingCartBar from '../components/FloatingCartBar';
+import FlashGoPageEnd from '../components/FlashGoPageEnd';
 import { useMobileAppContext } from '../context/MobileAppContext';
 import { fetchTrendingByTag } from '../services/api';
 import { SeasonalConfig } from '../utils/seasonalMerchandising';
@@ -70,6 +71,7 @@ export default function SeasonalBrowserScreen() {
             ))}
           </View>
         )}
+        <FlashGoPageEnd />
       </ScrollView>
       <FloatingCartBar />
     </View>

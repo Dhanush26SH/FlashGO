@@ -35,13 +35,7 @@ export default function FloatingCartBar({ onPress, bottomOffset = 24 }: Floating
     if (onPress) {
       onPress();
     } else {
-      // Standard behavior: open cart/checkout sheet if not on home.
-      // But we can't easily trigger the sheet from here if it lives on Home.
-      // Actually, navigation to a CartScreen if it exists, or just do nothing if not provided and no standard route.
-      // In FlashGO, the Cart is often a bottom sheet on Home. Wait, let's look at how it works.
-      // On ProductDetails, it calls navigation.goBack() to go home where cart is.
-      // I'll emit onPress. If not provided, assume going to Home or a Cart screen.
-      navigation.navigate('MainTabs', { screen: 'Home' }); // Fallback
+      navigation.navigate('Cart');
     }
   };
 

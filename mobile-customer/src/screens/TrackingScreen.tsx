@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
-import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert, CreditCard, XCircle, Banknote } from 'lucide-react-native';
+import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert, CreditCard, XCircle, Banknote, Box, Package } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../lib/supabase';
@@ -33,7 +33,7 @@ export default function TrackingScreen() {
       .channel(`order-${orderId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
         setOrder(payload.new);
-        if (payload.new.driver_id && ['driver_assigned', 'handed_off', 'out_for_delivery'].includes(payload.new.status) && !driverLocation) {
+        if (payload.new.driver_id && ['staged', 'handed_off', 'out_for_delivery'].includes(payload.new.status) && !driverLocation) {
           fetchDriverInfo(payload.new.driver_id);
           fetchDriverLocation(payload.new.driver_id);
           subscribeDriver(payload.new.driver_id);
@@ -117,7 +117,7 @@ export default function TrackingScreen() {
 
       if (orderData.driver_id) {
         fetchDriverInfo(orderData.driver_id);
-        if (['out_for_delivery', 'handed_off', 'driver_assigned'].includes(orderData.status)) {
+        if (['out_for_delivery', 'handed_off', 'staged'].includes(orderData.status)) {
           fetchDriverLocation(orderData.driver_id);
           subscribeDriver(orderData.driver_id);
         }
@@ -218,7 +218,9 @@ export default function TrackingScreen() {
   const getTimelineSteps = () => {
     const steps = [
       { key: 'placed', label: 'Order Placed', icon: Clock },
+      { key: 'picking', label: 'Picking', icon: Box },
       { key: 'packed', label: 'Packed & Ready', icon: CheckCircle2 },
+      { key: 'staged', label: 'Order Staged', icon: Package },
       { key: 'driver_assigned', label: 'Driver Assigned', icon: Bike },
       { key: 'handed_off', label: 'Driver Picked Up', icon: MapPin },
       { key: 'out_for_delivery', label: 'Out for Delivery', icon: Bike },
@@ -229,12 +231,20 @@ export default function TrackingScreen() {
       return [{ key: 'cancelled', label: 'Order Cancelled', icon: XCircle, state: 'done' }];
     }
 
-    const currentIndex = steps.findIndex(s => s.key === order?.status);
+    const orderStatusSteps = steps.filter(s => s.key !== 'driver_assigned');
+    const currentStatusIndex = orderStatusSteps.findIndex(s => s.key === order?.status);
     
-    return steps.map((step, index) => {
+    return steps.map((step) => {
       let state: 'done' | 'active' | 'pending' = 'pending';
-      if (currentIndex > index) state = 'done';
-      if (currentIndex === index) state = 'active';
+      
+      if (step.key === 'driver_assigned') {
+        if (order?.driver_id) state = 'done';
+      } else {
+        const stepIndex = orderStatusSteps.findIndex(s => s.key === step.key);
+        if (currentStatusIndex > stepIndex) state = 'done';
+        if (currentStatusIndex === stepIndex) state = 'active';
+      }
+      
       if (order?.status === 'delivered') state = 'done';
       return { ...step, state };
     });
@@ -360,7 +370,7 @@ export default function TrackingScreen() {
 
         <ScrollView style={styles.scrollContent}>
           {/* Driver Card */}
-          {['driver_assigned', 'handed_off', 'out_for_delivery'].includes(order.status) && driverInfo ? (
+          {order.driver_id && driverInfo && ['staged', 'handed_off', 'out_for_delivery'].includes(order.status) ? (
             <View style={styles.driverCard}>
               <View style={styles.driverLeft}>
                 <View style={styles.driverAvatar}>

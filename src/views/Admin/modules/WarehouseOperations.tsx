@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, MapPin, Check, Plus, AlertCircle, RefreshCw, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Clock, User, Hash, Calendar } from 'lucide-react';
+import { Package, MapPin, Check, Plus, AlertCircle, RefreshCw, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Clock, User, Hash, Calendar, CheckCircle } from 'lucide-react';
 import { InventoryService } from '../../../services/api/InventoryService';
 import { useApp } from '../../../context/AppContext';
 import { supabase } from '../../../services/api/supabaseClient';
@@ -392,147 +392,97 @@ export const PutawayModule: React.FC = () => {
   );
 };
 
-export const CycleCountsModule: React.FC = () => {
-  const { currentUser, addToast } = useApp();
-  const [counts, setCounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchCounts = async () => {
-    try {
-      if (!currentUser?.warehouse_id) return;
-      const data = await InventoryService.getCycleCounts(currentUser.warehouse_id);
-      setCounts(data || []);
-    } catch (e: any) {
-      addToast(e.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCounts();
-    if (!supabase || !currentUser?.warehouse_id) return;
-    const channel = supabase.channel('cycle_counts_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cycle_counts', filter: `warehouse_id=eq.${currentUser.warehouse_id}` }, () => {
-        fetchCounts();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [currentUser]);
-
-  const handleResolve = async (id: string, status: 'approved' | 'rejected') => {
-    if (!confirm(`Are you sure you want to ${status} this count?`)) return;
-    try {
-      await InventoryService.resolveCycleCount(id, status, currentUser!.id);
-      addToast(`Count ${status}`, 'success');
-      fetchCounts();
-    } catch (e: any) {
-      addToast(e.message, 'error');
-    }
-  };
-
-  if (loading) return <div style={{ padding: '20px', color: 'var(--text-secondary)' }}>Loading cycle counts...</div>;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle color="var(--primary)" /> Cycle Counts & Variances
-        </h2>
-        <button onClick={fetchCounts} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <RefreshCw size={16} /> Refresh
-        </button>
-      </div>
-
-      <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '12px', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-          <thead>
-            <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Count ID</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Product</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>System Qty</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Counted Qty</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Variance</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Status</th>
-              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {counts.length === 0 ? (
-              <EmptyState message="No cycle counts pending resolution." icon={<AlertCircle size={32} opacity={0.5} />} />
-            ) : (
-              counts.map(c => (
-                <tr key={c.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{c.id.slice(0, 8)}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{c.product?.name || 'Unknown'}</td>
-                  <td style={{ padding: '12px 16px' }}>{c.system_quantity}</td>
-                  <td style={{ padding: '12px 16px' }}>{c.counted_quantity ?? '-'}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 700, color: (c.variance || 0) < 0 ? '#ef4444' : (c.variance || 0) > 0 ? '#f59e0b' : 'inherit' }}>
-                    {c.variance ?? '-'}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: c.status === 'approved' ? 'rgba(16, 185, 129, 0.1)' : c.status === 'rejected' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: c.status === 'approved' ? '#10b981' : c.status === 'rejected' ? '#ef4444' : '#f59e0b' }}>
-                      {c.status.toUpperCase()}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {c.status === 'submitted' && (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => handleResolve(c.id, 'approved')} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
-                          <Check size={14} /> Approve
-                        </button>
-                        <button onClick={() => handleResolve(c.id, 'rejected')} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ef4444', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
-                          <X size={14} /> Reject
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
 export const ReturnsDispositionModule: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const [queue, setQueue] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorState, setErrorState] = useState<string | null>(null);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
+  const [locations, setLocations] = useState<any[]>([]);
+  const [restockModalOpen, setRestockModalOpen] = useState(false);
+  const [currentRestockId, setCurrentRestockId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
+  const [processing, setProcessing] = useState(false);
 
   const fetchQueue = async () => {
     try {
-      if (!currentUser?.warehouse_id) return;
-      const data = await InventoryService.getUnpackQueue(currentUser.warehouse_id);
+      if (!selectedWarehouseId) return;
+      setLoading(true);
+      setErrorState(null);
+      const data = await InventoryService.getUnpackQueue(selectedWarehouseId);
       setQueue(data || []);
     } catch (e: any) {
       addToast(e.message, 'error');
+      setErrorState(e.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchQueue();
-    if (!supabase || !currentUser?.warehouse_id) return;
-    const channel = supabase.channel('order_unpack_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_unpack_queue', filter: `warehouse_id=eq.${currentUser.warehouse_id}` }, () => {
+    InventoryService.getWarehouses().then(data => {
+      setWarehouses(data);
+      if (data.length > 0 && !selectedWarehouseId) {
+        setSelectedWarehouseId(currentUser?.warehouse_id || data[0].id);
+      }
+    }).catch(console.error);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (selectedWarehouseId) {
+      fetchQueue();
+      InventoryService.getActiveLocations(selectedWarehouseId).then(setLocations).catch(console.error);
+    }
+  }, [selectedWarehouseId]);
+
+  useEffect(() => {
+    if (!supabase || !selectedWarehouseId) return;
+    const channel = supabase.channel('order_unpack_changes_' + selectedWarehouseId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_unpack_queue', filter: `warehouse_id=eq.${selectedWarehouseId}` }, () => {
         fetchQueue();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [currentUser]);
+  }, [selectedWarehouseId]);
+
+  const initiateRestock = (id: string) => {
+    setCurrentRestockId(id);
+    setSelectedLocationId('');
+    setRestockModalOpen(true);
+  };
+
+  const submitRestock = async () => {
+    if (!currentRestockId || !selectedLocationId) return;
+    try {
+      setProcessing(true);
+      await InventoryService.processOrderUnpack(currentRestockId, 'restocked', currentUser!.id, selectedLocationId);
+      addToast('Processed as restocked', 'success');
+      setRestockModalOpen(false);
+      setCurrentRestockId(null);
+      fetchQueue();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const handleDisposition = async (id: string, disp: 'restocked' | 'damaged' | 'quarantine') => {
+    if (disp === 'restocked') {
+      initiateRestock(id);
+      return;
+    }
     if (!confirm(`Confirm disposition: ${disp.toUpperCase()}?`)) return;
     try {
+      setProcessing(true);
       await InventoryService.processOrderUnpack(id, disp, currentUser!.id);
       addToast(`Processed as ${disp}`, 'success');
       fetchQueue();
     } catch (e: any) {
       addToast(e.message, 'error');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -544,9 +494,25 @@ export const ReturnsDispositionModule: React.FC = () => {
         <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertTriangle color="var(--primary)" /> Returns & Disposition Queue
         </h2>
-        <button onClick={fetchQueue} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <RefreshCw size={16} /> Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <select 
+            value={selectedWarehouseId} 
+            onChange={e => setSelectedWarehouseId(e.target.value)}
+            disabled={!!currentUser?.warehouse_id}
+            style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', opacity: currentUser?.warehouse_id ? 0.7 : 1 }}
+          >
+            {warehouses.map(w => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+          <button 
+            onClick={fetchQueue} 
+            disabled={loading}
+            style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)', color: 'var(--text-primary)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : ''} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '12px', overflow: 'hidden' }}>
@@ -560,7 +526,16 @@ export const ReturnsDispositionModule: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {queue.length === 0 ? (
+            {errorState ? (
+              <tr>
+                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <AlertTriangle size={32} opacity={0.5} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Failed to load queue: {errorState}</span>
+                  </div>
+                </td>
+              </tr>
+            ) : queue.length === 0 ? (
               <EmptyState message="No pending items in returns & disposition queue." icon={<AlertTriangle size={32} opacity={0.5} />} />
             ) : (
               queue.map(q => (
@@ -575,13 +550,13 @@ export const ReturnsDispositionModule: React.FC = () => {
                   <td style={{ padding: '12px 16px' }}>
                     {q.status === 'pending' && (
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => handleDisposition(q.id, 'restocked')} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', cursor: 'pointer', fontSize: '0.75rem' }}>
+                        <button onClick={() => handleDisposition(q.id, 'restocked')} disabled={processing} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', cursor: processing ? 'not-allowed' : 'pointer', fontSize: '0.75rem', opacity: processing ? 0.6 : 1 }}>
                           Restock
                         </button>
-                        <button onClick={() => handleDisposition(q.id, 'damaged')} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ef4444', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem' }}>
+                        <button onClick={() => handleDisposition(q.id, 'damaged')} disabled={processing} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ef4444', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: processing ? 'not-allowed' : 'pointer', fontSize: '0.75rem', opacity: processing ? 0.6 : 1 }}>
                           Damaged
                         </button>
-                        <button onClick={() => handleDisposition(q.id, 'quarantine')} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #f59e0b', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', cursor: 'pointer', fontSize: '0.75rem' }}>
+                        <button onClick={() => handleDisposition(q.id, 'quarantine')} disabled={processing} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #f59e0b', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', cursor: processing ? 'not-allowed' : 'pointer', fontSize: '0.75rem', opacity: processing ? 0.6 : 1 }}>
                           Quarantine
                         </button>
                       </div>
@@ -593,6 +568,49 @@ export const ReturnsDispositionModule: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {restockModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', width: '400px', maxWidth: '90%', border: '1px solid var(--border-light)' }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Package size={20} color="#10b981" /> Restock Location
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px', lineHeight: 1.4 }}>
+              Choose a physical location to restock this return into. The location must belong to the current warehouse.
+            </p>
+            
+            <select 
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              disabled={processing}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', marginBottom: '24px' }}
+            >
+              <option value="">-- Select Destination --</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.location_code} ({loc.zone})</option>
+              ))}
+            </select>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setRestockModalOpen(false)}
+                disabled={processing}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-primary)', cursor: processing ? 'not-allowed' : 'pointer', opacity: processing ? 0.6 : 1 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={submitRestock}
+                disabled={!selectedLocationId || processing}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#10b981', color: 'white', cursor: (!selectedLocationId || processing) ? 'not-allowed' : 'pointer', opacity: (!selectedLocationId || processing) ? 0.6 : 1, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                {processing ? <RefreshCw size={14} className="spin" /> : <CheckCircle size={14} />} 
+                {processing ? 'Processing...' : 'Confirm Restock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

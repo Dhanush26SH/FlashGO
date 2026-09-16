@@ -232,7 +232,8 @@ export default function NavigationScreen() {
     };
     fetchTrip();
     
-    const channel = supabase.channel(`trip_${tripId}`)
+    const channelName = `trip_${tripId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(channelName)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'logistics_trips', filter: `id=eq.${tripId}` }, (payload) => {
          const updated = payload.new as any;
          setTripStatus(updated.status);

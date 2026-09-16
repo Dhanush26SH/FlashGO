@@ -178,7 +178,8 @@ export default function FeedScreen({ navigation }: any) {
   useEffect(() => {
     fetchTripsAndMetrics();
 
-    const channel = supabase.channel('trips_feed_channel')
+    const channelName = `trips_feed_channel_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'logistics_trips' }, () => fetchTripsAndMetrics())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_financial_ledger' }, () => fetchTripsAndMetrics())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_shifts' }, () => fetchTripsAndMetrics())

@@ -1,10 +1,9 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { List, Wallet, CalendarDays, Bell } from 'lucide-react-native';
+import { List, Wallet, CalendarDays } from 'lucide-react-native';
 import FeedScreen from '../screens/Rider/FeedScreen';
 import PocketScreen from '../screens/Rider/PocketScreen';
 import GigsScreen from '../screens/Rider/GigsScreen';
-import UpdatesScreen from '../screens/Rider/UpdatesScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -45,13 +44,6 @@ export default function DriverMainTabs() {
         component={GigsScreen} 
         options={{
           tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size} />
-        }}
-      />
-      <Tab.Screen 
-        name="Updates" 
-        component={UpdatesScreen} 
-        options={{
-          tabBarIcon: ({ color, size }) => <Bell color={color} size={size} />
         }}
       />
     </Tab.Navigator>

@@ -50,19 +50,32 @@ export default function SlotsScreen() {
   };
 
   const generateDates = () => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const generatedDates = [];
-    const today = new Date();
+    const todayMs = Date.now();
     
     for (let i = 0; i < 10; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
+      const dTarget = new Date(todayMs + i * 86400000);
       
-      const month = months[d.getMonth()];
-      const dateStr = d.getDate().toString();
-      const dayStr = days[d.getDay()];
-      const isoDate = d.toISOString().split('T')[0];
+      const f = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        weekday: 'short',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      const parts = f.formatToParts(dTarget);
+      const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+      
+      const month = p.month;
+      const dateStr = p.day;
+      const dayStr = p.weekday;
+      
+      const isoDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(dTarget);
       
       generatedDates.push({ month, dateStr, dayStr, isoDate });
     }
@@ -94,8 +107,9 @@ export default function SlotsScreen() {
       if (profile?.id) {
         let bookingsQuery = supabase
           .from('staff_shifts')
-          .select('work_slot_id, shift_start, work_slots(warehouse_id)')
+          .select('work_slot_id, shift_start, shift_end, work_slots(warehouse_id)')
           .eq('staff_id', profile.id)
+          .gt('shift_end', todayIso)
           .neq('status', 'cancelled');
           
         const { data } = await bookingsQuery;
@@ -107,9 +121,17 @@ export default function SlotsScreen() {
         });
       }
 
-      const datesWithCounts = dates.map(d => {
-        const slotsForDate = (allSlots || []).filter(s => s.start_time.startsWith(d.isoDate));
-        const bookingsForDate = (myBookings || []).filter((b: any) => b.shift_start.startsWith(d.isoDate));
+      const datesWithCounts = dates.map((d, idx) => {
+        const matchDate = (isoString: string) => {
+          if (!isoString) return false;
+          const localIso = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+          }).format(new Date(isoString));
+          return localIso === d.isoDate;
+        };
+
+        const slotsForDate = (allSlots || []).filter(s => matchDate(s.start_time));
+        const bookingsForDate = (myBookings || []).filter((b: any) => matchDate(b.shift_start));
         
         const openCount = Math.max(0, slotsForDate.length - bookingsForDate.length);
         const bookedCount = bookingsForDate.length;
@@ -124,6 +146,8 @@ export default function SlotsScreen() {
           title = `${openCount} Slots open, ${bookedCount} Booked`;
           subtitle = selectedWarehouse ? selectedWarehouse.name : 'Store available';
           icon = 'store';
+        } else if (idx === 0) {
+          title = 'No more slots available today';
         }
 
         return { ...d, isActive, title, subtitle, icon, openCount, bookedCount };

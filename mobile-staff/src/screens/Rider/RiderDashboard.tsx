@@ -89,7 +89,8 @@ export default function RiderDashboard({ route, navigation }: any) {
   useEffect(() => {
     fetchTripDetails();
     
-    const channel = supabase.channel(`trip_${tripId}`)
+    const channelName = `trip_${tripId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'logistics_trips', filter: `id=eq.${tripId}` },

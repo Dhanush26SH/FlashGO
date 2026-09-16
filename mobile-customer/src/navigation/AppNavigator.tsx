@@ -1,8 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Home, Package, HeadphonesIcon, User, RotateCcw, Grid, Printer } from 'lucide-react-native';
+import { Home, Package, HeadphonesIcon, User, RotateCcw, Grid, Printer, Heart } from 'lucide-react-native';
 import { View, ActivityIndicator } from 'react-native';
+import SplashScreen from '../components/SplashScreen';
 
 import { useMobileAppContext } from '../context/MobileAppContext';
 import { theme } from '../theme';
@@ -22,6 +23,7 @@ import CategoryBrowserScreen from '../screens/CategoryBrowserScreen';
 import OrderAgainScreen from '../screens/OrderAgainScreen';
 import CategoriesScreen from '../screens/CategoriesScreen';
 import PrintScreen from '../screens/PrintScreen';
+import WishlistScreen from '../screens/WishlistScreen';
 import LocationSelectorSheet from '../components/LocationSelectorSheet';
 import ConfirmLocationScreen from '../screens/ConfirmLocationScreen';
 import SeasonalBrowserScreen from '../screens/SeasonalBrowserScreen';
@@ -31,6 +33,7 @@ import PaymentOptionsScreen from '../screens/PaymentOptionsScreen';
 import AddressDetailsScreen from '../screens/AddressDetailsScreen';
 import OrderPlacedScreen from '../screens/OrderPlacedScreen';
 import RazorpayCheckoutScreen from '../screens/RazorpayCheckoutScreen';
+import AboutFlashGoScreen from '../screens/AboutFlashGoScreen';
 
 // Types
 export type RootStackParamList = {
@@ -59,13 +62,15 @@ export type RootStackParamList = {
   AddressDetails: { lat: number, lng: number, name: string, address: string, existingAddress?: any };
   OrderPlaced: { orderId: string };
   RazorpayCheckout: { orderId: string; amount: number; isConversion?: boolean };
+  Print: undefined;
+  AboutFlashGo: undefined;
 };
 
 export type MainTabParamList = {
   Home: undefined;
   OrderAgain: undefined;
   Categories: undefined;
-  Print: undefined;
+  Wishlist: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -123,10 +128,10 @@ function MainTabNavigator() {
         }}
       />
       <Tab.Screen 
-        name="Print" 
-        component={PrintScreen} 
+        name="Wishlist" 
+        component={WishlistScreen} 
         options={{
-          tabBarIcon: ({ color, size }) => <Printer size={size} color={color} />
+          tabBarIcon: ({ color, size }) => <Heart size={size} color={color} />
         }}
       />
     </Tab.Navigator>
@@ -137,11 +142,7 @@ export default function AppNavigator() {
   const { sessionUser, isLoadingSession } = useMobileAppContext();
 
   if (isLoadingSession) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   return (
@@ -195,9 +196,11 @@ export default function AppNavigator() {
                 animation: 'slide_from_bottom' 
               }} 
             />
+            <Stack.Screen name="AboutFlashGo" component={AboutFlashGoScreen} />
             <Stack.Screen name="OrdersStack" component={OrdersScreen} />
             <Stack.Screen name="SupportStack" component={SupportScreen} />
             <Stack.Screen name="Cart" component={CartScreen} />
+            <Stack.Screen name="Print" component={PrintScreen} />
             <Stack.Screen name="PaymentOptions" component={PaymentOptionsScreen} />
             <Stack.Screen name="OrderPlaced" component={OrderPlacedScreen} />
             <Stack.Screen name="RazorpayCheckout" component={RazorpayCheckoutScreen} />

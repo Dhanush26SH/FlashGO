@@ -33,13 +33,13 @@ export default function SlotDetailsScreen() {
   const fetchSlots = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch all slots for this date
+      // 1. Fetch all slots for this date in Asia/Kolkata Timezone
       let query = supabase
         .from('work_slots')
         .select('*')
         .eq('status', 'published')
-        .gte('start_time', `${isoDate}T00:00:00Z`)
-        .lte('start_time', `${isoDate}T23:59:59Z`)
+        .gte('start_time', `${isoDate}T00:00:00+05:30`)
+        .lte('start_time', `${isoDate}T23:59:59+05:30`)
         .order('start_time', { ascending: true });
 
       if (profile?.role) {
@@ -68,22 +68,32 @@ export default function SlotDetailsScreen() {
       const formattedOpenSlots: any[] = [];
       const formattedBookedSlots: any[] = [];
 
+      const nowMs = Date.now();
+      
       (allSlotsData || []).forEach(slot => {
         const startDate = new Date(slot.start_time);
         const endDate = new Date(slot.end_time);
+        
         const timeStr = `${startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} - ${endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
         const payoutStr = 'Standard Rate';
+        const durationMins = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
         
         if (myBookedSlotIds.has(slot.id)) {
+          // Booked slots remain visible if they haven't completely ended
+          if (endDate.getTime() <= nowMs) return;
+
           formattedBookedSlots.push({
             id: slot.id,
             time: timeStr,
             payout: payoutStr,
             status: 'booked',
-            storeLocation: 'Warehouse' // Fallback since warehouse_id is used now
+            storeLocation: 'Warehouse',
+            durationMins
           });
         } else {
-          // If capacity is reached, it should ideally be filtered or shown as full, but for now we'll show it
+          // Open slots MUST NOT have started yet (matches backend booking RPC)
+          if (startDate.getTime() <= nowMs) return;
+          
           formattedOpenSlots.push({
             id: slot.id,
             time: timeStr,
@@ -343,12 +353,21 @@ export default function SlotDetailsScreen() {
       {activeTab === 'booked' && (
         <View style={styles.bookedFooterBanner}>
           <View>
-            <Text style={styles.footerLabel}>Selected slots</Text>
-            <Text style={styles.footerValue}>{bookedSlots.length} Slots ({bookedSlots.length * 2} Hours)</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.footerLabel}>Estimated earnings</Text>
-            <Text style={styles.footerValue}>₹140 - ₹765</Text>
+            <Text style={styles.footerLabel}>Upcoming bookings</Text>
+            {bookedSlots.length > 0 ? (
+              <Text style={styles.footerValue}>
+                {bookedSlots.length} Slots • {
+                  (() => {
+                    const totalMins = bookedSlots.reduce((sum, slot) => sum + slot.durationMins, 0);
+                    const h = Math.floor(totalMins / 60);
+                    const m = totalMins % 60;
+                    return h > 0 ? `${h}h ${m}m` : `${m} min`;
+                  })()
+                }
+              </Text>
+            ) : (
+              <Text style={styles.footerValue}>No upcoming bookings</Text>
+            )}
           </View>
         </View>
       )}

@@ -1,41 +1,75 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, SafeAreaView } from 'react-native';
-import { RotateCcw } from 'lucide-react-native';
+import { View, Text, StyleSheet, ActivityIndicator, SafeAreaView, ScrollView } from 'react-native';
+import { supabase } from '../lib/supabase';
 import { fetchOrders } from '../services/api';
 import { theme } from '../theme';
 import { useMobileAppContext } from '../context/MobileAppContext';
 import ProductCard from '../components/ProductCard';
 import FloatingCartBar from '../components/FloatingCartBar';
+import FlashGoPageEnd from '../components/FlashGoPageEnd';
 
 export default function OrderAgainScreen() {
   const [loading, setLoading] = useState(true);
   const [pastProducts, setPastProducts] = useState<any[]>([]);
-  const { products, cart, updateCart, requireLocationForShopping } = useMobileAppContext();
+  const [bestSellers, setBestSellers] = useState<any[]>([]);
+  const { products, cart, updateCart, requireLocationForShopping, servingWarehouseId, sessionUser } = useMobileAppContext();
 
   useEffect(() => {
-    loadPastItems();
-  }, [products]);
+    if (sessionUser) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
+  }, [products, servingWarehouseId, sessionUser]);
 
-  const loadPastItems = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
+      
       const orders = await fetchOrders();
       
+      const d = new Date();
+      const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+      const ist = new Date(utc + (3600000 * 5.5));
+      const day = ist.getDay();
+      const diff = ist.getDate() - day + (day === 0 ? -6 : 1);
+      ist.setDate(diff);
+      ist.setHours(0, 0, 0, 0);
+      const mondayUTC = new Date(ist.getTime() - (3600000 * 5.5));
+
       const uniqueProductIds = new Set<string>();
       orders.forEach((o: any) => {
-        if (o.order_items) {
-          o.order_items.forEach((item: any) => {
-            uniqueProductIds.add(item.product_id);
-          });
+        if (o.status === 'delivered') {
+          const orderDate = new Date(o.created_at);
+          if (orderDate >= mondayUTC) {
+            if (o.order_items) {
+              o.order_items.forEach((item: any) => {
+                uniqueProductIds.add(item.product_id);
+              });
+            }
+          }
         }
       });
 
-      // Cross-reference with live catalog to get active/current pricing and availability
       const availablePastProducts = products.filter((p: any) => 
         uniqueProductIds.has(p.id) && p.is_active
       );
-
       setPastProducts(availablePastProducts);
+
+      if (servingWarehouseId) {
+        const { data, error } = await supabase.rpc('get_weekly_best_sellers', { p_warehouse_id: servingWarehouseId });
+        if (!error && data) {
+          const bsProducts = [];
+          for (const item of data) {
+            const product = products.find(p => p.id === item.product_id);
+            if (product && product.is_active) {
+              bsProducts.push(product);
+            }
+          }
+          setBestSellers(bsProducts);
+        }
+      }
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -54,33 +88,61 @@ export default function OrderAgainScreen() {
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : (
-        <FlatList
-          data={pastProducts}
-          keyExtractor={p => p.id}
-          numColumns={2}
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.row}
-          renderItem={({ item }) => (
-            <View style={styles.gridItem}>
-              <ProductCard 
-                product={item} 
-                quantityInCart={cart[item.id] || 0}
-                onUpdateCart={(id, change) => {
-                  if (!requireLocationForShopping()) return;
-                  updateCart(id, Math.max(0, (cart[id] || 0) + change));
-                }}
-                cardWidth={'100%' as any}
-              />
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionTitle}>Your Purchases This Week</Text>
+          {pastProducts.length > 0 ? (
+            <View style={styles.productGrid}>
+              {pastProducts.map(item => (
+                <View key={item.id} style={styles.gridItem}>
+                  <ProductCard 
+                    product={item} 
+                    quantityInCart={cart[item.id] || 0}
+                    onUpdateCart={(id, change) => {
+                      if (!requireLocationForShopping()) return;
+                      updateCart(id, Math.max(0, (cart[id] || 0) + change));
+                    }}
+                    cardWidth={'100%' as any}
+                    variant="compact"
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>Reordering will be easy</Text>
+              <Text style={styles.emptySub}>Items you order this week will show up here so you can buy them again easily.</Text>
             </View>
           )}
-          ListEmptyComponent={
+
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Best Sellers This Week</Text>
+          {!servingWarehouseId ? (
             <View style={styles.emptyBox}>
-              <RotateCcw size={48} color={theme.colors.border} />
-              <Text style={styles.emptyTitle}>Nothing to reorder yet</Text>
-              <Text style={styles.emptySub}>Your previously ordered items will appear here once you make a purchase.</Text>
+              <Text style={styles.emptySub}>Choose a delivery location to see best sellers near you.</Text>
             </View>
-          }
-        />
+          ) : bestSellers.length > 0 && (
+            <View style={styles.productGrid}>
+              {bestSellers.map(item => (
+                <View key={`bs-${item.id}`} style={styles.gridItem}>
+                  <ProductCard 
+                    product={item} 
+                    quantityInCart={cart[item.id] || 0}
+                    onUpdateCart={(id, change) => {
+                      if (!requireLocationForShopping()) return;
+                      updateCart(id, Math.max(0, (cart[id] || 0) + change));
+                    }}
+                    cardWidth={'100%' as any}
+                    variant="compact"
+                  />
+                </View>
+              ))}
+            </View>
+          )}
+
+          <FlashGoPageEnd />
+        </ScrollView>
       )}
       <FloatingCartBar />
     </SafeAreaView>
@@ -110,26 +172,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listContent: {
-    padding: 8,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 100,
   },
-  row: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  gridItem: {
-    width: '48%',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 16,
   },
+  productGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  gridItem: {
+    width: '32%',
+    marginBottom: 12,
+  },
   emptyBox: {
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 40,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   emptyTitle: {
-    marginTop: 16,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#111827',
   },
@@ -137,5 +209,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: '#6B7280',
     textAlign: 'center',
+    fontSize: 14,
   }
 });

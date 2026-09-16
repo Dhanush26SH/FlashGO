@@ -87,9 +87,8 @@ export const WarehouseQRDisplay: React.FC = () => {
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '24px', backgroundColor: 'var(--bg-surface)', borderRadius: '12px',
-      border: '1px solid var(--border-light)', height: '100%'
+      border: 'none', height: '100%'
     }}>
-      <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-primary)' }}>Driver Check-In QR</h3>
       
       {isGlobalAdmin && (
         <div style={{ width: '100%', marginBottom: '24px' }}>
@@ -109,7 +108,7 @@ export const WarehouseQRDisplay: React.FC = () => {
 
       {!selectedWarehouseId ? (
         <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          Please select a warehouse to display its check-in QR.
+          Select a store to display its check-in QR
         </div>
       ) : loading && !qrToken ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: 'var(--text-secondary)' }}>

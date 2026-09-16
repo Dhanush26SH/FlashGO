@@ -37,7 +37,12 @@ import DriverDeliveryCompleteScreen from '../screens/Rider/DriverDeliveryComplet
 import DriverReturnToStoreScreen from '../screens/Rider/DriverReturnToStoreScreen';
 import DeliveryHistoryScreen from '../screens/Rider/DeliveryHistoryScreen';
 import WarehouseStaffQRScreen from '../screens/Warehouse/WarehouseStaffQRScreen';
+import WarehouseReturnQRScannerScreen from '../screens/Warehouse/WarehouseReturnQRScannerScreen';
+import ReturnIntakeSummaryScreen from '../screens/Warehouse/ReturnIntakeSummaryScreen';
+import ReturnItemScannerScreen from '../screens/Warehouse/ReturnItemScannerScreen';
+import DriverReturnHandoverScreen from '../screens/Rider/DriverReturnHandoverScreen';
 import { View, Text } from 'react-native';
+import SplashScreen from '../components/SplashScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -45,11 +50,7 @@ export default function AppNavigator() {
   const { role, profile, isLoading, session } = useAuth() as any;
 
   if (isLoading || (session && !profile)) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#030712', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{color: '#10b981', fontWeight: 'bold'}}>Loading FlashGO...</Text>
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   const renderScreens = () => {
@@ -83,6 +84,7 @@ export default function AppNavigator() {
             <Stack.Screen name="DriverDropOrderScreen" component={DriverDropOrderScreen} />
             <Stack.Screen name="DriverDeliveryCompleteScreen" component={DriverDeliveryCompleteScreen} />
             <Stack.Screen name="DriverReturnToStoreScreen" component={DriverReturnToStoreScreen} />
+            <Stack.Screen name="DriverReturnHandoverScreen" component={DriverReturnHandoverScreen} />
             <Stack.Screen name="NavigationScreen" component={NavigationScreen} />
             <Stack.Screen name="VehicleType" component={require('../screens/DriverOnboarding/UpdateVehicleDetailsScreen').default} />
             <Stack.Screen name="DeliveryHistory" component={DeliveryHistoryScreen} />
@@ -93,6 +95,9 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="WarehouseMainTabs" component={WarehouseMainTabs} />
             <Stack.Screen name="WarehouseStaffQRScreen" component={WarehouseStaffQRScreen} />
+            <Stack.Screen name="WarehouseReturnQRScannerScreen" component={WarehouseReturnQRScannerScreen} />
+            <Stack.Screen name="ReturnIntakeSummaryScreen" component={ReturnIntakeSummaryScreen} />
+            <Stack.Screen name="ReturnItemScannerScreen" component={ReturnItemScannerScreen} />
             <Stack.Screen name="Scanner" component={ScannerScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />
           </>

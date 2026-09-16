@@ -5,7 +5,6 @@ import PickerDashboard from '../screens/Picker/PickerDashboard';
 import SlotsScreen from '../screens/Slots/SlotsScreen';
 import ProfileScreen from '../screens/Rider/DriverProfileScreen';
 import PickerProfileScreen from '../screens/Picker/PickerProfileScreen';
-import PerformanceScreen from '../screens/Performance/PerformanceScreen';
 import OffersScreen from '../screens/Offers/OffersScreen';
 import { useAuth } from '../context/AuthContext';
 
@@ -42,13 +41,7 @@ export default function MainTabs() {
           tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />
         }}
       />
-      <Tab.Screen 
-        name="Performance" 
-        component={PerformanceScreen} 
-        options={{
-          tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} />
-        }}
-      />
+
       <Tab.Screen 
         name="Offers" 
         component={OffersScreen} 

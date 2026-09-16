@@ -162,7 +162,8 @@ export default function PickerShiftScreen() {
   // Realtime subscription
   useEffect(() => {
     if (!profile?.id) return;
-    const channel = supabase.channel('picker-active-orders')
+    const channelName = `picker_active_orders_shift_${profile.id}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const channel = supabase.channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `picker_id=eq.${profile.id}` },

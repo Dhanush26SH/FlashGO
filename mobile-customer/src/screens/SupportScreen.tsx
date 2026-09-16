@@ -70,7 +70,7 @@ export default function SupportScreen() {
     if (!newMsg.trim() || !activeTicket) return;
     try {
       setSending(true);
-      await sendSupportMessage({ ticket_id: activeTicket.id, message: newMsg, sender_role: 'customer' });
+      await sendSupportMessage({ ticket_id: activeTicket.id, message: newMsg, sender_id: sessionUser?.id });
       setNewMsg('');
     } catch (err: any) {
       Alert.alert('Error', err.message);
@@ -143,9 +143,12 @@ export default function SupportScreen() {
             contentContainerStyle={styles.chatContent}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             renderItem={({ item }) => {
-              const isCustomer = item.sender_role === 'customer';
+              const isCustomer = item.sender_id === sessionUser?.id;
               return (
                 <View style={[styles.msgWrapper, isCustomer ? styles.msgWrapperRight : styles.msgWrapperLeft]}>
+                  {!isCustomer && (
+                    <Text style={{ fontSize: 10, color: theme.colors.textMuted, marginBottom: 4, fontWeight: '600' }}>FlashGO Support</Text>
+                  )}
                   <View style={[styles.msgBubble, isCustomer ? styles.msgCustomer : styles.msgAdmin]}>
                     <Text style={[styles.msgText, isCustomer && { color: theme.colors.surface }]}>{item.message}</Text>
                   </View>

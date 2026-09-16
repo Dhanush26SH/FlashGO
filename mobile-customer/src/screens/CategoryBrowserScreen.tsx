@@ -10,6 +10,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import ProductCard from '../components/ProductCard';
 import FlashTransition from '../components/FlashTransition';
 import FloatingCartBar from '../components/FloatingCartBar';
+import FlashGoPageEnd from '../components/FlashGoPageEnd';
 
 type CategoryBrowserRouteProp = RouteProp<RootStackParamList, 'CategoryBrowser'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -101,6 +102,8 @@ export default function CategoryBrowserScreen() {
                     ))}
                   </View>
                 )}
+                
+                <FlashGoPageEnd />
               </ScrollView>
             </View>
           </View>
