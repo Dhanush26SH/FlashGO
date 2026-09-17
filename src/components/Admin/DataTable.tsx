@@ -21,6 +21,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   selectedRowId?: string;
   dateFilterMode?: 'none' | 'single' | 'range';
+  exportable?: boolean;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -34,7 +35,8 @@ export function DataTable<T extends Record<string, any>>({
   filterableColumns = [],
   onRowClick,
   selectedRowId,
-  dateFilterMode = 'range'
+  dateFilterMode = 'range',
+  exportable = true
 }: DataTableProps<T>) {
   
   const [search, setSearch] = useState('');
@@ -213,9 +215,11 @@ export function DataTable<T extends Record<string, any>>({
           </div>
         )}
 
-        <AdminButton onClick={exportCSV} icon={<Download size={14} />}>
-          Export CSV
-        </AdminButton>
+        {exportable && (
+          <AdminButton onClick={exportCSV} icon={<Download size={14} />}>
+            Export CSV
+          </AdminButton>
+        )}
       </div>
 
       {/* Bulk Actions */}

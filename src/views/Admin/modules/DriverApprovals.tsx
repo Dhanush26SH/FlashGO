@@ -106,7 +106,7 @@ export const DriverApprovals: React.FC = () => {
 
   // Get active staff and filter by search query
   const staffMembers = profiles
-    .filter(p => p.role !== 'customer')
+    .filter(p => p.role !== 'customer' && p.role !== 'user' && !(p as any).is_pending_staff && p.full_name && p.full_name.trim() !== '')
     .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
   const [pendingWarehouseAssignments, setPendingWarehouseAssignments] = useState<Record<string, string>>({});
@@ -138,8 +138,15 @@ export const DriverApprovals: React.FC = () => {
       const cleanName = name;
       
       if (supabase) {
-        console.log("[DEV] STAFF_APPROVAL_PAYLOAD", { p_user_id: staffId, p_role: selectedRole, p_clean_name: cleanName, p_warehouse_id: selectedWarehouseId });
-        await UsersService.approveStaffRole(staffId, selectedRole, cleanName, selectedWarehouseId);
+        if (selectedRole === 'driver') {
+          console.log("[DEV] STAFF_APPROVAL_PAYLOAD (DRIVER)", { p_driver_id: staffId, p_action: 'approve' });
+          await UsersService.approveDriverApplication(staffId, 'approve');
+          // For drivers, we also want to set their primary hub (warehouse)
+          await UsersService.updateStaffWarehouse(staffId, selectedWarehouseId);
+        } else {
+          console.log("[DEV] STAFF_APPROVAL_PAYLOAD", { p_user_id: staffId, p_role: selectedRole, p_clean_name: cleanName, p_warehouse_id: selectedWarehouseId });
+          await UsersService.approveStaffRole(staffId, selectedRole, cleanName, selectedWarehouseId);
+        }
         console.log("[DEV] STAFF_APPROVAL_RESULT: Success");
         loadData(); // Re-fetch to get the server-generated employee_id
       }
@@ -185,7 +192,7 @@ export const DriverApprovals: React.FC = () => {
       {/* Header Banner */}
       <div className=" ">
         <div>
-          <h2 className="title">Driver Approvals</h2>
+          <h2 className="title">Staff Approvals</h2>
           <p className="subtitle">Review and approve pending driver and staff registration requests</p>
         </div>
         <Users size={36} color="var(--primary)" />

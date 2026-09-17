@@ -131,12 +131,12 @@ export const OverviewDashboard: React.FC = () => {
       {/* KPIs Row */}
       <div className="od-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: '24px' }}>
         {[
-          { label: 'REAL REVENUE', val: `₹${stats?.revenue?.toFixed(2) || '0.00'}`, desc: 'Captured payments', icon: <IndianRupee size={20} color="var(--primary)" />, color: 'var(--primary-glow)' },
+          { label: 'ONLINE PICKERS', val: stats?.online_pickers || 0, desc: 'Active picker shifts', icon: <Users size={20} color="var(--primary)" />, color: 'var(--primary-glow)' },
+          { label: 'ONLINE DRIVERS', val: stats?.online_drivers || 0, desc: 'Active driver shifts', icon: <Truck size={20} color="var(--primary)" />, color: 'var(--primary-glow)' },
           { label: 'TODAY\'S ORDERS', val: stats?.today_orders || 0, desc: 'Orders placed today', icon: <ShoppingCart size={20} color="var(--accent)" />, color: 'var(--accent-glow)' },
           { label: 'PENDING ORDERS', val: stats?.pending_orders || 0, desc: 'Awaiting assignment', icon: <Package size={20} color="var(--warning)" />, color: 'rgba(245, 158, 11, 0.15)', alert: (stats?.pending_orders || 0) > 5 },
           { label: 'ATTENTION REQ (>20m)', val: stats?.attention_orders || 0, desc: 'Requires intervention', icon: <AlertTriangle size={20} color="var(--danger)" />, color: 'rgba(239, 68, 68, 0.15)', alert: (stats?.attention_orders || 0) > 0 },
-          { label: 'DRIVER UTILIZATION', val: `${stats?.busy_drivers || 0} / ${stats?.online_drivers || 0}`, desc: 'Busy vs Online Drivers', icon: <Truck size={20} color="var(--info)" />, color: 'rgba(59, 130, 246, 0.15)' },
-          { label: 'PICKER UTILIZATION', val: `${stats?.busy_pickers || 0} / ${stats?.online_pickers || 0}`, desc: 'Busy vs Online Pickers', icon: <Users size={20} color="var(--info)" />, color: 'rgba(59, 130, 246, 0.15)' },
+          { label: 'FLEET UTILIZATION', val: `${stats?.busy_drivers || 0} / ${stats?.online_drivers || 0}`, desc: 'Busy vs Online Drivers', icon: <Activity size={20} color="var(--info)" />, color: 'rgba(59, 130, 246, 0.15)' },
         ].map((k, i) => (
           <div key={i} className="od-kpi-card animate-slide-up" style={{ animationDelay: `${i * 0.05}s`, minHeight: '120px' }}>
             <div className="od-kpi-header">

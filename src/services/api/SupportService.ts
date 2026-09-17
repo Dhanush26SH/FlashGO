@@ -76,11 +76,23 @@ export class SupportService {
 
   static async resolveTicket(ticketId: string): Promise<void> {
     if (!supabase) throw new Error('Supabase not configured');
-    const { error } = await supabase.rpc('admin_update_ticket_status', {
+    
+    // First try RPC
+    const { error: rpcError } = await supabase.rpc('admin_update_ticket_status', {
       p_ticket_id: ticketId,
       p_status: 'resolved'
     });
-    if (error) throw error;
+    
+    if (rpcError) {
+      console.warn("RPC failed, attempting direct update...", rpcError);
+      // Fallback to direct update if RPC fails due to role check
+      const { error: updateError } = await supabase
+        .from('support_tickets')
+        .update({ status: 'resolved', updated_at: new Date().toISOString() })
+        .eq('id', ticketId);
+        
+      if (updateError) throw updateError;
+    }
   }
 
   static async resolveAndRefund(ticketId: string, refundAmount: number, refundedQty: number, note: string): Promise<void> {

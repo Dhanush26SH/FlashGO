@@ -196,6 +196,7 @@ export const OrderManagement: React.FC = () => {
         <div style={{ flex: '1.2' }}>
           <DataTable
             data={orders}
+            exportable={false}
             dateFilterMode="single"
             filterableColumns={[
               {
@@ -302,7 +303,7 @@ export const OrderManagement: React.FC = () => {
               </div>
 
               {/* Action Panels: picker allocation & driver allocation */}
-              {selectedOrder.status !== 'delivered' && selectedOrder.status !== 'cancelled' && (
+              {selectedOrder.status !== 'delivered' && selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'payment_failed' && (
                 <div className="allocation-row">
                   {/* Picker assignment */}
                   <div className="action-block">
@@ -340,11 +341,9 @@ export const OrderManagement: React.FC = () => {
 
               {/* Cancel dispute buttons row */}
               <div className="footer-btn-row">
-                {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && (
-                  <button onClick={() => handleCancelAndRefund(selectedOrder.id)} className="cancel-order-btn">
-                    <XCircle size={14} /> Cancel & Refund Wallet
-                  </button>
-                )}
+                <button onClick={() => handleCancelAndRefund(selectedOrder.id)} className="cancel-order-btn">
+                  <XCircle size={14} /> Cancel & Refund Wallet
+                </button>
               </div>
             </div>
           ) : (

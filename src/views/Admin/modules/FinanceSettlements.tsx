@@ -435,19 +435,8 @@ export const FinanceSettlements: React.FC = () => {
                       ₹{dailyActivity.reduce((sum, d) => sum + d.dailyTotal, 0).toFixed(2)}
                     </span>
                   </div>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>COD CASH TO SETTLE</span>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--warning)' }}>
-                      ₹{driverSummary ? driverSummary.unsettled_cod.toFixed(2) : '0.00'}
-                    </span>
-                  </div>
+
                   <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>POCKET BALANCE</span>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: driverSummary?.pocket_balance < 0 ? 'var(--error)' : 'var(--success)' }}>
-                        {driverSummary?.pocket_balance < 0 ? '−' : ''}₹{Math.abs(driverSummary?.pocket_balance || 0).toFixed(2)}
-                      </span>
-                    </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>AVAILABLE PAYOUT</span>
                       <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>

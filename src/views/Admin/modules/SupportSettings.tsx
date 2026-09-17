@@ -139,7 +139,8 @@ export const SupportSettings: React.FC = () => {
       addToast('Ticket marked as RESOLVED', 'success');
       loadTickets();
     } catch (e: any) {
-      addToast('Failed to resolve ticket', 'error');
+      addToast('Failed to resolve ticket: ' + (e.message || e.toString()), 'error');
+      console.error("Resolve ticket error:", e);
     }
   };
 

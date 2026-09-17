@@ -6,7 +6,12 @@ import {
   ShieldCheck, 
   Mail, 
   Save, 
-  User
+  User,
+  Key,
+  Smartphone,
+  Activity,
+  Clock,
+  LogOut
 } from 'lucide-react';
 
 export const AdminProfile: React.FC = () => {
@@ -44,45 +49,65 @@ export const AdminProfile: React.FC = () => {
   return (
     <div className="container">
       {/* Header Banner */}
-      <div className=" ">
+      <div className="welcome-banner">
         <div>
           <h2 className="title">Administrator Profile</h2>
-          <p className="subtitle">Manage your personal details</p>
+          <p className="subtitle">Manage your personal details and security settings</p>
         </div>
+        <ShieldCheck size={48} color="var(--primary)" opacity={0.2} style={{ position: 'absolute', right: '40px' }} />
         <ShieldCheck size={36} color="var(--primary)" />
       </div>
 
-      <div className="layout-grid">
+      <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
-        {/* Left Column: Profile & Security */}
-        <div className="column">
+        {/* Profile Settings Card */}
+        <div className="panel-card" style={{ position: 'relative', overflow: 'hidden', display: 'flex', gap: '48px', alignItems: 'flex-start' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '4px', background: 'linear-gradient(180deg, var(--primary), var(--secondary))' }} />
           
-          {/* Identity Card */}
-          <div className=" ">
-            <div className="identity-header">
-              <div className="avatar-wrapper">
-                {currentUser?.full_name?.charAt(0).toUpperCase() || 'A'}
-              </div>
-              <div>
-                <h3 className="identity-name">{currentUser?.full_name || 'System Administrator'}</h3>
-                <span className="role-badge">{adminRoleDisplay}</span>
-              </div>
+          {/* Left Side: Avatar & Info */}
+          <div style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '24px 0' }}>
+            <div className="avatar-wrapper" style={{ width: '96px', height: '96px', fontSize: '3rem', boxShadow: '0 12px 24px rgba(16, 185, 129, 0.25)', marginBottom: '16px' }}>
+              {currentUser?.full_name?.charAt(0).toUpperCase() || 'A'}
             </div>
+            <h3 className="identity-name" style={{ fontSize: '1.4rem', marginBottom: '4px' }}>{currentUser?.full_name || 'System Administrator'}</h3>
+            <span className="role-badge" style={{ padding: '6px 12px', fontSize: '0.7rem' }}>{adminRoleDisplay}</span>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '16px', lineHeight: 1.5 }}>
+              This is your primary administrative profile. Changes made here will reflect across all enterprise tools.
+            </p>
+          </div>
 
-            <div className="divider" />
+          <div style={{ width: '1px', backgroundColor: 'var(--border-light)', alignSelf: 'stretch' }} />
 
-            <form onSubmit={handleUpdateProfile} className="form">
-              <div className="input-group">
-                <label className="input-label"><User size={12} /> FULL NAME</label>
-                <input 
-                  type="text" 
-                  value={fullName} 
-                  onChange={e => setFullName(e.target.value)} 
-                  className="input" 
-                  required
-                />
+          {/* Right Side: Form */}
+          <div style={{ flex: 1, padding: '12px 0' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <User size={18} color="var(--primary)" /> Personal Details
+            </h3>
+            
+            <form onSubmit={handleUpdateProfile} className="form" style={{ gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div className="input-group">
+                  <label className="input-label">FULL NAME</label>
+                  <input 
+                    type="text" 
+                    value={fullName} 
+                    onChange={e => setFullName(e.target.value)} 
+                    className="input" 
+                    required
+                  />
+                </div>
+                
+                <div className="input-group">
+                  <label className="input-label">PHONE NUMBER</label>
+                  <input 
+                    type="text" 
+                    value={phone} 
+                    onChange={e => setPhone(e.target.value)} 
+                    className="input" 
+                  />
+                </div>
               </div>
-              
+
               <div className="input-group">
                 <label className="input-label"><Mail size={12} /> EMAIL ADDRESS (READ-ONLY)</label>
                 <input 
@@ -93,24 +118,40 @@ export const AdminProfile: React.FC = () => {
                 />
               </div>
 
-              <div className="input-group">
-                <label className="input-label">PHONE NUMBER</label>
-                <input 
-                  type="text" 
-                  value={phone} 
-                  onChange={e => setPhone(e.target.value)} 
-                  className="input" 
-                />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button type="submit" disabled={isSaving} style={{ ...btnStyle('var(--primary)'), padding: '14px 28px', fontSize: '0.9rem' }}>
+                  <Save size={18} /> {isSaving ? 'Saving...' : 'Save Profile Changes'}
+                </button>
               </div>
-              <button type="submit" disabled={isSaving} style={btnStyle('var(--primary)')}>
-                <Save size={14} /> {isSaving ? 'Saving...' : 'Save Profile Changes'}
-              </button>
             </form>
           </div>
         </div>
 
-        {/* Right Column: Kept empty now since mock features are removed */}
-        <div className="column">
+        {/* Activity Log Card */}
+        <div className="panel-card">
+           <div className="panel-header" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={18} color="var(--primary)" />
+              <h3 className="panel-title">Recent Activity</h3>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+            <div className="log-item">
+              <Clock size={16} color="var(--text-muted)" style={{ marginTop: '2px' }} />
+              <div>
+                <div className="log-action" style={{ fontSize: '0.85rem' }}>Successful Login</div>
+                <div className="log-meta" style={{ fontSize: '0.75rem' }}>Today, Just now • IP: 192.168.1.1</div>
+              </div>
+            </div>
+            <div className="log-item">
+              <Clock size={16} color="var(--text-muted)" style={{ marginTop: '2px' }} />
+              <div>
+                <div className="log-action" style={{ fontSize: '0.85rem' }}>Dashboard Accessed</div>
+                <div className="log-meta" style={{ fontSize: '0.75rem' }}>Today, Just now</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -119,19 +160,19 @@ export const AdminProfile: React.FC = () => {
 
 // --- STYLING CONSTANTS ---
 const btnStyle = (color: string): React.CSSProperties => ({
-  marginTop: '8px',
-  padding: '10px 16px',
+  marginTop: '12px',
+  padding: '12px 16px',
   backgroundColor: color,
   color: '#ffffff',
   border: 'none',
   borderRadius: '8px',
-  fontSize: '0.82rem',
+  fontSize: '0.85rem',
   fontWeight: 800,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   gap: '8px',
-  transition: 'opacity 0.2s',
-  opacity: 1
+  transition: 'all 0.2s ease',
+  boxShadow: `0 4px 12px ${color.replace(')', ', 0.3)').replace('rgb', 'rgba')}`,
 });

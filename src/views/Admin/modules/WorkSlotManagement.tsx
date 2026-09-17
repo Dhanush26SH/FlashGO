@@ -317,9 +317,15 @@ export const WorkSlotManagement: React.FC = () => {
           await WorkSlotService.adminCreateWorkSlot(warehouseId, targetRole, sDt, eDt, capacity, status, rMin, rMax, pRate);
           if (targetRole === 'picker') {
              const allSlots = await WorkSlotService.adminGetWorkSlots();
-             const newSlot = allSlots.find(s => s.warehouse_id === warehouseId && s.target_role === targetRole && s.start_time === sDt);
+             const newSlot = allSlots.find(s => 
+               s.warehouse_id === warehouseId && 
+               s.target_role === targetRole && 
+               new Date(s.start_time).getTime() === new Date(sDt).getTime()
+             );
              if (newSlot) {
                  await WorkSlotService.adminSaveIncentives(newSlot.id, pickerIncentiveEnabled, pickerMilestones);
+             } else {
+                 console.warn("[DEV] Could not find newly created slot to attach incentives.");
              }
           }
           addToast('Work slot created', 'success');

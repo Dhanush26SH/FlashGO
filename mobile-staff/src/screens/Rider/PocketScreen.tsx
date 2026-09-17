@@ -107,51 +107,21 @@ export default function PocketScreen({ navigation }: any) {
           <Text style={styles.subText}>Qualifying deliveries this week</Text>
         </View>
 
-        {/* Pocket Balance & COD Card */}
-        <View style={[styles.card, { borderColor: unsettledCod > 0 ? '#f59e0b' : '#334155', borderWidth: 1 }]}>
+        {/* Pocket Balance Card */}
+        <View style={[styles.card, { borderColor: '#334155', borderWidth: 1 }]}>
           <View style={styles.cardHeader}>
             <Wallet color="#3b82f6" size={20} />
             <Text style={styles.cardTitle}>Pocket & Settlement</Text>
           </View>
           
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Pocket Balance</Text>
-            <Text style={[styles.rowValue, { color: pocketBalance < 0 ? '#ef4444' : '#10b981' }]}>
-              {pocketBalance < 0 ? '-' : ''}₹{Math.abs(pocketBalance).toFixed(2)}
-            </Text>
-          </View>
-          <Text style={styles.hintText}>
-            {pocketBalance < 0 ? 'You owe FlashGO' : 'FlashGO owes you'}
-          </Text>
 
-          <View style={styles.divider} />
 
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Available Payout</Text>
             <Text style={styles.rowValue}>₹{availablePayout.toFixed(2)}</Text>
           </View>
 
-          <View style={styles.divider} />
 
-          <View style={styles.row}>
-            <View>
-              <Text style={styles.rowLabel}>COD Cash to Settle</Text>
-              {unsettledCod > 0 && (
-                <Text style={{color: '#f59e0b', fontSize: 12, marginTop: 4}}>Please deposit cash at warehouse</Text>
-              )}
-            </View>
-            <Text style={[styles.rowValue, { color: unsettledCod > 0 ? '#f59e0b' : '#ffffff' }]}>
-              ₹{unsettledCod.toFixed(2)}
-            </Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, unsettledCod <= 0 && { opacity: 0.5 }]}
-            onPress={handleSettleCod}
-            disabled={unsettledCod <= 0}
-          >
-            <Text style={styles.actionButtonText}>Settle COD Cash</Text>
-          </TouchableOpacity>
         </View>
 
         {/* More Services Title */}
