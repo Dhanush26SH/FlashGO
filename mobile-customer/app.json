@@ -16,6 +16,9 @@
         "projectId": "d8c26438-a720-47f1-9891-423523d335f5"
       }
     },
-    "owner": "dhanushh26"
+    "owner": "dhanushh26",
+    "plugins": [
+      "./withAndroidQueries.js"
+    ]
   }
 }

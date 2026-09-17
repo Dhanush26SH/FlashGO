@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { PremiumMap } from '../../../components/PremiumMap';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { IndianRupee, Compass, AlertTriangle, Activity, ShoppingCart, Users, Truck, Package, RefreshCw, ShieldAlert, Store, Database } from 'lucide-react';
 import { useLiveDriverSession } from '../../../hooks/useLiveDriverSession';
 import { AnalyticsService } from '../../../services/api/AnalyticsService';
@@ -10,13 +10,11 @@ import './OverviewDashboard.css';
 
 export const OverviewDashboard: React.FC = () => {
   const { orders, refreshData } = useApp();
-  const [salesTimeframe, setSalesTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
   const [warehouses, setWarehouses] = useState<any[]>([]);
 
   const [stats, setStats] = useState<any>(null);
-  const [salesData, setSalesData] = useState<any[]>([]);
   const [ordersPerHour, setOrdersPerHour] = useState<any[]>([]);
   const [inventoryAlerts, setInventoryAlerts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,12 +31,10 @@ export const OverviewDashboard: React.FC = () => {
       setIsLoading(true);
       const wId = selectedWarehouseId || undefined;
       const data = await AnalyticsService.getAdminDashboardStats(wId);
-      const trends = await AnalyticsService.getSalesTrends(salesTimeframe, wId);
       const hourly = await AnalyticsService.getOrdersPerHour(wId);
       const alerts = await AnalyticsService.getDashboardInventoryAlerts(wId);
       
       setStats(data);
-      setSalesData(trends);
       setOrdersPerHour(hourly);
       setInventoryAlerts(alerts);
       setError(null);
@@ -51,7 +47,7 @@ export const OverviewDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedWarehouseId, salesTimeframe]);
+  }, [selectedWarehouseId]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -63,7 +59,7 @@ export const OverviewDashboard: React.FC = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedWarehouseId, salesTimeframe]);
+  }, [selectedWarehouseId]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const activeOutForDeliveryOrders = orders.filter(o => 
@@ -216,49 +212,11 @@ export const OverviewDashboard: React.FC = () => {
           <div className="od-chart-container animate-slide-up" style={{ animationDelay: '0.4s' }}>
             <div className="od-chart-header">
               <div>
-                <h3 className="od-chart-title">Platform Sales & Revenue Stream</h3>
-                <p className="od-chart-subtitle">Real-time transactional gross metrics</p>
-              </div>
-              <div className="od-btn-group">
-                {(['daily', 'weekly', 'monthly'] as const).map(tf => (
-                  <button 
-                    key={tf}
-                    onClick={() => setSalesTimeframe(tf)} 
-                    className={`od-timeframe-btn ${salesTimeframe === tf ? 'od-timeframe-btn-active' : ''}`}
-                  >
-                    {tf.charAt(0).toUpperCase() + tf.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ height: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={salesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="name" stroke="var(--text-secondary)" tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--text-secondary)" tickLine={false} axisLine={false} tickFormatter={(v: number) => `₹${v/1000}k`} />
-                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-glass)', border: '1px solid var(--border-light)', borderRadius: '8px', backdropFilter: 'blur(12px)' }} itemStyle={{ color: 'var(--primary)' }} />
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" vertical={false} />
-                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" activeDot={{ r: 6, fill: 'var(--primary)', stroke: '#fff', strokeWidth: 2 }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="od-chart-container animate-slide-up" style={{ animationDelay: '0.5s', marginTop: '16px' }}>
-            <div className="od-chart-header">
-              <div>
                 <h3 className="od-chart-title">Orders Per Hour</h3>
                 <p className="od-chart-subtitle">Hourly order volume for current day</p>
               </div>
             </div>
-            <div style={{ width: '100%', height: '220px', marginTop: '12px' }}>
+            <div style={{ width: '100%', height: '360px', marginTop: '12px' }}>
               <ResponsiveContainer>
                 <BarChart data={ordersPerHour} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-light)" />

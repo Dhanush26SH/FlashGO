@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, Platform, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
@@ -152,8 +152,8 @@ export default function RazorpayCheckoutScreen() {
         </View>
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={initiateRazorpayOrder} style={styles.retryBtn}>
-            <Text style={styles.retryBtnText}>Retry</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.retryBtn}>
+            <Text style={styles.retryBtnText}>Return to Cart</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -244,6 +244,26 @@ export default function RazorpayCheckoutScreen() {
         <WebView
           source={{ html: htmlContent }}
           onMessage={handleWebViewMessage}
+          originWhitelist={['*']}
+          onShouldStartLoadWithRequest={(request) => {
+            const url = request.url;
+            if (
+              url.startsWith('http://') ||
+              url.startsWith('https://') ||
+              url === 'about:blank' ||
+              url.startsWith('data:')
+            ) {
+              return true;
+            }
+            if (url.startsWith('upi:') || url.startsWith('intent:') || url.startsWith('paytm:') || url.startsWith('tez:') || url.startsWith('gpay:') || url.startsWith('phonepe:')) {
+              Linking.canOpenURL(url).then((supported) => {
+                if (supported) {
+                  Linking.openURL(url);
+                }
+              }).catch(() => {});
+            }
+            return false;
+          }}
           style={{ flex: 1 }}
         />
       )}
