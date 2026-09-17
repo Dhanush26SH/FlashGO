@@ -303,7 +303,7 @@ export const OrderManagement: React.FC = () => {
               </div>
 
               {/* Action Panels: picker allocation & driver allocation */}
-              {selectedOrder.status !== 'delivered' && selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'payment_failed' && (
+              {selectedOrder.status !== 'delivered' && selectedOrder.status !== 'cancelled' && (selectedOrder.status as any) !== 'payment_failed' && (
                 <div className="allocation-row">
                   {/* Picker assignment */}
                   <div className="action-block">

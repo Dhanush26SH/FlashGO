@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import type { Product } from '../../types';
 import { FlashGoDB } from '../db';
+import { VendorsService } from './VendorsService';
 
 const imageMap: Record<string, string> = {
   'bananas.png': 'https://images.unsplash.com/photo-1571508601891-ca5e7a713859?w=300&q=80',
@@ -30,6 +31,12 @@ export interface AdminCreateProductPayload {
   barcode?: string;
   image_url?: string;
   is_active?: boolean;
+  pack_quantity?: number | null;
+  pack_unit?: string | null;
+  supplier_id?: string | null;
+  purchase_price?: number | null;
+  minimum_order_quantity?: number | null;
+  vendor_sku?: string | null;
 }
 
 // ─── Admin Catalog Update Payload ────────────────────────────────────────────
@@ -47,6 +54,12 @@ export interface AdminUpdateProductPayload {
   is_active?: boolean;
   manufacturer_barcode?: string | null;
   manufacturer_barcode_verified?: boolean;
+  pack_quantity?: number | null;
+  pack_unit?: string | null;
+  supplier_id?: string | null;
+  purchase_price?: number | null;
+  minimum_order_quantity?: number | null;
+  vendor_sku?: string | null;
 }
 
 export class ProductsService {
@@ -121,7 +134,32 @@ export class ProductsService {
     });
 
     if (error) throw new Error(error.message);
-    return { id: data as string };
+    const productId = data as string;
+
+    try {
+      if (payload.pack_quantity != null || payload.pack_unit != null) {
+        await supabase.from('products').update({
+          pack_quantity: payload.pack_quantity,
+          pack_unit: payload.pack_unit
+        }).eq('id', productId);
+      }
+
+      if (payload.supplier_id) {
+        await VendorsService.upsertVendorProduct(
+          payload.supplier_id,
+          productId,
+          payload.vendor_sku || null,
+          payload.purchase_price || null,
+          payload.minimum_order_quantity || 1,
+          true
+        );
+      }
+    } catch (e: any) {
+      console.error('Partial failure in product creation:', e);
+      throw new Error(`Product created but failed to link pack/supplier metadata: ${e.message}`);
+    }
+
+    return { id: productId };
   }
 
   // ── ADMIN UPDATE: Routes through admin_update_product RPC ────────────────
@@ -153,6 +191,29 @@ export class ProductsService {
     });
 
     if (error) throw new Error(error.message);
+
+    try {
+      if (updates.pack_quantity !== undefined || updates.pack_unit !== undefined) {
+        const packUpdates: any = {};
+        if (updates.pack_quantity !== undefined) packUpdates.pack_quantity = updates.pack_quantity;
+        if (updates.pack_unit !== undefined) packUpdates.pack_unit = updates.pack_unit;
+        await supabase.from('products').update(packUpdates).eq('id', id);
+      }
+
+      if (updates.supplier_id) {
+        await VendorsService.upsertVendorProduct(
+          updates.supplier_id,
+          id,
+          updates.vendor_sku || null,
+          updates.purchase_price || null,
+          updates.minimum_order_quantity || 1,
+          true
+        );
+      }
+    } catch (e: any) {
+      console.error('Partial failure in product update:', e);
+      throw new Error(`Product core updated but failed to link pack/supplier metadata: ${e.message}`);
+    }
   }
 
   // ── ADMIN SOFT DELETE: Sets is_active = false (no hard delete) ───────────

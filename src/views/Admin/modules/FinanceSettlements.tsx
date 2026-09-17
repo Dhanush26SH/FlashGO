@@ -51,6 +51,9 @@ export const FinanceSettlements: React.FC = () => {
   const [adjAmount, setAdjAmount] = useState('');
   const [adjReason, setAdjReason] = useState('');
   const [adjSaving, setAdjSaving] = useState(false);
+
+  const [testPayModalOpen, setTestPayModalOpen] = useState(false);
+  const [testPayLoading, setTestPayLoading] = useState(false);
   
   // Array of { date, shiftEarnings, bonus, deductions, dailyTotal }
   const [dailyActivity, setDailyActivity] = useState<any[]>([]);
@@ -273,6 +276,28 @@ export const FinanceSettlements: React.FC = () => {
     }
   };
 
+  const handleGeneratePickerSettlement = async () => {
+    const confirmMsg = `Generate weekly settlement for ${selectedStaff.name}?\nPeriod: ${selectedStaff.periodDisplay}`;
+    if (!window.confirm(confirmMsg)) return;
+
+    if (!selectedStaff.warehouse_id) {
+      addToast('Cannot generate settlement: warehouse assignment is missing.', 'error');
+      return;
+    }
+
+    try {
+      setModalLoading(true);
+      await FinanceService.createPickerSettlements(selectedStaff.warehouse_id, selectedStaff.periodRaw.start, [selectedStaff.id]);
+      addToast('Picker settlement generated successfully', 'success');
+      
+      closeView();
+      await loadData();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+      setModalLoading(false);
+    }
+  };
+
   const openAdjModal = () => {
     setAdjType('addition');
     setAdjAmount('');
@@ -321,6 +346,39 @@ export const FinanceSettlements: React.FC = () => {
       addToast(e.message, 'error');
     } finally {
       setAdjSaving(false);
+    }
+  };
+
+  const handleTestPay = async () => {
+    if (!selectedStaff || !selectedStaff.details?.id) return;
+    
+    try {
+      setTestPayLoading(true);
+      const reference = await FinanceService.executeTestPayout(selectedStaff.details.id, selectedStaff.roleRaw);
+      
+      // Update local state to reflect successful payment
+      setSelectedStaff({
+        ...selectedStaff,
+        status: 'paid',
+        details: {
+          ...selectedStaff.details,
+          status: 'paid',
+          payment_reference: reference,
+          payment_provider: 'FlashGO Test Payout',
+          payment_method: 'bank_transfer',
+          paid_at: new Date().toISOString()
+        }
+      });
+      
+      addToast('TEST PAYMENT SUCCESSFUL', 'success');
+      setTestPayModalOpen(false);
+      
+      // Reload the background roster
+      loadData();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setTestPayLoading(false);
     }
   };
 
@@ -416,13 +474,13 @@ export const FinanceSettlements: React.FC = () => {
                     )}
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>PERIOD EARNINGS</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>GROSS EARNINGS (PERIOD)</span>
                     <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                       ₹{dailyActivity.reduce((sum, d) => sum + d.shiftEarnings + d.bonus, 0).toFixed(2)}
                     </span>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>PERIOD DEDUCTIONS</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>PENALTIES (ALREADY DEDUCTED)</span>
                     <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--error)' }}>
                       ₹{dailyActivity.reduce((sum, d) => sum + d.deductions, 0).toFixed(2)}
                     </span>
@@ -430,7 +488,7 @@ export const FinanceSettlements: React.FC = () => {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
                   <div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>PERIOD NET</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>NET EARNINGS (PERIOD)</span>
                     <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                       ₹{dailyActivity.reduce((sum, d) => sum + d.dailyTotal, 0).toFixed(2)}
                     </span>
@@ -511,6 +569,45 @@ export const FinanceSettlements: React.FC = () => {
               </div>
             )}
 
+            {selectedStaff.status === 'paid' && selectedStaff.details && (
+              <div style={{ backgroundColor: 'rgba(34, 197, 94, 0.05)', border: '1px solid var(--success)', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+                <h5 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  PAYMENT DETAILS
+                </h5>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.9rem' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Status</span>
+                    <span style={{ fontWeight: 600, color: 'var(--success)' }}>PAID</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Paid Amount</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>₹{Number(selectedStaff.net_amount).toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Provider</span>
+                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{selectedStaff.details.payment_provider || '—'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Method</span>
+                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{selectedStaff.details.payment_method || '—'}</span>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Reference</span>
+                    <span style={{ fontWeight: 500, fontFamily: 'monospace', color: 'var(--text-primary)', backgroundColor: 'var(--bg-base)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-light)', display: 'inline-block' }}>
+                      {selectedStaff.details.payment_reference || '—'}
+                    </span>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Paid At</span>
+                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                      {selectedStaff.details.paid_at ? new Date(selectedStaff.details.paid_at).toLocaleString() : '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem' }}>Detail</h4>
               
@@ -567,7 +664,23 @@ export const FinanceSettlements: React.FC = () => {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px', gap: '12px' }}>
+              {selectedStaff.status === 'NOT GENERATED' && selectedStaff.roleRaw === 'picker' && dailyActivity.length > 0 && (
+                <button 
+                  onClick={handleGeneratePickerSettlement}
+                  style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--success)', color: 'white', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Generate Settlement
+                </button>
+              )}
+              {selectedStaff.status !== 'NOT GENERATED' && selectedStaff.status !== 'paid' && selectedStaff.net_amount > 0 && (
+                <button 
+                  onClick={() => setTestPayModalOpen(true)}
+                  style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Test Pay
+                </button>
+              )}
               <button 
                 onClick={closeView}
                 style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600 }}
@@ -709,6 +822,55 @@ export const FinanceSettlements: React.FC = () => {
                 style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: adjSaving ? 0.7 : 1 }}
               >
                 {adjSaving ? 'Saving...' : 'Add Adjustment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {testPayModalOpen && selectedStaff && (
+        <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content animate-slide-up glass-panel" style={{ backgroundColor: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '400px', color: 'var(--text-primary)' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: 'var(--primary)' }}>Test Pay Execution</h3>
+            
+            <div style={{ padding: '16px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--error)', borderRadius: '8px', marginBottom: '20px' }}>
+              <p style={{ margin: 0, color: 'var(--error)', fontWeight: 700, textAlign: 'center' }}>
+                TEST MODE — No real money will be transferred
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '24px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Staff Name:</strong> <span>{selectedStaff.name}</span>
+              </p>
+              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Employee ID:</strong> <span>{selectedStaff.employee_id}</span>
+              </p>
+              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Role:</strong> <span>{selectedStaff.role}</span>
+              </p>
+              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Period:</strong> <span>{selectedStaff.periodDisplay}</span>
+              </p>
+              <p style={{ margin: '0 0 0 0', display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
+                <strong>Payable Amount:</strong> <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.1rem' }}>₹{Number(selectedStaff.net_amount).toFixed(2)}</span>
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => setTestPayModalOpen(false)}
+                disabled={testPayLoading}
+                style={{ padding: '10px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleTestPay}
+                disabled={testPayLoading}
+                style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: testPayLoading ? 0.7 : 1 }}
+              >
+                {testPayLoading ? 'Processing...' : 'Confirm Test Pay'}
               </button>
             </div>
           </div>

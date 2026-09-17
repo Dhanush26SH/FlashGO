@@ -103,6 +103,22 @@ export const ProductCatalog: React.FC = () => {
   const [newImage, setNewImage] = useState('https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&auto=format&fit=crop&q=80');
   const [newIsActive, setNewIsActive] = useState(true);
 
+  // New fields
+  const [newPackQuantity, setNewPackQuantity] = useState('');
+  const [newPackUnit, setNewPackUnit] = useState('');
+  const [newSupplierId, setNewSupplierId] = useState('');
+  const [newPurchasePrice, setNewPurchasePrice] = useState('');
+  const [newMoq, setNewMoq] = useState('1');
+  const [newVendorSku, setNewVendorSku] = useState('');
+
+  const [vendors, setVendors] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    import('../../../services/api/VendorsService').then(m => {
+      m.VendorsService.getVendors().then(setVendors).catch(console.error);
+    });
+  }, []);
+
   // Update default category when categories load
   React.useEffect(() => {
     if (categories.length > 0 && !newCategory) {
@@ -120,6 +136,12 @@ export const ProductCatalog: React.FC = () => {
   const [editSku, setEditSku] = useState('');
   const [editBarcode, setEditBarcode] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editPackQuantity, setEditPackQuantity] = useState('');
+  const [editPackUnit, setEditPackUnit] = useState('');
+  const [editSupplierId, setEditSupplierId] = useState('');
+  const [editPurchasePrice, setEditPurchasePrice] = useState('');
+  const [editMoq, setEditMoq] = useState('1');
+  const [editVendorSku, setEditVendorSku] = useState('');
 
   // Filter state
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
@@ -171,11 +193,18 @@ export const ProductCatalog: React.FC = () => {
             barcode: newBarcode || undefined,
             image_url: newImage || undefined,
             is_active: newIsActive,
+            pack_quantity: newPackQuantity ? parseFloat(newPackQuantity) : null,
+            pack_unit: newPackUnit || null,
+            supplier_id: newSupplierId || null,
+            purchase_price: newPurchasePrice ? parseFloat(newPurchasePrice) : null,
+            minimum_order_quantity: newMoq ? parseInt(newMoq, 10) : null,
+            vendor_sku: newVendorSku || null
           });
           await refreshData();
           // Reset form
           setNewName(''); setNewDesc(''); setNewPrice(''); setNewDiscountPrice('');
-          setNewSku(''); setNewBarcode('');
+          setNewSku(''); setNewBarcode(''); setNewPackQuantity(''); setNewPackUnit('');
+          setNewSupplierId(''); setNewPurchasePrice(''); setNewMoq('1'); setNewVendorSku('');
           setShowAddForm(false);
           addToast(`Product "${newName}" added to catalog!`, 'success');
         } catch (err: any) {
@@ -187,7 +216,7 @@ export const ProductCatalog: React.FC = () => {
     });
   };
 
-  const handleStartEdit = (p: any) => {
+  const handleStartEdit = async (p: any) => {
     setEditingProductId(p.id);
     setEditName(p.name);
     setEditPrice(p.price.toString());
@@ -196,6 +225,27 @@ export const ProductCatalog: React.FC = () => {
     setEditSku(p.sku || '');
     setEditBarcode(p.barcode || '');
     setEditImageUrl(p.image_url || '');
+    setEditPackQuantity(p.pack_quantity != null ? p.pack_quantity.toString() : '');
+    setEditPackUnit(p.pack_unit || '');
+    
+    setEditSupplierId('');
+    setEditPurchasePrice('');
+    setEditMoq('1');
+    setEditVendorSku('');
+
+    try {
+      const { supabase } = await import('../../../services/api/supabaseClient');
+      const { data } = await supabase.from('vendor_products').select('*').eq('product_id', p.id).eq('is_active', true).limit(1);
+      if (data && data.length > 0) {
+        const vp = data[0];
+        setEditSupplierId(vp.vendor_id);
+        setEditPurchasePrice(vp.purchase_price != null ? vp.purchase_price.toString() : '');
+        setEditMoq(vp.minimum_order_quantity != null ? vp.minimum_order_quantity.toString() : '1');
+        setEditVendorSku(vp.vendor_sku || '');
+      }
+    } catch (e) {
+      console.error('Error fetching product supplier mapping:', e);
+    }
   };
 
   const isValidEAN13 = (ean: string): boolean => {
@@ -222,6 +272,19 @@ export const ProductCatalog: React.FC = () => {
     if (editSku && editSku !== original.sku) updates.sku = editSku;
     if (editBarcode && editBarcode !== original.barcode) updates.barcode = editBarcode;
     if (editImageUrl !== (original.image_url || '')) updates.image_url = editImageUrl;
+    if (editPackQuantity !== (original.pack_quantity?.toString() ?? '')) {
+      updates.pack_quantity = editPackQuantity ? parseFloat(editPackQuantity) : null;
+    }
+    if (editPackUnit !== (original.pack_unit ?? '')) {
+      updates.pack_unit = editPackUnit || null;
+    }
+
+    if (editSupplierId) {
+      updates.supplier_id = editSupplierId;
+      updates.purchase_price = editPurchasePrice ? parseFloat(editPurchasePrice) : null;
+      updates.minimum_order_quantity = editMoq ? parseInt(editMoq, 10) : 1;
+      updates.vendor_sku = editVendorSku || null;
+    }
 
     if (Object.keys(updates).length === 0) {
       setEditingProductId(null);
@@ -588,6 +651,47 @@ export const ProductCatalog: React.FC = () => {
                       )
                   },
                   {
+                    key: 'pack_and_supplier', header: 'PACK / SUPPLIER',
+                    render: p => editingProductId === p.id
+                      ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <input type="number" step="0.01" value={editPackQuantity} onChange={e => setEditPackQuantity(e.target.value)}
+                              className="small-input-field" placeholder="Qty" style={{ width: '60px' }} />
+                            <select value={editPackUnit} onChange={e => setEditPackUnit(e.target.value)} className="small-input-field" style={{ flex: 1 }}>
+                              <option value="">-Unit-</option>
+                              <option value="g">g</option>
+                              <option value="kg">kg</option>
+                              <option value="ml">ml</option>
+                              <option value="L">L</option>
+                              <option value="pcs">pcs</option>
+                            </select>
+                          </div>
+                          <select value={editSupplierId} onChange={e => setEditSupplierId(e.target.value)} className="small-input-field">
+                            <option value="">-- No Supplier --</option>
+                            {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          </select>
+                          {editSupplierId && (
+                            <>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <input type="number" step="0.01" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)}
+                                  className="small-input-field" placeholder="Cost ₹" style={{ flex: 1 }} />
+                                <input type="number" step="1" value={editMoq} onChange={e => setEditMoq(e.target.value)}
+                                  className="small-input-field" placeholder="MOQ" style={{ width: '50px' }} />
+                              </div>
+                              <input type="text" value={editVendorSku} onChange={e => setEditVendorSku(e.target.value)}
+                                className="small-input-field" placeholder="Vendor SKU" />
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.8rem' }}>
+                          <span style={{ fontWeight: 600 }}>{p.pack_quantity ? `${p.pack_quantity}${p.pack_unit}` : 'No Pack'}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>Check details</span>
+                        </div>
+                      )
+                  },
+                  {
                     key: 'status', header: 'STATUS',
                     render: p => (
                       <span className={p.is_active !== false ? 'admin-badge-success' : 'admin-badge-warning'}>
@@ -727,6 +831,66 @@ export const ProductCatalog: React.FC = () => {
                         value={newDiscountPrice} onChange={e => setNewDiscountPrice(e.target.value)}
                         className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
                     </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <div>
+                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Pack Quantity</label>
+                      <input type="number" step="0.01" min="0.01" placeholder="e.g. 500"
+                        value={newPackQuantity} onChange={e => setNewPackQuantity(e.target.value)}
+                        className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Unit</label>
+                      <select 
+                        value={newPackUnit} 
+                        onChange={e => setNewPackUnit(e.target.value)}
+                        className="admin-input" 
+                        style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box', backgroundColor: 'var(--bg-surface)' }}
+                      >
+                        <option value="">-- None --</option>
+                        <option value="g">g</option>
+                        <option value="kg">kg</option>
+                        <option value="ml">ml</option>
+                        <option value="L">L</option>
+                        <option value="pcs">pcs</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '16px', backgroundColor: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Supplier / Procurement</div>
+                    <div>
+                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Supplier</label>
+                      <CustomDropdown
+                        value={newSupplierId}
+                        onChange={setNewSupplierId}
+                        options={[{ label: '-- No Supplier --', value: '' }, ...vendors.map(v => ({ label: v.name, value: v.id }))]}
+                        placeholder="-- Select Supplier --"
+                      />
+                    </div>
+                    {newSupplierId && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Purchase Price (₹)</label>
+                          <input type="number" step="0.01" min="0" placeholder="0.00"
+                            value={newPurchasePrice} onChange={e => setNewPurchasePrice(e.target.value)}
+                            className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>MOQ</label>
+                          <input type="number" min="1" step="1" placeholder="1"
+                            value={newMoq} onChange={e => setNewMoq(e.target.value)}
+                            className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Vendor SKU</label>
+                          <input type="text" placeholder="Optional"
+                            value={newVendorSku} onChange={e => setNewVendorSku(e.target.value)}
+                            className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>

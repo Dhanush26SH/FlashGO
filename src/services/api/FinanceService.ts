@@ -145,22 +145,71 @@ export class FinanceService {
     return data;
   }
 
+  static async markDriverSettlementPaid(settlementId: string, reference: string, method: string, provider: string = 'manual'): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('mark_driver_settlement_paid', {
+      p_settlement_id: settlementId,
+      p_payment_reference: reference,
+      p_payment_method: method,
+      p_payment_provider: provider
+    });
+    if (error) throw error;
+    return data;
+  }
+
   static async getStaffRoster(): Promise<any[]> {
     if (!supabase) return [];
     
+    // Fetch test accounts to exclude them authoritatively
+    const { data: testAccounts } = await supabase.from('dev_test_accounts').select('email');
+    const testEmails = new Set((testAccounts || []).map((t: any) => t.email));
+
+    // Fetch authoritative driver onboarding statuses
+    const { data: driverOnboarding } = await supabase.from('driver_onboarding').select('id, status');
+    const approvedDrivers = new Set(
+      (driverOnboarding || [])
+        .filter((d: any) => d.status === 'approved')
+        .map((d: any) => d.id)
+    );
+
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, employee_id, warehouse_id')
+      .select('id, email, full_name, role, employee_id, warehouse_id, is_pending_staff, is_suspended')
       .in('role', ['picker', 'driver', 'warehouse_staff'])
       .order('full_name', { ascending: true });
     
     if (error) throw error;
     if (!profiles) return [];
     
+    // Authoritative Eligibility Filter
+    const eligibleStaff = profiles.filter((p: any) => {
+      const hasValidName = p.full_name && p.full_name.trim() !== '' && p.full_name.trim().toLowerCase() !== 'unknown';
+      const hasValidId = p.employee_id && p.employee_id.trim() !== '' && p.employee_id.trim() !== '—' && p.employee_id.trim() !== '-';
+      const isApproved = !p.is_pending_staff; 
+      const isActive = !p.is_suspended;
+      
+      // All operational roles (including drivers) must have an active warehouse assignment
+      const hasWarehouse = !!p.warehouse_id; 
+      
+      // Exclude profiles identified by dev_test_accounts architecture
+      const isTestAccount = p.email && testEmails.has(p.email);
+
+      // Driver-specific authoritative check
+      let isRoleEligible = true;
+      if (p.role === 'driver') {
+        isRoleEligible = approvedDrivers.has(p.id);
+      }
+      
+      // Consistency check: ensure we have normal EMP- ID prefix pattern, though not as sole proof
+      const isEMP = p.employee_id && p.employee_id.startsWith('EMP-');
+      
+      return hasValidName && hasValidId && isApproved && isActive && hasWarehouse && !isTestAccount && isRoleEligible;
+    });
+
     const { data: warehouses } = await supabase.from('warehouses').select('id, name');
     const warehouseMap = (warehouses || []).reduce((acc: any, w: any) => { acc[w.id] = w.name; return acc; }, {});
 
-    return profiles.map((p: any) => ({
+    return eligibleStaff.map((p: any) => ({
       ...p,
       warehouses: { name: p.warehouse_id ? (warehouseMap[p.warehouse_id] || 'Unassigned') : 'Unassigned' }
     }));
@@ -245,6 +294,23 @@ export class FinanceService {
     });
     if (error) throw error;
     return data;
+  }
+
+  static async executeTestPayout(id: string, role: string): Promise<string> {
+    const reference = `FGTEST-${Date.now()}`;
+    const method = 'bank_transfer';
+    const provider = 'FlashGO Test Payout';
+
+    if (role === 'picker') {
+      await this.markPickerSettlementPaid(id, reference, method, provider);
+    } else if (role === 'driver') {
+      await this.markDriverSettlementPaid(id, reference, method, provider);
+    } else if (role === 'warehouse_staff') {
+      await this.markPayrollPaid(id, reference, method, provider);
+    } else {
+      throw new Error(`Test payout not supported for role: ${role}`);
+    }
+    return reference;
   }
 
   static async getWarehousePayroll(month: string): Promise<any[]> {

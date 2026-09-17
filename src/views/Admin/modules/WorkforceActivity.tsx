@@ -519,6 +519,8 @@ export const WorkforceActivity: React.FC = () => {
     );
   };
 
+  const validLiveStaff = liveStaff.filter(s => s.full_name?.trim());
+
   return (
     <div className="workforce-activity-container">
       <div className="workforce-header">
@@ -584,14 +586,14 @@ export const WorkforceActivity: React.FC = () => {
         <div className="live-staff-header">
           <h3 className="live-staff-title">LIVE {activeTab.toUpperCase()} STATUS</h3>
           <div className="live-staff-summary">
-            <span className="status-badge online"><span className="dot"></span> {liveStaff.filter(s => s.is_online).length} Online</span>
-            <span className="status-badge offline"><span className="dot"></span> {liveStaff.filter(s => !s.is_online).length} Offline</span>
+            <span className="status-badge online"><span className="dot"></span> {validLiveStaff.filter(s => s.is_online).length} Online</span>
+            <span className="status-badge offline"><span className="dot"></span> {validLiveStaff.filter(s => !s.is_online).length} Offline</span>
           </div>
         </div>
         
         {loadingLive ? (
           <div className="live-staff-loading"><Clock size={16} className="spin"/> Loading live status...</div>
-        ) : liveStaff.length === 0 ? (
+        ) : validLiveStaff.length === 0 ? (
           <div className="live-staff-empty">No staff found</div>
         ) : (
           <div className="live-staff-table-container">
@@ -604,7 +606,7 @@ export const WorkforceActivity: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {liveStaff
+                {validLiveStaff
                   .filter(s => !workerSearch || (s.full_name || '').toLowerCase().includes(workerSearch.toLowerCase()) || (s.employee_id || '').toLowerCase().includes(workerSearch.toLowerCase()))
                   .sort((a, b) => {
                     const nameA = (a.full_name || '').trim().toLowerCase();
@@ -617,7 +619,7 @@ export const WorkforceActivity: React.FC = () => {
                   })
                   .map(staff => (
                   <tr key={staff.id}>
-                    <td className="staff-name">{staff.full_name?.trim() || 'Unnamed staff'}</td>
+                    <td className="staff-name">{staff.full_name?.trim()}</td>
                     <td className="staff-emp-id">{staff.employee_id || '—'}</td>
                     <td style={{ textAlign: 'right' }}>
                       <div className={`staff-status ${staff.is_online ? 'is-online' : 'is-offline'}`}>

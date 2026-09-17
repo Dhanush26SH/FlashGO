@@ -106,7 +106,7 @@ export const DriverApprovals: React.FC = () => {
 
   // Get active staff and filter by search query
   const staffMembers = profiles
-    .filter(p => p.role !== 'customer' && p.role !== 'user' && !(p as any).is_pending_staff && p.full_name && p.full_name.trim() !== '')
+    .filter(p => p.role !== 'customer' && !(p as any).is_pending_staff && p.full_name && p.full_name.trim() !== '')
     .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
   const [pendingWarehouseAssignments, setPendingWarehouseAssignments] = useState<Record<string, string>>({});
