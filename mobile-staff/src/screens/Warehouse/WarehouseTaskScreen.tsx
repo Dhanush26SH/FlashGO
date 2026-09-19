@@ -88,19 +88,23 @@ export default function WarehouseTaskScreen() {
           setEmployeeId(profileData.employee_id || null);
         }
 
-        try {
-          const { data: activeIntakeData, error: activeIntakeError } = await supabase.rpc('staff_get_my_active_return_intake');
-          if (activeIntakeError) throw activeIntakeError;
-          
-          if (activeIntakeData) {
-            setActiveReturnIntake(activeIntakeData);
-          } else {
+        if (shiftData.status === 'active') {
+          try {
+            const { data: activeIntakeData, error: activeIntakeError } = await supabase.rpc('staff_get_my_active_return_intake');
+            if (activeIntakeError) throw activeIntakeError;
+            
+            if (activeIntakeData) {
+              setActiveReturnIntake(activeIntakeData);
+            } else {
+              setActiveReturnIntake(null);
+            }
+          } catch (err: any) {
+            console.error('Active intake fetch error', err);
             setActiveReturnIntake(null);
+            Alert.alert('Intake Recovery Error', err.message || 'Failed to check active return intakes.');
           }
-        } catch (err: any) {
-          console.error('Active intake fetch error', err);
+        } else {
           setActiveReturnIntake(null);
-          Alert.alert('Intake Recovery Error', err.message || 'Failed to check active return intakes.');
         }
       } else {
         setShift(null);

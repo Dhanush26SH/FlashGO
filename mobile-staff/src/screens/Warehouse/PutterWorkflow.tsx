@@ -22,6 +22,7 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
   // Partial Putaway State
   const [putawayQuantity, setPutawayQuantity] = useState<string>('');
   const [releasing, setReleasing] = useState(false);
+  const [reportingIssue, setReportingIssue] = useState(false);
 
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -130,6 +131,42 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
       Alert.alert("Error", e.message);
     } finally {
       setReleasing(false);
+    }
+  };
+
+  const handleReportIssue = () => {
+    Alert.alert(
+      "Report Location Issue",
+      "Why is this destination unsuitable?",
+      [
+        { text: "Wrong storage zone", onPress: () => submitIssue("Wrong storage zone") },
+        { text: "Location full", onPress: () => submitIssue("Location full") },
+        { text: "Location blocked/inaccessible", onPress: () => submitIssue("Location blocked/inaccessible") },
+        { text: "Location damaged/unusable", onPress: () => submitIssue("Location damaged/unusable") },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
+
+  const submitIssue = async (reason: string) => {
+    if (!task) return;
+    setReportingIssue(true);
+    try {
+      const { data, error } = await supabase.rpc('warehouse_putaway_report_issue', {
+        p_task_id: task.id,
+        p_reason: reason
+      });
+      if (error) throw error;
+      if (data.status === 'success') {
+        Alert.alert("Success", "Location issue reported. New destination assigned.");
+        fetchTaskState();
+      } else {
+        throw new Error(data.message || "Failed to reassign");
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setReportingIssue(false);
     }
   };
 
@@ -292,6 +329,11 @@ export default function PutterWorkflow({ onWorkflowComplete }: PutterWorkflowPro
             <View style={styles.productInfoBox}>
               <Text style={styles.locationLabel}>Destination</Text>
               <Text style={styles.locationValue}>{task?.destination_location}</Text>
+              <TouchableOpacity onPress={handleReportIssue} disabled={reportingIssue} style={{marginTop: 8, alignSelf: 'center'}}>
+                <Text style={{color: '#dc2626', fontWeight: 'bold', textDecorationLine: 'underline'}}>
+                  {reportingIssue ? "Reporting..." : "Report Location Issue"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </>
         ) : (

@@ -8,7 +8,7 @@ import { ProcurementService } from '../../../services/api/ProcurementService';
 import { VendorsService } from '../../../services/api/VendorsService';
 import { AdminService } from '../../../services/api/AdminService';
 import { supabase } from '../../../services/api/supabaseClient';
-import { Plus, CheckCircle, Package, Trash, AlertCircle, X } from 'lucide-react';
+import { Plus, CheckCircle, Package, Trash, AlertCircle, X, Activity, Info } from 'lucide-react';
 import { DataTable } from '../../../components/Admin/DataTable';
 
 export const ProcurementSupplier: React.FC = () => {
