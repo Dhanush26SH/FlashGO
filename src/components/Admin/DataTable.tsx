@@ -22,6 +22,8 @@ interface DataTableProps<T> {
   selectedRowId?: string;
   dateFilterMode?: 'none' | 'single' | 'range';
   exportable?: boolean;
+  renderEditRow?: (row: T) => React.ReactNode;
+  isRowEditing?: (row: T) => boolean;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -36,7 +38,9 @@ export function DataTable<T extends Record<string, any>>({
   onRowClick,
   selectedRowId,
   dateFilterMode = 'range',
-  exportable = true
+  exportable = true,
+  renderEditRow,
+  isRowEditing
 }: DataTableProps<T>) {
   
   const [search, setSearch] = useState('');
@@ -306,11 +310,17 @@ export function DataTable<T extends Record<string, any>>({
                       />
                     </td>
                   )}
-                  {columns.map(col => (
-                    <td key={col.key as string} style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                      {col.render ? col.render(row) : (row[col.key] as any)}
+                  {isRowEditing && isRowEditing(row) && renderEditRow ? (
+                    <td colSpan={columns.length + (bulkActions.length > 0 ? 1 : 0)} style={{ padding: '0' }}>
+                      {renderEditRow(row)}
                     </td>
-                  ))}
+                  ) : (
+                    columns.map(col => (
+                      <td key={col.key as string} style={{ padding: '16px', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                        {col.render ? col.render(row) : (row[col.key] as any)}
+                      </td>
+                    ))
+                  )}
                 </tr>
               );
             }) : (

@@ -101,7 +101,7 @@ export const ProductCatalog: React.FC = () => {
   const [newSku, setNewSku] = useState('');
   const [newBarcode, setNewBarcode] = useState('');
   const [newImage, setNewImage] = useState('https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&auto=format&fit=crop&q=80');
-  const [newIsActive, setNewIsActive] = useState(true);
+  const [newIsActive, setNewIsActive] = useState(false);
 
   // New fields
   const [newPackQuantity, setNewPackQuantity] = useState('');
@@ -142,6 +142,7 @@ export const ProductCatalog: React.FC = () => {
   const [editPurchasePrice, setEditPurchasePrice] = useState('');
   const [editMoq, setEditMoq] = useState('1');
   const [editVendorSku, setEditVendorSku] = useState('');
+  const [editIsActive, setEditIsActive] = useState(true);
 
   // Filter state
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
@@ -170,8 +171,12 @@ export const ProductCatalog: React.FC = () => {
     e.preventDefault();
     if (!newName.trim()) { addToast('Product name is required', 'error'); return; }
     if (!newCategory) { addToast('Please select a category', 'error'); return; }
-    if (!newPrice || parseFloat(newPrice) < 0) { addToast('Please enter a valid price', 'error'); return; }
-    if (newDiscountPrice && parseFloat(newDiscountPrice) > parseFloat(newPrice)) {
+    if (newIsActive) {
+      if (!newPrice || parseFloat(newPrice) <= 0) { addToast('Active products require a valid base price', 'error'); return; }
+    } else {
+      if (newPrice && parseFloat(newPrice) < 0) { addToast('Price cannot be negative', 'error'); return; }
+    }
+    if (newDiscountPrice && parseFloat(newDiscountPrice) > parseFloat(newPrice || '0')) {
       addToast('Discount price cannot exceed base price', 'error'); return;
     }
 
@@ -187,7 +192,7 @@ export const ProductCatalog: React.FC = () => {
             category_id: newCategory,
             name: newName,
             description: newDesc || undefined,
-            price: parseFloat(newPrice),
+            price: parseFloat(newPrice || '0'),
             discount_price: newDiscountPrice ? parseFloat(newDiscountPrice) : null,
             sku: newSku || undefined,
             barcode: newBarcode || undefined,
@@ -227,6 +232,7 @@ export const ProductCatalog: React.FC = () => {
     setEditImageUrl(p.image_url || '');
     setEditPackQuantity(p.pack_quantity != null ? p.pack_quantity.toString() : '');
     setEditPackUnit(p.pack_unit || '');
+    setEditIsActive(p.is_active !== false);
     
     setEditSupplierId('');
     setEditPurchasePrice('');
@@ -235,13 +241,15 @@ export const ProductCatalog: React.FC = () => {
 
     try {
       const { supabase } = await import('../../../services/api/supabaseClient');
-      const { data } = await supabase.from('vendor_products').select('*').eq('product_id', p.id).eq('is_active', true).limit(1);
-      if (data && data.length > 0) {
+      const { data } = await supabase.from('vendor_products').select('*').eq('product_id', p.id);
+      if (data && data.length === 1) {
         const vp = data[0];
         setEditSupplierId(vp.vendor_id);
         setEditPurchasePrice(vp.purchase_price != null ? vp.purchase_price.toString() : '');
         setEditMoq(vp.minimum_order_quantity != null ? vp.minimum_order_quantity.toString() : '1');
         setEditVendorSku(vp.vendor_sku || '');
+      } else if (data && data.length > 1) {
+        addToast('Multiple suppliers mapped. Inline editing supports single supplier.', 'warning');
       }
     } catch (e) {
       console.error('Error fetching product supplier mapping:', e);
@@ -265,6 +273,7 @@ export const ProductCatalog: React.FC = () => {
 
     if (editName && editName !== original.name) updates.name = editName;
     if (editCategory && editCategory !== original.category_id) updates.category_id = editCategory;
+    if (editIsActive !== (original.is_active !== false)) updates.is_active = editIsActive;
     if (editPrice && parseFloat(editPrice) !== original.price) updates.price = parseFloat(editPrice);
     if (editDiscountPrice !== (original.discount_price?.toString() ?? '')) {
       updates.discount_price = editDiscountPrice ? parseFloat(editDiscountPrice) : -1; // -1 = clear
@@ -453,6 +462,131 @@ export const ProductCatalog: React.FC = () => {
     }
   };
 
+  // ── INLINE EDIT FORM ──────────────────────────────────────────────────────
+  const renderInlineEditForm = (p: any) => (
+    <div style={{ padding: '16px 20px', backgroundColor: 'rgba(59, 130, 246, 0.03)', borderTop: '2px solid var(--primary)', borderBottom: '2px solid var(--primary)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      
+      {/* Row 1 — Product */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 1.2fr 1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Product Name & Image</span>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <img 
+              src={editImageUrl || 'https://via.placeholder.com/48?text=Img'} 
+              alt="Preview" 
+              style={{ width: '42px', height: '42px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-light)' }} 
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/48?text=Error';
+              }}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+              <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                className="admin-input" style={{ padding: '8px 12px', borderRadius: '6px' }} placeholder="Name" />
+              <input type="text" value={editImageUrl} onChange={e => setEditImageUrl(e.target.value)}
+                className="admin-input" style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '6px' }} placeholder="Image URL" />
+            </div>
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Product Code / SKU</span>
+          <input type="text" value={editSku} onChange={e => setEditSku(e.target.value)}
+            className="admin-input" placeholder="FG-ARD-008" style={{ padding: '8px 12px', borderRadius: '6px', marginTop: 'auto', marginBottom: 'auto' }} />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Status</span>
+          <button
+            type="button"
+            onClick={() => setEditIsActive(!editIsActive)}
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: editIsActive ? 'var(--primary)' : 'var(--text-secondary)', padding: '7px 10px', marginTop: 'auto', marginBottom: 'auto', height: '35px' }}
+          >
+            {editIsActive ? <ToggleRight size={20} color="var(--primary)" /> : <ToggleLeft size={20} />}
+            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{editIsActive ? 'Active' : 'Draft'}</span>
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Base Price (₹)</span>
+          <input type="number" step="0.01" value={editPrice} onChange={e => setEditPrice(e.target.value)}
+            className="admin-input" placeholder="₹" style={{ padding: '8px 12px', borderRadius: '6px', marginTop: 'auto', marginBottom: 'auto' }} />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Discount Price (₹)</span>
+          <input type="number" step="0.01" value={editDiscountPrice} onChange={e => setEditDiscountPrice(e.target.value)}
+            className="admin-input" placeholder="blank=clear" style={{ padding: '8px 12px', borderRadius: '6px', borderColor: 'var(--primary)', marginTop: 'auto', marginBottom: 'auto' }} />
+        </div>
+      </div>
+
+      {/* Row 2 — Pack & Supplier */}
+      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '220px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Pack Size</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input type="number" step="0.01" value={editPackQuantity} onChange={e => setEditPackQuantity(e.target.value)}
+              className="admin-input" placeholder="Qty" style={{ width: '80px', padding: '8px 12px', borderRadius: '6px' }} />
+            <select value={editPackUnit} onChange={e => setEditPackUnit(e.target.value)} className="admin-input" style={{ flex: 1, padding: '8px 12px', borderRadius: '6px' }}>
+              <option value="">-Unit-</option>
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+              <option value="ml">ml</option>
+              <option value="L">L</option>
+              <option value="pcs">pcs</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Supplier Mapping</span>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <select value={editSupplierId} onChange={e => setEditSupplierId(e.target.value)} className="admin-input" style={{ width: '240px', padding: '8px 12px', borderRadius: '6px' }}>
+              <option value="">-- No Supplier --</option>
+              {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+            
+            {editSupplierId && (
+              <div style={{ display: 'flex', gap: '12px', flex: 1, padding: '10px 14px', backgroundColor: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border-light)', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Purchase Price (₹)</span>
+                  <input type="number" step="0.01" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)}
+                    className="admin-input" placeholder="Cost" style={{ padding: '6px 10px', borderRadius: '6px', width: '120px' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>MOQ</span>
+                  <input type="number" step="1" value={editMoq} onChange={e => setEditMoq(e.target.value)}
+                    className="admin-input" placeholder="1" style={{ padding: '6px 10px', borderRadius: '6px', width: '90px' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Vendor SKU</span>
+                  <input type="text" value={editVendorSku} onChange={e => setEditVendorSku(e.target.value)}
+                    className="admin-input" placeholder="Optional" style={{ padding: '6px 10px', borderRadius: '6px' }} />
+                </div>
+                {(!editPurchasePrice || parseFloat(editPurchasePrice) <= 0) && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--accent-red)', display: 'inline-block', flexShrink: 0 }}></span>
+                    Price not configured (Inactive)
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '140px', paddingTop: '18px' }}>
+          <button onClick={() => handleSaveProductEdit(p.id)} style={{ padding: '8px 12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, cursor: 'pointer' }}>
+            <Check size={16} style={{ marginRight: '6px' }} /> Save
+          </button>
+          <button onClick={() => setEditingProductId(null)} style={{ padding: '8px 12px', backgroundColor: 'transparent', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, cursor: 'pointer' }}>
+            <X size={16} style={{ marginRight: '6px' }} /> Cancel
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+
   // ── RENDER ────────────────────────────────────────────────────────────────
 
   return (
@@ -549,6 +683,8 @@ export const ProductCatalog: React.FC = () => {
                 data={pagedProducts}
                 keyExtractor={p => p.id}
                 searchPlaceholder="Search by product name, SKU, or barcode..."
+                isRowEditing={p => editingProductId === p.id}
+                renderEditRow={renderInlineEditForm}
                 filterableColumns={[
                   {
                     key: 'category_id',
@@ -562,26 +698,7 @@ export const ProductCatalog: React.FC = () => {
                 columns={[
                   {
                     key: 'image', header: 'IMG',
-                    render: p => editingProductId === p.id ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <img 
-                          src={editImageUrl} 
-                          alt="Preview" 
-                          style={{ width: '48px', height: '48px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #e5e7eb' }} 
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/48?text=Error';
-                          }}
-                        />
-                        <input 
-                          type="text" 
-                          value={editImageUrl} 
-                          onChange={e => setEditImageUrl(e.target.value)}
-                          className="small-input-field" 
-                          placeholder="Image URL" 
-                          style={{ padding: '4px', width: '120px' }} 
-                        />
-                      </div>
-                    ) : (
+                    render: p => (
                       <div 
                         style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }}
                         onClick={(e) => {
@@ -600,96 +717,46 @@ export const ProductCatalog: React.FC = () => {
                   },
                   {
                     key: 'name', header: 'PRODUCT', sortable: true,
-                    render: p => editingProductId === p.id
-                      ? (
-                        <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                          className="small-input-field" style={{ padding: '4px', width: '130px' }} />
-                      ) : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: p.is_active === false ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
-                            {p.name}
-                          </div>
-                          {p.is_active === false && (
-                            <span style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 600 }}>INACTIVE</span>
-                          )}
+                    render: p => (
+                      <div>
+                        <div style={{ fontWeight: 700, color: p.is_active === false ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                          {p.name}
                         </div>
-                      )
+                        {p.is_active === false && (
+                          <span style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 600 }}>INACTIVE</span>
+                        )}
+                      </div>
+                    )
                   },
                   {
                     key: 'sku', header: 'PRODUCT CODE / SKU', sortable: true,
-                    render: p => editingProductId === p.id
-                      ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <input type="text" value={editSku} onChange={e => setEditSku(e.target.value)}
-                            className="small-input-field" placeholder="Product Code (e.g. FG-ARD-008)" style={{ padding: '4px', width: '200px' }} />
+                    render: p => (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
+                        <div>
+                          <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem' }}>{p.sku || 'N/A'}</div>
                         </div>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
-                          <div>
-                            <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.85rem' }}>{p.sku || 'N/A'}</div>
-                          </div>
-                        </div>
-                      )
+                      </div>
+                    )
                   },
                   {
                     key: 'price', header: 'BASE / DISCOUNT', sortable: true,
-                    render: p => editingProductId === p.id
-                      ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <input type="number" step="0.01" value={editPrice} onChange={e => setEditPrice(e.target.value)}
-                            className="small-input-field" placeholder="Base ₹" />
-                          <input type="number" step="0.01" value={editDiscountPrice} onChange={e => setEditDiscountPrice(e.target.value)}
-                            className="small-input-field" placeholder="Disc ₹ (blank=clear)" style={{ borderColor: 'var(--primary)' }} />
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 800 }}>₹{p.price.toFixed(2)}</span>
-                          {p.discount_price != null && (
-                            <span className="disc-price-label">₹{p.discount_price.toFixed(2)} sale</span>
-                          )}
-                        </div>
-                      )
+                    render: p => (
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 800 }}>₹{p.price.toFixed(2)}</span>
+                        {p.discount_price != null && (
+                          <span className="disc-price-label">₹{p.discount_price.toFixed(2)} sale</span>
+                        )}
+                      </div>
+                    )
                   },
                   {
                     key: 'pack_and_supplier', header: 'PACK / SUPPLIER',
-                    render: p => editingProductId === p.id
-                      ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <input type="number" step="0.01" value={editPackQuantity} onChange={e => setEditPackQuantity(e.target.value)}
-                              className="small-input-field" placeholder="Qty" style={{ width: '60px' }} />
-                            <select value={editPackUnit} onChange={e => setEditPackUnit(e.target.value)} className="small-input-field" style={{ flex: 1 }}>
-                              <option value="">-Unit-</option>
-                              <option value="g">g</option>
-                              <option value="kg">kg</option>
-                              <option value="ml">ml</option>
-                              <option value="L">L</option>
-                              <option value="pcs">pcs</option>
-                            </select>
-                          </div>
-                          <select value={editSupplierId} onChange={e => setEditSupplierId(e.target.value)} className="small-input-field">
-                            <option value="">-- No Supplier --</option>
-                            {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                          </select>
-                          {editSupplierId && (
-                            <>
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <input type="number" step="0.01" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)}
-                                  className="small-input-field" placeholder="Cost ₹" style={{ flex: 1 }} />
-                                <input type="number" step="1" value={editMoq} onChange={e => setEditMoq(e.target.value)}
-                                  className="small-input-field" placeholder="MOQ" style={{ width: '50px' }} />
-                              </div>
-                              <input type="text" value={editVendorSku} onChange={e => setEditVendorSku(e.target.value)}
-                                className="small-input-field" placeholder="Vendor SKU" />
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.8rem' }}>
-                          <span style={{ fontWeight: 600 }}>{p.pack_quantity ? `${p.pack_quantity}${p.pack_unit}` : 'No Pack'}</span>
-                          <span style={{ color: 'var(--text-secondary)' }}>Check details</span>
-                        </div>
-                      )
+                    render: p => (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.8rem' }}>
+                        <span style={{ fontWeight: 600 }}>{p.pack_quantity ? `${p.pack_quantity}${p.pack_unit}` : 'No Pack'}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>Check details</span>
+                      </div>
+                    )
                   },
                   {
                     key: 'status', header: 'STATUS',
@@ -701,46 +768,36 @@ export const ProductCatalog: React.FC = () => {
                   },
                   {
                     key: 'actions', header: 'ACTIONS',
-                    render: p => editingProductId === p.id
-                      ? (
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button onClick={() => handleSaveProductEdit(p.id)} className="small-save-btn">
-                            <Check size={12} />
-                          </button>
-                          <button onClick={() => setEditingProductId(null)} className="small-cancel-btn">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button onClick={() => handleStartEdit(p)} className="small-edit-btn" title="Edit catalog metadata">
-                            <Edit2 size={12} />
-                          </button>
-                          <button onClick={() => setSelectedBarcodeProduct(p)} className="small-edit-btn" title="View Barcode" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }}>
-                            <Barcode size={12} />
-                          </button>
-                          {p.is_active !== false
-                            ? (
-                              <button
-                                onClick={() => handleDeactivateProduct(p.id, p.name)}
-                                className="small-delete-btn"
-                                title="Deactivate (soft-hide from catalog)"
-                                style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}
-                              >
-                                <EyeOff size={12} />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleReactivateProduct(p.id, p.name)}
-                                className="small-save-btn"
-                                title="Reactivate product"
-                              >
-                                <Eye size={12} />
-                              </button>
-                            )
-                          }
-                        </div>
-                      )
+                    render: p => (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button onClick={() => handleStartEdit(p)} className="small-edit-btn" title="Edit catalog metadata">
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => setSelectedBarcodeProduct(p)} className="small-edit-btn" title="View Barcode" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }}>
+                          <Barcode size={12} />
+                        </button>
+                        {p.is_active !== false
+                          ? (
+                            <button
+                              onClick={() => handleDeactivateProduct(p.id, p.name)}
+                              className="small-delete-btn"
+                              title="Deactivate (soft-hide from catalog)"
+                              style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}
+                            >
+                              <EyeOff size={12} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleReactivateProduct(p.id, p.name)}
+                              className="small-save-btn"
+                              title="Reactivate product"
+                            >
+                              <Eye size={12} />
+                            </button>
+                          )
+                        }
+                      </div>
+                    )
                   },
                 ]}
               />
@@ -804,7 +861,7 @@ export const ProductCatalog: React.FC = () => {
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Start Active?</label>
+                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Product Status</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px' }}>
                         <button
                           type="button"
@@ -812,7 +869,7 @@ export const ProductCatalog: React.FC = () => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: newIsActive ? 'var(--primary)' : 'var(--text-secondary)' }}
                         >
                           {newIsActive ? <ToggleRight size={28} color="var(--primary)" /> : <ToggleLeft size={28} />}
-                          <span style={{ fontSize: '0.82rem' }}>{newIsActive ? 'Active (visible)' : 'Inactive (hidden)'}</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{newIsActive ? 'Active (Visible)' : 'Draft (Hidden)'}</span>
                         </button>
                       </div>
                     </div>
@@ -820,10 +877,10 @@ export const ProductCatalog: React.FC = () => {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                     <div>
-                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Base Price (₹) *</label>
-                      <input type="number" step="0.01" min="0"
+                      <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Base Price (₹) {newIsActive && '*'}</label>
+                      <input type="number" step="0.01" min="0" placeholder={newIsActive ? "0.00" : "Optional for Draft"}
                         value={newPrice} onChange={e => setNewPrice(e.target.value)}
-                        className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} required />
+                        className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} required={newIsActive} />
                     </div>
                     <div>
                       <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Discount Price (₹)</label>
@@ -870,26 +927,33 @@ export const ProductCatalog: React.FC = () => {
                       />
                     </div>
                     {newSupplierId && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                        <div>
-                          <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Purchase Price (₹)</label>
-                          <input type="number" step="0.01" min="0" placeholder="0.00"
-                            value={newPurchasePrice} onChange={e => setNewPurchasePrice(e.target.value)}
-                            className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                          <div>
+                            <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Purchase Price (₹)</label>
+                            <input type="number" step="0.01" min="0" placeholder="0.00"
+                              value={newPurchasePrice} onChange={e => setNewPurchasePrice(e.target.value)}
+                              className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>MOQ</label>
+                            <input type="number" min="1" step="1" placeholder="1"
+                              value={newMoq} onChange={e => setNewMoq(e.target.value)}
+                              className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Vendor SKU</label>
+                            <input type="text" placeholder="Optional"
+                              value={newVendorSku} onChange={e => setNewVendorSku(e.target.value)}
+                              className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
+                          </div>
                         </div>
-                        <div>
-                          <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>MOQ</label>
-                          <input type="number" min="1" step="1" placeholder="1"
-                            value={newMoq} onChange={e => setNewMoq(e.target.value)}
-                            className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label className="admin-label" style={{ textAlign: 'left', display: 'block' }}>Vendor SKU</label>
-                          <input type="text" placeholder="Optional"
-                            value={newVendorSku} onChange={e => setNewVendorSku(e.target.value)}
-                            className="admin-input" style={{ height: '42px', borderRadius: '8px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
+                        {(!newPurchasePrice || parseFloat(newPurchasePrice) <= 0) && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '4px' }}>
+                            Supplier linked — Purchase price not configured (mapping will be saved as inactive)
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 

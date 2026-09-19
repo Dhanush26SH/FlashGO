@@ -110,6 +110,8 @@ export const ProcurementSupplier: React.FC = () => {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [itemQuantity, setItemQuantity] = useState('');
   const [itemCost, setItemCost] = useState('');
+  const [selectedVendorSku, setSelectedVendorSku] = useState('');
+  const [selectedMoq, setSelectedMoq] = useState(1);
 
   // Auto-select product if barcode matches
   // eslint-disable-next-line react-compiler/react-compiler
@@ -118,7 +120,21 @@ export const ProcurementSupplier: React.FC = () => {
       const match = products.find(p => p.barcode === barcodeInput.trim() || p.sku === barcodeInput.trim());
       if (match) {
         setSelectedProduct(match.id);
-        setItemCost((match.price * 0.70).toFixed(2));
+        const vp = vendorProducts.find(vp => vp.product_id === match.id);
+        if (vp && vp.purchase_price != null && vp.purchase_price > 0) {
+          setItemCost(vp.purchase_price.toString());
+        } else {
+          setItemCost('');
+          addToast('PURCHASE PRICE NOT CONFIGURED for this vendor mapping. Please configure it or enter manually.', 'warning');
+        }
+        if (vp && vp.minimum_order_quantity != null && vp.minimum_order_quantity > 1) {
+          setItemQuantity(vp.minimum_order_quantity.toString());
+          setSelectedMoq(vp.minimum_order_quantity);
+        } else {
+          setItemQuantity('');
+          setSelectedMoq(1);
+        }
+        setSelectedVendorSku(vp?.vendor_sku || '');
       }
     }
   }, [barcodeInput, products, poVendor]);
@@ -135,6 +151,12 @@ export const ProcurementSupplier: React.FC = () => {
   const handleAddItem = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!selectedProduct || !itemQuantity || !itemCost) return;
+    
+    if (Number(itemQuantity) < selectedMoq) {
+      addToast(`Quantity must be at least the supplier's MOQ of ${selectedMoq}`, 'error');
+      return;
+    }
+
     const p = products.find(prod => prod.id === selectedProduct);
     if (!p) return;
     
@@ -149,6 +171,8 @@ export const ProcurementSupplier: React.FC = () => {
     setItemQuantity('');
     setItemCost('');
     setBarcodeInput('');
+    setSelectedVendorSku('');
+    setSelectedMoq(1);
   };
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void } | null>(null);
 
@@ -681,6 +705,8 @@ export const ProcurementSupplier: React.FC = () => {
                         setBarcodeInput('');
                         setItemQuantity('');
                         setItemCost('');
+                        setSelectedVendorSku('');
+                        setSelectedMoq(1);
                       }
                     }} 
                     className="input" 
@@ -723,13 +749,37 @@ export const ProcurementSupplier: React.FC = () => {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="label">Product</label>
+                    <label className="label">
+                      Product
+                      {selectedVendorSku && <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginLeft: '6px' }}>(Vendor SKU: {selectedVendorSku})</span>}
+                    </label>
                     <select 
                       value={selectedProduct} 
                       onChange={e => {
                         const val = e.target.value;
                         setSelectedProduct(val);
-                        setItemCost(''); // Requires explicit entry
+                        if (val) {
+                          const vp = vendorProducts.find(vp => vp.product_id === val);
+                          if (vp && vp.purchase_price != null && vp.purchase_price > 0) {
+                            setItemCost(vp.purchase_price.toString());
+                          } else {
+                            setItemCost('');
+                            addToast('PURCHASE PRICE NOT CONFIGURED for this vendor mapping. Please configure it or enter manually.', 'warning');
+                          }
+                          if (vp && vp.minimum_order_quantity != null && vp.minimum_order_quantity > 1) {
+                            setItemQuantity(vp.minimum_order_quantity.toString());
+                            setSelectedMoq(vp.minimum_order_quantity);
+                          } else {
+                            setItemQuantity('');
+                            setSelectedMoq(1);
+                          }
+                          setSelectedVendorSku(vp?.vendor_sku || '');
+                        } else {
+                          setItemCost('');
+                          setItemQuantity('');
+                          setSelectedVendorSku('');
+                          setSelectedMoq(1);
+                        }
                       }} 
                       className="input" 
                       disabled={!poVendor}
@@ -739,8 +789,11 @@ export const ProcurementSupplier: React.FC = () => {
                     </select>
                   </div>
                   <div style={{...formGroupStyle, flex: 0.5}}>
-                    <label className="label">Quantity</label>
-                    <input type="number" min="1" value={itemQuantity} onChange={e => setItemQuantity(e.target.value)} className="input" placeholder="Qty" />
+                    <label className="label">
+                      Quantity
+                      {selectedMoq > 1 && <span style={{ fontSize: '0.65rem', color: 'var(--primary)', marginLeft: '4px' }}>(MOQ: {selectedMoq})</span>}
+                    </label>
+                    <input type="number" min={selectedMoq || 1} value={itemQuantity} onChange={e => setItemQuantity(e.target.value)} className="input" placeholder="Qty" />
                   </div>
                   <div style={{...formGroupStyle, flex: 0.5}}>
                     <label className="label">Unit Cost (₹)</label>
@@ -919,6 +972,18 @@ export const ProcurementSupplier: React.FC = () => {
                     </div>
                   );
                 }},
+                { key: 'unit_cost', header: 'UNIT COST', render: r => {
+                  const cost = r.goods_receipt_item?.unit_cost;
+                  return cost != null 
+                    ? <div style={{ fontFamily: 'monospace' }}>₹{Number(cost).toFixed(2)}</div>
+                    : <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>N/A</span>;
+                }},
+                { key: 'total_cost', header: 'TOTAL COST', render: r => {
+                  const cost = r.goods_receipt_item?.unit_cost;
+                  return cost != null 
+                    ? <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>₹{(Number(cost) * r.received_quantity).toFixed(2)}</div>
+                    : <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>N/A</span>;
+                }},
                 { key: 'status', header: 'STATUS', sortable: true, render: r => (
                   <span className={`admin-badge-${r.status === 'active' ? 'success' : 'danger'}`}>
                     {r.status.toUpperCase()}
@@ -972,23 +1037,62 @@ export const ProcurementSupplier: React.FC = () => {
 
       
       {/* Dispatch Details Modal */}
-      {dispatchingPO && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(3px)'
-        }}>
-          <div className="glass-panel" style={{
-            padding: '32px', borderRadius: '16px', maxWidth: '800px', width: '90%', maxHeight: '80vh', overflowY: 'auto',
-            backgroundColor: 'var(--bg-base)', boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
-            border: '1px solid var(--border-light)',
-            animation: 'fadeIn 0.2s ease-out'
+      {dispatchingPO && (() => {
+        const autoGenerateDemoDetails = () => {
+          if (!dispatchingPO || !dispatchingPO.items) return;
+          
+          const newDispatchInputs: Record<string, { batch_number: string, expiry_date: string, dispatched_quantity: number }[]> = {};
+          const todayStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 180);
+          const expiryDateStr = expiryDate.toISOString().slice(0,10);
+          
+          for (const item of dispatchingPO.items) {
+            const existingForItem = existingDispatches.filter(d => d.procurement_order_item_id === item.id);
+            const alreadyDispatched = existingForItem.reduce((sum, d) => sum + d.dispatched_quantity, 0);
+            const remaining = item.quantity - alreadyDispatched;
+            
+            if (remaining > 0) {
+              const randomHex = Math.floor(Math.random() * 65535).toString(16).toUpperCase().padStart(4, '0');
+              newDispatchInputs[item.product_id] = [{
+                batch_number: `FG-BATCH-${todayStr}-${randomHex}`,
+                expiry_date: expiryDateStr,
+                dispatched_quantity: remaining
+              }];
+            } else {
+              newDispatchInputs[item.product_id] = [];
+            }
+          }
+          
+          setDispatchInputs(newDispatchInputs);
+        };
+
+        return (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(3px)'
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-primary)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Package size={20} color="var(--primary)" />
-              Dispatch Details (PO #{dispatchingPO.id.slice(-6).toUpperCase()})
-            </h3>
+            <div className="glass-panel" style={{
+              padding: '32px', borderRadius: '16px', maxWidth: '800px', width: '90%', maxHeight: '80vh', overflowY: 'auto',
+              backgroundColor: 'var(--bg-base)', boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+              border: '1px solid var(--border-light)',
+              animation: 'fadeIn 0.2s ease-out'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Package size={20} color="var(--primary)" />
+                  Dispatch Details (PO #{dispatchingPO.id.slice(-6).toUpperCase()})
+                </h3>
+                <button className="btn-secondary" onClick={autoGenerateDemoDetails} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
+                  <Activity size={14} /> Auto Generate Demo Details
+                </button>
+              </div>
+              
+              <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', padding: '12px', borderRadius: '8px', marginBottom: '24px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Info size={16} /> Demo-generated batch details — for academic/testing use. Manual entry remains fully supported for genuine supplier details.
+              </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
               {dispatchingPO.items?.map((item, idx) => {
@@ -1079,7 +1183,8 @@ export const ProcurementSupplier: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Catalog Modal */}
       {catalogVendor && (

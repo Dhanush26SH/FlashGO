@@ -3,7 +3,7 @@ import { useApp } from '../../../context/AppContext';
 import { supabase } from '../../../services/db';
 import { WorkSlotService } from '../../../services/api/WorkSlotService';
 import type { WorkSlot } from '../../../services/api/WorkSlotService';
-import { Calendar, Plus, Users, Warehouse, Search } from 'lucide-react';
+import { Calendar, Plus, Users, Warehouse, Search, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { DriverDailyIncentiveManagement } from './DriverDailyIncentiveManagement';
 
 export const WorkSlotManagement: React.FC = () => {
@@ -11,6 +11,7 @@ export const WorkSlotManagement: React.FC = () => {
   const [slots, setSlots] = useState<WorkSlot[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
   const [showForm, setShowForm] = useState(false);
@@ -44,7 +45,14 @@ export const WorkSlotManagement: React.FC = () => {
   const [availableWarehouseStaff, setAvailableWarehouseStaff] = useState<any[]>([]);
   const [warehouseStaffAssignments, setWarehouseStaffAssignments] = useState<{staffId: string, duty: string}[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'all' | 'picker' | 'driver' | 'driver_daily_incentive' | 'warehouse_staff'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'picker' | 'driver' | 'warehouse_staff'>('all');
+  const [showDriverIncentives, setShowDriverIncentives] = useState(false);
+  
+  const getISTDate = (baseDate = new Date()) => new Date(baseDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const formatISTDateString = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => formatISTDateString(getISTDate()));
+  
   const { currentUser } = useApp();
 
   useEffect(() => {
@@ -248,8 +256,28 @@ export const WorkSlotManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!warehouseId || !targetRole || !startTime || !endTime) {
       addToast('Please fill all required fields', 'error');
+      return;
+    }
+
+    const startMs = new Date(startTime).getTime();
+    const endMs = new Date(endTime).getTime();
+    
+    if (!editingId && startMs <= Date.now()) {
+      addToast('New work slots must start in the future', 'error');
+      return;
+    }
+
+    if (startMs >= endMs) {
+      addToast('End time must be after start time', 'error');
+      return;
+    }
+
+    if (targetRole !== 'warehouse_staff' && (!capacity || capacity < 1)) {
+      addToast('Capacity must be at least 1', 'error');
       return;
     }
 
@@ -293,6 +321,7 @@ export const WorkSlotManagement: React.FC = () => {
       }
     }
 
+    setIsSubmitting(true);
     try {
       if (targetRole === 'warehouse_staff') {
         if (editingId) {
@@ -336,6 +365,8 @@ export const WorkSlotManagement: React.FC = () => {
       loadData();
     } catch (err: any) {
       addToast(err.message, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -350,22 +381,77 @@ export const WorkSlotManagement: React.FC = () => {
     }
   };
 
-  const filteredSlots = activeTab === 'all' ? slots : slots.filter(s => s.target_role === activeTab);
+  const filteredSlots = slots.filter(s => {
+    if (activeTab !== 'all' && s.target_role !== activeTab) return false;
+    const slotDateIST = formatISTDateString(getISTDate(new Date(s.start_time)));
+    return slotDateIST === selectedDateStr;
+  });
+
+  const changeDate = (days: number) => {
+    const d = new Date(selectedDateStr + 'T12:00:00'); // Midday to avoid timezone shifting
+    d.setDate(d.getDate() + days);
+    setSelectedDateStr(formatISTDateString(d));
+  };
+
+  if (showDriverIncentives) {
+    return (
+      <div className="container">
+        <div style={{ marginBottom: '16px' }}>
+          <button 
+            onClick={() => setShowDriverIncentives(false)}
+            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <ChevronLeft size={16} /> Back to Work Slots
+          </button>
+        </div>
+        <DriverDailyIncentiveManagement />
+      </div>
+    );
+  }
 
   return (
     <div className="container">
       <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <h2 style={{ fontSize: '1.4rem', marginBottom: '8px' }}>Work Slot Management</h2>
             <p style={{ color: 'var(--text-secondary)' }}>Publish self-bookable slots for Pickers and Drivers, and directly assign shifts to Warehouse Staff.</p>
           </div>
-          <button 
-            onClick={() => { resetForm(); setShowForm(!showForm); }}
-            style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-          >
-            {showForm ? 'Cancel' : <><Plus size={18} /> Create Slot</>}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              onClick={() => setShowDriverIncentives(true)}
+              style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <Settings size={18} /> Manage Driver Incentives
+            </button>
+            <button 
+              type="button"
+              onClick={() => { if(!showForm) resetForm(); setShowForm(!showForm); }}
+              style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              {showForm ? 'Cancel' : <><Plus size={18} /> Create Slot</>}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginTop: '24px', padding: '16px', background: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+          <button onClick={() => changeDate(-1)} style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '4px', background: 'transparent', border: '1px solid var(--border-light)', borderRadius: '6px', cursor: 'pointer' }}>
+            <ChevronLeft size={16} /> Previous Day
           </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', fontWeight: 'bold', minWidth: '200px', justifyContent: 'center' }}>
+            <Calendar size={20} color="var(--primary)" />
+            {new Date(selectedDateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => setSelectedDateStr(formatISTDateString(getISTDate()))} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+              Today
+            </button>
+            <button onClick={() => changeDate(1)} style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '4px', background: 'transparent', border: '1px solid var(--border-light)', borderRadius: '6px', cursor: 'pointer' }}>
+              Next Day <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
 
         {showForm && (
@@ -569,10 +655,12 @@ export const WorkSlotManagement: React.FC = () => {
             )}
 
             <div style={{ alignSelf: 'flex-end', marginTop: '8px' }}>
-              <button type="submit" style={{ padding: '8px 24px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
-                {targetRole === 'warehouse_staff' 
-                  ? (editingId ? 'Update Assignment' : 'Create & Assign')
-                  : (editingId ? 'Save Changes' : 'Create Slot')}
+              <button type="submit" disabled={isSubmitting} style={{ padding: '8px 24px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1 }}>
+                {isSubmitting ? 'Processing...' : (
+                  targetRole === 'warehouse_staff' 
+                    ? (editingId ? 'Update Assignment' : 'Create & Assign')
+                    : (editingId ? 'Save Changes' : 'Create Work Slot')
+                )}
               </button>
             </div>
           </form>
@@ -580,9 +668,8 @@ export const WorkSlotManagement: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        {(['all', 'picker', 'driver', 'driver_daily_incentive', 'warehouse_staff'] as const).map(tab => {
-          let label = tab.charAt(0).toUpperCase() + tab.slice(1).replace(/_/g, ' ');
-          if (tab === 'driver_daily_incentive') label = 'Driver Daily Incentives';
+        {(['all', 'picker', 'driver', 'warehouse_staff'] as const).map(tab => {
+          const label = tab.charAt(0).toUpperCase() + tab.slice(1).replace(/_/g, ' ');
           return (
             <button
               key={tab}
@@ -600,9 +687,7 @@ export const WorkSlotManagement: React.FC = () => {
         })}
       </div>
 
-      {activeTab === 'driver_daily_incentive' ? (
-        <DriverDailyIncentiveManagement />
-      ) : loading ? (
+      {loading ? (
         <p>Loading slots...</p>
       ) : filteredSlots.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '40px' }}>No work slots found.</p>

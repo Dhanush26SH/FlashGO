@@ -145,13 +145,14 @@ export class ProductsService {
       }
 
       if (payload.supplier_id) {
+        const hasPrice = payload.purchase_price != null && payload.purchase_price > 0;
         await VendorsService.upsertVendorProduct(
           payload.supplier_id,
           productId,
           payload.vendor_sku || null,
-          payload.purchase_price || null,
+          hasPrice ? payload.purchase_price : null,
           payload.minimum_order_quantity || 1,
-          true
+          hasPrice
         );
       }
     } catch (e: any) {
@@ -188,26 +189,22 @@ export class ProductsService {
       p_is_active: updates.is_active ?? null,
       p_manufacturer_barcode: updates.manufacturer_barcode ?? null,
       p_manufacturer_barcode_verified: updates.manufacturer_barcode_verified ?? null,
+      p_pack_quantity: updates.pack_quantity === null ? -1 : (updates.pack_quantity ?? null),
+      p_pack_unit: updates.pack_unit === null ? '' : (updates.pack_unit ?? null),
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(`Product update failed: ${error.message}`);
 
     try {
-      if (updates.pack_quantity !== undefined || updates.pack_unit !== undefined) {
-        const packUpdates: any = {};
-        if (updates.pack_quantity !== undefined) packUpdates.pack_quantity = updates.pack_quantity;
-        if (updates.pack_unit !== undefined) packUpdates.pack_unit = updates.pack_unit;
-        await supabase.from('products').update(packUpdates).eq('id', id);
-      }
-
       if (updates.supplier_id) {
+        const hasPrice = updates.purchase_price != null && updates.purchase_price > 0;
         await VendorsService.upsertVendorProduct(
           updates.supplier_id,
           id,
           updates.vendor_sku || null,
-          updates.purchase_price || null,
+          hasPrice ? updates.purchase_price : null,
           updates.minimum_order_quantity || 1,
-          true
+          hasPrice
         );
       }
     } catch (e: any) {
