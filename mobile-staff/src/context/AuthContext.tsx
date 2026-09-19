@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
-type Role = 'auth' | 'picker' | 'driver' | 'warehouse_staff' | 'customer' | 'pending' | 'request_access' | 'driver_onboarding';
+type Role = 'auth' | 'picker' | 'driver' | 'warehouse_staff' | 'customer' | 'pending' | 'request_access' | 'driver_onboarding' | 'retired';
 
 export interface Profile {
   id: string;
@@ -10,6 +10,7 @@ export interface Profile {
   full_name: string;
   role: Role;
   is_online: boolean;
+  is_retired?: boolean;
   is_pending_staff?: boolean;
   requested_role?: Role;
   warehouse_id?: string;
@@ -66,6 +67,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await supabase.auth.signOut();
           setProfile(null);
           setRole('auth');
+          return;
+        }
+
+        if (data.is_retired) {
+          setProfile(data);
+          setRole('retired');
           return;
         }
 

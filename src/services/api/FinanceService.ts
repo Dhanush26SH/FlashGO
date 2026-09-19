@@ -161,7 +161,7 @@ export class FinanceService {
     if (!supabase) return [];
     
     // Fetch test accounts to exclude them authoritatively
-    const { data: testAccounts } = await supabase.from('dev_test_accounts').select('email');
+    const { data: testAccounts } = await supabase.from('dev_test_accounts').select('email').eq('is_e2e_test_account', true);
     const testEmails = new Set((testAccounts || []).map((t: any) => t.email));
 
     // Fetch authoritative driver onboarding statuses

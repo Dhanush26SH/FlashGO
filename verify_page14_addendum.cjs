@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const env = fs.readFileSync('.env', 'utf8');
 const SUPABASE_URL = (env.match(/VITE_SUPABASE_URL=(.*)/) || [])[1]?.trim();
@@ -27,6 +28,11 @@ async function runTests() {
             headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
             body: JSON.stringify({ p_email: email, p_role: role })
         });
+        
+        // Authoritatively register the generated test account as an E2E test account
+        const insertTestAccountSql = `INSERT INTO public.dev_test_accounts (email, is_e2e_test_account) VALUES ('${email}', true) ON CONFLICT (email) DO UPDATE SET is_e2e_test_account = true;`;
+        execSync(`npx supabase db query "${insertTestAccountSql}" --linked`);
+
         return { token, user_id };
     }
 

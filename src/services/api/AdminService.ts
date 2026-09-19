@@ -15,12 +15,25 @@ export class AdminService {
     // We map 'Warehouse Staff' to 'warehouse_staff' internally
     const dbRole = role === 'Warehouse Staff' ? 'warehouse_staff' : role.toLowerCase();
     
+    // Fetch E2E test accounts to exclude them
+    const { data: testAccounts, error: testAccountsError } = await supabase
+      .from('dev_test_accounts')
+      .select('email')
+      .eq('is_e2e_test_account', true);
+      
+    if (testAccountsError) {
+      console.error('Failed to fetch dev test accounts:', testAccountsError);
+    }
+    const excludedEmails = new Set((testAccounts || []).map(t => t.email));
+
     // Single clean authoritative read architecture directly from profiles
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, employee_id, is_online')
+      .select('id, full_name, employee_id, is_online, email')
       .eq('warehouse_id', warehouseId)
       .eq('role', dbRole)
+      .eq('is_retired', false)
+      .eq('is_suspended', false)
       .order('full_name', { ascending: true })
       .order('id', { ascending: true });
       
@@ -29,7 +42,7 @@ export class AdminService {
       throw error;
     }
     
-    return data || [];
+    return (data || []).filter((profile: any) => !excludedEmails.has(profile.email));
   }
 
   static async createWarehouse(warehouse: any) {

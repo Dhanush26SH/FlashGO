@@ -19,9 +19,12 @@ async function createUser(email: string, role: string, wh: string | null = null)
   const uid = data.user?.id;
   if (!uid) throw new Error("No user id");
 
-  // Escalate profile using psql (since client cannot set role/admin)
   const setRoleSql = `UPDATE public.profiles SET role = '${role}'${wh ? `, warehouse_id = '${wh}'` : ''}${role === 'customer' ? `, is_pending_staff = true, requested_role = 'driver'` : ''} WHERE id = '${uid}';`;
   execSync(`npx supabase db query "${setRoleSql}" --linked`);
+
+  // Authoritatively register the generated test account
+  const insertTestAccountSql = `INSERT INTO public.dev_test_accounts (email, is_e2e_test_account) VALUES ('${email}', true) ON CONFLICT (email) DO UPDATE SET is_e2e_test_account = true;`;
+  execSync(`npx supabase db query "${insertTestAccountSql}" --linked`);
 
   return { email, password: 'Password123!', id: uid, client: createClient(SUPABASE_URL, SUPABASE_ANON_KEY) };
 }

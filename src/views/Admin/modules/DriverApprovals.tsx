@@ -36,6 +36,7 @@ export const DriverApprovals: React.FC = () => {
   const [suspendedIds, setSuspendedIds] = useState<string[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [excludedEmails, setExcludedEmails] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -75,6 +76,16 @@ export const DriverApprovals: React.FC = () => {
   const loadData = async () => {
     setLoadingProfiles(true);
     try {
+      if (supabase) {
+        const { data: testAccounts, error } = await supabase.from('dev_test_accounts').select('email').eq('is_e2e_test_account', true);
+        if (error) {
+          console.error("Failed to load dev_test_accounts:", error);
+          addToast("Failed to fetch excluded test accounts", "error");
+        } else {
+          setExcludedEmails(new Set((testAccounts || []).map(t => t.email)));
+        }
+      }
+
       const profs = await UsersService.getProfiles();
       setProfiles(profs as any);
       
@@ -103,10 +114,17 @@ export const DriverApprovals: React.FC = () => {
   // Edit Shift State
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeStaffTab, setActiveStaffTab] = useState<'active' | 'retired'>('active');
 
   // Get active staff and filter by search query
   const staffMembers = profiles
-    .filter(p => p.role !== 'customer' && !(p as any).is_pending_staff && p.full_name && p.full_name.trim() !== '')
+    .filter(p => !excludedEmails.has(p.email))
+    .filter(p => p.role !== 'customer' && !(p as any).is_pending_staff && !(p as any).is_retired && p.full_name && p.full_name.trim() !== '')
+    .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const retiredStaffMembers = profiles
+    .filter(p => !excludedEmails.has(p.email))
+    .filter(p => p.role !== 'customer' && (p as any).is_retired)
     .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
   const [pendingWarehouseAssignments, setPendingWarehouseAssignments] = useState<Record<string, string>>({});
@@ -114,6 +132,7 @@ export const DriverApprovals: React.FC = () => {
 
   // Get pending staff
   const pendingStaff = profiles
+    .filter(p => !excludedEmails.has(p.email))
     .filter(p => (p as any).is_pending_staff === true);
 
     const handleApproveStaff = async (staffId: string, name: string) => {
@@ -187,6 +206,35 @@ export const DriverApprovals: React.FC = () => {
     }
   };
 
+  const handleRetire = async (staffId: string, name: string) => {
+    try {
+      const reason = prompt(`Reason for retiring ${name}?`);
+      if (!reason) return;
+      if (supabase) {
+        const { error } = await supabase.rpc('admin_retire_staff', { p_target_id: staffId, p_reason: reason });
+        if (error) throw error;
+      }
+      addToast(`Retired ${name}`, 'success');
+      loadData();
+    } catch (e: any) {
+      addToast('Failed to retire staff: ' + (e.message || JSON.stringify(e)), 'error');
+    }
+  };
+
+  const handleRestore = async (staffId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to restore ${name}? They will be suspended pending review.`)) return;
+    try {
+      if (supabase) {
+        const { error } = await supabase.rpc('admin_restore_staff', { p_target_id: staffId });
+        if (error) throw error;
+      }
+      addToast(`Restored ${name} to suspended state. Re-onboarding required.`, 'success');
+      loadData();
+    } catch (e: any) {
+      addToast('Failed to restore staff: ' + (e.message || JSON.stringify(e)), 'error');
+    }
+  };
+
   return (
     <div className="container">
       {/* Header Banner */}
@@ -205,7 +253,11 @@ export const DriverApprovals: React.FC = () => {
         <div className=" ">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
             <div>
-              <h3 className="panel-title">Active Logistics & Fulfillment Staff</h3>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 className="panel-title" style={{ margin: 0, cursor: 'pointer', color: activeStaffTab === 'active' ? 'var(--text-primary)' : 'var(--text-secondary)' }} onClick={() => setActiveStaffTab('active')}>Active Staff</h3>
+                <span style={{ color: 'var(--text-secondary)' }}>|</span>
+                <h3 className="panel-title" style={{ margin: 0, cursor: 'pointer', color: activeStaffTab === 'retired' ? 'var(--text-primary)' : 'var(--text-secondary)' }} onClick={() => setActiveStaffTab('retired')}>Retired Staff</h3>
+              </div>
               <p className="panel-desc">Oversee system access, suspend bad actors, and monitor individual productivity</p>
             </div>
             
@@ -287,14 +339,15 @@ export const DriverApprovals: React.FC = () => {
           )}
 
           <div className="staff-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {staffMembers.map(staff => {
+            {(activeStaffTab === 'active' ? staffMembers : retiredStaffMembers).map(staff => {
               const isSuspended = (staff as any).is_suspended;
+              const isRetired = (staff as any).is_retired;
               
               return (
-                <div key={staff.id} style={{ ...staffItemStyle, cursor: 'pointer', border: isSuspended ? '1px dashed var(--danger)' : '1px solid var(--border-light)' }} onClick={() => setSelectedProfile(staff)}>
+                <div key={staff.id} style={{ ...staffItemStyle, cursor: 'pointer', border: isSuspended ? '1px dashed var(--danger)' : isRetired ? '1px solid var(--border-light)' : '1px solid var(--border-light)', opacity: isRetired ? 0.7 : 1 }} onClick={() => setSelectedProfile(staff)}>
                   <div className="staff-avatar-wrapper">
                     <div style={staffAvatarStyle(staff.role)}>{(staff.full_name || '?').charAt(0)}</div>
-                    {isSuspended && <div className="suspended-dot" />}
+                    {isSuspended && !isRetired && <div className="suspended-dot" />}
                   </div>
 
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -310,7 +363,9 @@ export const DriverApprovals: React.FC = () => {
                       <span style={roleBadgeStyle(staff.role)}>{(staff.role || '').replace('_', ' ').toUpperCase()}</span>
                       
                       {/* Gig Worker vs Warehouse Status Indicator */}
-                      {(staff.role === 'picker' || staff.role === 'driver') ? (
+                      {isRetired ? (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', minWidth: '70px' }}>RETIRED</span>
+                      ) : (staff.role === 'picker' || staff.role === 'driver') ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 800, color: staff.is_online ? '#10b981' : 'var(--text-secondary)', minWidth: '70px' }}>
                           <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: staff.is_online ? '#10b981' : 'var(--text-secondary)' }} />
                           {staff.is_online ? 'ONLINE' : 'OFFLINE'}
@@ -322,16 +377,35 @@ export const DriverApprovals: React.FC = () => {
                     
                     </div>
 
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); toggleSuspension(staff.id, staff.full_name, (staff as any).is_suspended); }}
-                    style={suspendBtnStyle(isSuspended)}
-                  >
-                    {isSuspended ? (
-                      <><UserCheck size={14} /> Restore</>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {isRetired ? (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleRestore(staff.id, staff.full_name); }}
+                        style={suspendBtnStyle(false)}
+                      >
+                        <UserCheck size={14} /> Restore
+                      </button>
                     ) : (
-                      <><UserX size={14} /> Suspend</>
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleSuspension(staff.id, staff.full_name, (staff as any).is_suspended); }}
+                          style={suspendBtnStyle(isSuspended)}
+                        >
+                          {isSuspended ? (
+                            <><UserCheck size={14} /> Restore</>
+                          ) : (
+                            <><UserX size={14} /> Suspend</>
+                          )}
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleRetire(staff.id, staff.full_name); }}
+                          style={{ ...suspendBtnStyle(false), backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                        >
+                          Retire
+                        </button>
+                      </>
                     )}
-                  </button>
+                  </div>
                 </div>
               );
             })}

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/Auth/LoginScreen';
 import RequestAccessScreen from '../screens/Auth/RequestAccessScreen';
 import PendingScreen from '../screens/Auth/PendingScreen';
+import RetiredScreen from '../screens/Auth/RetiredScreen';
 import ProfileScreen from '../screens/Rider/DriverProfileScreen';
 import MainTabs from './MainTabs';
 import DriverMainTabs from './DriverMainTabs';
@@ -61,6 +62,8 @@ export default function AppNavigator() {
         return <Stack.Screen name="RequestAccess" component={RequestAccessScreen} />;
       case 'pending':
         return <Stack.Screen name="Pending" component={PendingScreen} />;
+      case 'retired':
+        return <Stack.Screen name="Retired" component={RetiredScreen} />;
       case 'driver_onboarding':
         return <Stack.Screen name="DriverOnboarding" component={DriverOnboardingNavigator} />;
       case 'driver':
