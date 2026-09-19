@@ -1,39 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import './FinanceSettlements.css';
-import { IndianRupee, Users, Calendar, X, AlertCircle } from 'lucide-react';
+import { IndianRupee, Users, Calendar, X, AlertCircle, Info, Filter } from 'lucide-react';
 import { FinanceService } from '../../../services/api/FinanceService';
 import { supabase } from '../../../services/api/supabaseClient';
 import { DataTable } from '../../../components/Admin/DataTable';
 import { useApp } from '../../../context/AppContext';
 
-// Helpers to define current active periods
-const getCurrentPickerPeriod = () => {
-  const today = new Date();
-  const currentDay = today.getDay();
-  const daysToWednesday = currentDay >= 3 ? currentDay - 3 : currentDay + 4;
-  const start = new Date(today);
-  start.setDate(today.getDate() - daysToWednesday);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+const toLocalIso = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
-const getCurrentDriverPeriod = () => {
-  const today = new Date();
-  const currentDay = today.getDay();
-  const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
-  const start = new Date(today);
-  start.setDate(today.getDate() - daysToMonday);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+const parseLocalDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split('T')[0].split('-');
+  return new Date(Number(y), Number(m) - 1, Number(d));
 };
+
+const generatePickerPeriods = (n = 52) => {
+  const periods = [];
+  let d = new Date();
+  const currentDay = d.getDay();
+  const daysToWednesday = currentDay >= 3 ? currentDay - 3 : currentDay + 4;
+  d.setDate(d.getDate() - daysToWednesday);
+  d.setHours(0,0,0,0);
+  
+  for (let i = 0; i < n; i++) {
+    const start = new Date(d);
+    const end = new Date(d);
+    end.setDate(end.getDate() + 6);
+    const startIso = toLocalIso(start);
+    const label = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+    periods.push({ start: startIso, label, rawEnd: toLocalIso(end) });
+    d.setDate(d.getDate() - 7);
+  }
+  return periods;
+};
+
+const generateDriverPeriods = (n = 52) => {
+  const periods = [];
+  let d = new Date();
+  const currentDay = d.getDay();
+  const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+  d.setDate(d.getDate() - daysToMonday);
+  d.setHours(0,0,0,0);
+  
+  for (let i = 0; i < n; i++) {
+    const start = new Date(d);
+    const end = new Date(d);
+    end.setDate(end.getDate() + 6);
+    const startIso = toLocalIso(start);
+    const label = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+    periods.push({ start: startIso, label, rawEnd: toLocalIso(end) });
+    d.setDate(d.getDate() - 7);
+  }
+  return periods;
+};
+
+const generateWarehousePeriods = (n = 12) => {
+  const periods = [];
+  let d = new Date();
+  d.setDate(1);
+  d.setHours(0,0,0,0);
+  
+  for (let i = 0; i < n; i++) {
+    const isoMonth = toLocalIso(d);
+    const label = d.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+    periods.push({ start: isoMonth, label, rawEnd: 'Monthly' });
+    d.setMonth(d.getMonth() - 1);
+  }
+  return periods;
+};
+
+const pickerPeriods = generatePickerPeriods();
+const driverPeriods = generateDriverPeriods();
+const warehousePeriods = generateWarehousePeriods();
 
 export const FinanceSettlements: React.FC = () => {
   const { addToast } = useApp();
   const [isLoading, setIsLoading] = useState(true);
   const [roster, setRoster] = useState<any[]>([]);
   
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'picker' | 'driver' | 'warehouse_staff'>('picker');
+  const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
+  const [pickerPeriodStr, setPickerPeriodStr] = useState<string>(pickerPeriods[0].start);
+  const [driverPeriodStr, setDriverPeriodStr] = useState<string>(driverPeriods[0].start);
+  const [warehousePeriodStr, setWarehousePeriodStr] = useState<string>(warehousePeriods[0].start);
+  const [unpaidCounts, setUnpaidCounts] = useState({ picker: 0, driver: 0, warehouse_staff: 0 });
+
   // Modal State
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,66 +112,166 @@ export const FinanceSettlements: React.FC = () => {
   const [testPayModalOpen, setTestPayModalOpen] = useState(false);
   const [testPayLoading, setTestPayLoading] = useState(false);
   
-  // Array of { date, shiftEarnings, bonus, deductions, dailyTotal }
   const [dailyActivity, setDailyActivity] = useState<any[]>([]);
-
-  const pickerPeriod = getCurrentPickerPeriod();
-  const driverPeriod = getCurrentDriverPeriod();
 
   const loadData = async () => {
     try {
       setIsLoading(true);
       
-      const staff = await FinanceService.getStaffRoster();
-      const ps = await FinanceService.getPickerSettlements();
-      const ds = await FinanceService.getDriverSettlements();
+      const [pickerU, driverU, whU] = await Promise.all([
+        FinanceService.getOutstandingPickerPayables(),
+        FinanceService.getOutstandingDriverPayables(),
+        FinanceService.getOutstandingWarehousePayables()
+      ]);
       
-      const currentMonth = new Date();
-      currentMonth.setDate(1);
-      const isoMonth = currentMonth.toISOString().split('T')[0];
-      const wp = await FinanceService.getWarehousePayroll(isoMonth);
+      setUnpaidCounts({
+        picker: pickerU.length,
+        driver: driverU.length,
+        warehouse_staff: whU.length
+      });
 
-      const combinedRoster = staff.map(member => {
-        let matchedSettlement = null;
+      const staff = await FinanceService.getStaffRoster();
+      let combinedRoster: any[] = [];
+
+      if (showUnpaidOnly) {
+        let outstandingItems: any[] = [];
+        if (activeTab === 'picker') outstandingItems = pickerU;
+        else if (activeTab === 'driver') outstandingItems = driverU;
+         else if (activeTab === 'warehouse_staff') outstandingItems = whU;
+
+        combinedRoster = outstandingItems.map((s: any) => {
+           let periodDisplay = '';
+           let periodRaw = { start: '', end: '' };
+           if (activeTab === 'picker' || activeTab === 'driver') {
+             const start = parseLocalDate(s.week_start);
+             const end = new Date(start);
+             end.setDate(end.getDate() + 6);
+             periodDisplay = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+             periodRaw = { start: s.week_start, end: toLocalIso(end) };
+           } else {
+             const d = parseLocalDate(s.salary_month);
+             periodDisplay = d.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+             periodRaw = { start: s.salary_month, end: 'Monthly' };
+           }
+
+           const member = staff.find(st => st.id === (s.staff_id || s.driver_id)) || s.profiles;
+
+           return {
+             id: member?.id || (s.staff_id || s.driver_id),
+             name: member?.full_name || 'Unknown',
+             employee_id: member?.employee_id || '—',
+             role: activeTab,
+             roleRaw: activeTab,
+             warehouse: member?.warehouses?.name || s.warehouses?.name || '—',
+             warehouse_id: member?.warehouse_id || s.warehouse_id,
+             periodDisplay,
+             periodRaw,
+             hasSettlement: true,
+             net_amount: Number(s.net_amount || s.net_salary || s.total_amount || 0),
+             status: s.status,
+             details: s
+           };
+        });
+      } else {
+        let matchedSettlements: any[] = [];
+        let periodStart = '';
+        let periodEnd = '';
         let periodDisplay = '';
-        let periodRaw = { start: '', end: '' };
-        
-        if (member.role === 'picker') {
-          matchedSettlement = ps.find(s => s.staff_id === member.id && s.week_start === pickerPeriod.start);
-          periodDisplay = `${new Date(pickerPeriod.start).toLocaleDateString()} - ${new Date(pickerPeriod.end).toLocaleDateString()}`;
-          periodRaw = { start: pickerPeriod.start, end: pickerPeriod.end };
-        } else if (member.role === 'driver') {
-          matchedSettlement = ds.find(s => s.driver_id === member.id && s.week_start === driverPeriod.start);
-          periodDisplay = `${new Date(driverPeriod.start).toLocaleDateString()} - ${new Date(driverPeriod.end).toLocaleDateString()}`;
-          periodRaw = { start: driverPeriod.start, end: driverPeriod.end };
-        } else if (member.role === 'warehouse_staff') {
-          matchedSettlement = wp.find(w => w.staff_id === member.id && w.salary_month === isoMonth);
-          periodDisplay = new Date(isoMonth).toLocaleDateString(undefined, {month: 'short', year: 'numeric'});
-          periodRaw = { start: isoMonth, end: 'Monthly' };
+
+        if (activeTab === 'picker') {
+          periodStart = pickerPeriodStr;
+          const end = parseLocalDate(periodStart);
+          end.setDate(end.getDate() + 6);
+          periodEnd = toLocalIso(end);
+          periodDisplay = `${parseLocalDate(periodStart).toLocaleDateString()} - ${end.toLocaleDateString()}`;
+          matchedSettlements = await FinanceService.getPickerSettlements(undefined, periodStart);
+        } else if (activeTab === 'driver') {
+          periodStart = driverPeriodStr;
+          const end = parseLocalDate(periodStart);
+          end.setDate(end.getDate() + 6);
+          periodEnd = toLocalIso(end);
+          periodDisplay = `${parseLocalDate(periodStart).toLocaleDateString()} - ${end.toLocaleDateString()}`;
+          matchedSettlements = await FinanceService.getDriverSettlements(undefined, periodStart);
+        } else if (activeTab === 'warehouse_staff') {
+          periodStart = warehousePeriodStr;
+          periodEnd = 'Monthly';
+          periodDisplay = parseLocalDate(periodStart).toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+          matchedSettlements = await FinanceService.getWarehousePayroll(periodStart);
         }
 
-        const roleLabels: Record<string, string> = {
-          picker: 'Picker',
-          driver: 'Driver',
-          warehouse_staff: 'Warehouse Staff'
-        };
+        let activityMap = new Set<string>();
+        if (activeTab === 'picker') {
+           const { data: payouts } = await supabase.from('staff_shift_payouts').select('staff_id').gte('earning_date', periodStart).lte('earning_date', periodEnd);
+           const { data: bonuses } = await supabase.from('picker_bonus_awards').select('staff_id').gte('earning_date', periodStart).lte('earning_date', periodEnd);
+           (payouts || []).forEach((p:any) => activityMap.add(p.staff_id));
+           (bonuses || []).forEach((b:any) => activityMap.add(b.staff_id));
+        } else if (activeTab === 'driver') {
+           const { data: ledgers } = await supabase.from('driver_financial_ledger').select('driver_id').gte('occurred_at', `${periodStart}T00:00:00Z`).lte('occurred_at', `${periodEnd}T23:59:59Z`);
+           (ledgers || []).forEach((l:any) => activityMap.add(l.driver_id));
+        } else if (activeTab === 'warehouse_staff') {
+           // For warehouse, if they have salary configs or time logs in the month. Let's just assume we rely on settlements for now, or just show all for current period.
+           // Genuine activity filtering for warehouse is simpler: if they have a config and it's current month, show them.
+        }
+        
+        const settlementStaffIds = new Set(matchedSettlements.map(s => s.staff_id || s.driver_id));
+        
+        combinedRoster = staff.filter(member => {
+            if (member.role !== activeTab) return false;
+            
+            const hasSettlement = settlementStaffIds.has(member.id);
+            const hasActivity = activityMap.has(member.id);
+            
+            let isCurrentPeriod = false;
+            if (activeTab === 'picker' && periodStart === pickerPeriods[0].start) isCurrentPeriod = true;
+            if (activeTab === 'driver' && periodStart === driverPeriods[0].start) isCurrentPeriod = true;
+            if (activeTab === 'warehouse_staff' && periodStart === warehousePeriods[0].start) isCurrentPeriod = true;
 
-        return {
-          id: member.id,
-          name: member.full_name || 'Unknown',
-          employee_id: member.employee_id || '—',
-          role: roleLabels[member.role] || member.role,
-          roleRaw: member.role,
-          warehouse: member.warehouses?.name || '—',
-          warehouse_id: member.warehouse_id,
-          periodDisplay,
-          periodRaw,
-          hasSettlement: !!matchedSettlement,
-          net_amount: matchedSettlement ? Number(matchedSettlement.net_amount || matchedSettlement.net_salary || matchedSettlement.total_amount || 0) : null,
-          status: matchedSettlement ? matchedSettlement.status : 'NOT GENERATED',
-          details: matchedSettlement
-        };
-      });
+            if (isCurrentPeriod) return true;
+            
+            return hasSettlement || hasActivity;
+        }).map(member => {
+            const s = matchedSettlements.find(st => (st.staff_id === member.id || st.driver_id === member.id));
+            
+            return {
+             id: member.id,
+             name: member.full_name || 'Unknown',
+             employee_id: member.employee_id || '—',
+             role: activeTab,
+             roleRaw: activeTab,
+             warehouse: member.warehouses?.name || '—',
+             warehouse_id: member.warehouse_id,
+             periodDisplay,
+             periodRaw: { start: periodStart, end: periodEnd },
+             hasSettlement: !!s,
+             net_amount: s ? Number(s.net_amount || s.net_salary || s.total_amount || 0) : null,
+             status: s ? s.status : 'NOT GENERATED',
+             details: s
+           };
+        });
+        
+        // Append former staff that have a settlement but are not in the current roster
+        matchedSettlements.forEach(s => {
+          const staffId = s.staff_id || s.driver_id;
+          if (!combinedRoster.find(r => r.id === staffId)) {
+            const member = s.profiles;
+            combinedRoster.push({
+             id: staffId,
+             name: member?.full_name || 'Unknown',
+             employee_id: member?.employee_id || '—',
+             role: activeTab,
+             roleRaw: activeTab,
+             warehouse: s.warehouses?.name || '—',
+             warehouse_id: s.warehouse_id,
+             periodDisplay,
+             periodRaw: { start: periodStart, end: periodEnd },
+             hasSettlement: true,
+             net_amount: Number(s.net_amount || s.net_salary || s.total_amount || 0),
+             status: s.status,
+             details: s
+            });
+          }
+        });
+      }
 
       setRoster(combinedRoster);
 
@@ -134,7 +291,7 @@ export const FinanceSettlements: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'warehouse_staff_payroll' }, loadData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [activeTab, pickerPeriodStr, driverPeriodStr, warehousePeriodStr, showUnpaidOnly]);
 
   const openView = async (staff: any) => {
     setSelectedStaff(staff);
@@ -165,7 +322,6 @@ export const FinanceSettlements: React.FC = () => {
         (payouts || []).forEach((p: any) => {
           if (!dateMap[p.earning_date]) dateMap[p.earning_date] = { date: p.earning_date, shiftEarnings: 0, bonus: 0, deductions: 0 };
           dateMap[p.earning_date].shiftEarnings += Number(p.total_amount || 0);
-          // if deductions exist in payouts later, add here
         });
 
         (bonuses || []).forEach((b: any) => {
@@ -244,7 +400,7 @@ export const FinanceSettlements: React.FC = () => {
       await FinanceService.configureWarehouseSalary(selectedStaff.id, val, configDate);
       addToast('Salary configured successfully', 'success');
       setConfigModalOpen(false);
-      openView(selectedStaff); // reload the view
+      openView(selectedStaff); 
     } catch (e: any) {
       addToast(e.message, 'error');
     } finally {
@@ -266,10 +422,8 @@ export const FinanceSettlements: React.FC = () => {
       setModalLoading(true);
       await FinanceService.generateWarehousePayroll(selectedStaff.warehouse_id, selectedStaff.periodRaw.start, [selectedStaff.id]);
       addToast('Payroll generated successfully', 'success');
-      
-      // Close the view so that when it's reopened or when the roster updates, it shows the new status
       closeView();
-      await loadData(); // Reload main roster to reflect changes
+      await loadData(); 
     } catch (e: any) {
       addToast(e.message, 'error');
       setModalLoading(false);
@@ -289,7 +443,27 @@ export const FinanceSettlements: React.FC = () => {
       setModalLoading(true);
       await FinanceService.createPickerSettlements(selectedStaff.warehouse_id, selectedStaff.periodRaw.start, [selectedStaff.id]);
       addToast('Picker settlement generated successfully', 'success');
-      
+      closeView();
+      await loadData();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+      setModalLoading(false);
+    }
+  };
+
+  const handleGenerateDriverSettlement = async () => {
+    const confirmMsg = `Generate weekly settlement for ${selectedStaff.name}?\nPeriod: ${selectedStaff.periodDisplay}`;
+    if (!window.confirm(confirmMsg)) return;
+
+    if (!selectedStaff.warehouse_id) {
+      addToast('Cannot generate settlement: warehouse assignment is missing.', 'error');
+      return;
+    }
+
+    try {
+      setModalLoading(true);
+      await FinanceService.generateDriverSettlement(selectedStaff.warehouse_id, selectedStaff.periodRaw.start, [selectedStaff.id]);
+      addToast('Driver settlement generated successfully', 'success');
       closeView();
       await loadData();
     } catch (e: any) {
@@ -327,7 +501,6 @@ export const FinanceSettlements: React.FC = () => {
       addToast('Adjustment added successfully', 'success');
       setAdjModalOpen(false);
       
-      // Reload authoritative data
       const isoMonth = selectedStaff.periodRaw.start; 
       const wp = await FinanceService.getWarehousePayroll(isoMonth);
       const updatedDetails = wp.find(w => w.staff_id === selectedStaff.id && w.salary_month === isoMonth);
@@ -339,8 +512,6 @@ export const FinanceSettlements: React.FC = () => {
           net_amount: updatedDetails.net_salary 
         });
       }
-      
-      // Also reload background roster
       loadData();
     } catch (e: any) {
       addToast(e.message, 'error');
@@ -356,7 +527,6 @@ export const FinanceSettlements: React.FC = () => {
       setTestPayLoading(true);
       const reference = await FinanceService.executeTestPayout(selectedStaff.details.id, selectedStaff.roleRaw);
       
-      // Update local state to reflect successful payment
       setSelectedStaff({
         ...selectedStaff,
         status: 'paid',
@@ -372,8 +542,6 @@ export const FinanceSettlements: React.FC = () => {
       
       addToast('TEST PAYMENT SUCCESSFUL', 'success');
       setTestPayModalOpen(false);
-      
-      // Reload the background roster
       loadData();
     } catch (e: any) {
       addToast(e.message, 'error');
@@ -382,33 +550,91 @@ export const FinanceSettlements: React.FC = () => {
     }
   };
 
-  if (isLoading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading Staff Roster...</div>;
+  const getUnpaidCount = (tab: string) => {
+    if (tab === 'picker') return unpaidCounts.picker;
+    if (tab === 'driver') return unpaidCounts.driver;
+    if (tab === 'warehouse_staff') return unpaidCounts.warehouse_staff;
+    return 0;
+  };
 
   return (
     <div className="container animate-slide-up">
       <div className="welcome-banner" style={{ marginBottom: '24px' }}>
         <div>
           <h2 className="title">Staff Payments</h2>
-          <p className="subtitle">Manage unified payouts for Pickers, Drivers, and Warehouse Staff.</p>
+          <p className="subtitle">Manage payouts across perfectly aligned accounting periods.</p>
         </div>
         <Users size={36} color="var(--primary)" />
       </div>
 
       <div className="panel-card glass-panel animate-slide-up">
-        <div className="panel-header">
-          <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={18} color="var(--primary)" /> Staff Roster</h3>
+        <div className="finance-tabs">
+          <button 
+            onClick={() => { setActiveTab('picker'); setShowUnpaidOnly(false); }}
+            className={`finance-tab-btn ${activeTab === 'picker' ? 'active' : ''}`}
+          >
+            Picker
+            {unpaidCounts.picker > 0 && <span className="unpaid-badge">{unpaidCounts.picker}</span>}
+          </button>
+          <button 
+            onClick={() => { setActiveTab('driver'); setShowUnpaidOnly(false); }}
+            className={`finance-tab-btn ${activeTab === 'driver' ? 'active' : ''}`}
+          >
+            Driver
+            {unpaidCounts.driver > 0 && <span className="unpaid-badge">{unpaidCounts.driver}</span>}
+          </button>
+          <button 
+            onClick={() => { setActiveTab('warehouse_staff'); setShowUnpaidOnly(false); }}
+            className={`finance-tab-btn ${activeTab === 'warehouse_staff' ? 'active' : ''}`}
+          >
+            Warehouse Staff
+            {unpaidCounts.warehouse_staff > 0 && <span className="unpaid-badge">{unpaidCounts.warehouse_staff}</span>}
+          </button>
         </div>
-        <div style={{ marginTop: '16px' }}>
-          {roster.length > 0 ? (
+
+        <div className="panel-header-toolbar">
+          <h3 className="panel-title">
+            <Calendar size={18} color="var(--primary)" /> 
+            {activeTab === 'picker' ? 'Picker Payments' : activeTab === 'driver' ? 'Driver Payments' : 'Warehouse Payroll'}
+          </h3>
+
+          <div className="toolbar-controls">
+            <label className="toggle-switch">
+              <input type="checkbox" checked={showUnpaidOnly} onChange={(e) => setShowUnpaidOnly(e.target.checked)} />
+              <div className="toggle-slider"></div>
+              <span className="toggle-label">Show Unpaid Only</span>
+            </label>
+            
+            {!showUnpaidOnly && activeTab === 'picker' && (
+              <select className="period-select" value={pickerPeriodStr} onChange={e => setPickerPeriodStr(e.target.value)}>
+                {pickerPeriods.map(p => <option key={p.start} value={p.start}>{p.label}</option>)}
+              </select>
+            )}
+            {!showUnpaidOnly && activeTab === 'driver' && (
+              <select className="period-select" value={driverPeriodStr} onChange={e => setDriverPeriodStr(e.target.value)}>
+                {driverPeriods.map(p => <option key={p.start} value={p.start}>{p.label}</option>)}
+              </select>
+            )}
+            {!showUnpaidOnly && activeTab === 'warehouse_staff' && (
+              <select className="period-select" value={warehousePeriodStr} onChange={e => setWarehousePeriodStr(e.target.value)}>
+                {warehousePeriods.map(p => <option key={p.start} value={p.start}>{p.label}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+
+        <div className="table-wrapper">
+          {isLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}>Loading Staff Roster...</div>
+          ) : roster.length > 0 ? (
             <DataTable
               data={roster}
-              keyExtractor={s => s.id}
+              keyExtractor={(s, index) => `${s.id}-${index}`}
               columns={[
                 { key: 'name', header: 'NAME', render: r => <span style={{ fontWeight: 600 }}>{r.name}</span> },
                 { key: 'employee_id', header: 'EMPLOYEE ID', sortable: true },
-                { key: 'role', header: 'ROLE', sortable: true },
                 { key: 'warehouse', header: 'WAREHOUSE' },
-                { key: 'period', header: 'CURRENT PAY PERIOD', render: r => <span style={{ fontSize: '0.85rem' }}>{r.periodDisplay}</span> },
+                { key: 'period', header: showUnpaidOnly ? 'ORIGINAL PERIOD' : 'PAY PERIOD', render: r => <span style={{ fontSize: '0.85rem' }}>{r.periodDisplay}</span> },
                 { key: 'status', header: 'STATUS', render: r => {
                   if (r.status === 'NOT GENERATED') {
                     return <span className="admin-badge" style={{ backgroundColor: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>NOT GENERATED</span>;
@@ -427,17 +653,16 @@ export const FinanceSettlements: React.FC = () => {
                     >
                       View
                     </button>
-                    {r.hasSettlement && r.status !== 'paid' && (
-                      <button disabled style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#e2e8f0', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'not-allowed' }} title="Payment integration pending">
-                        Pay
-                      </button>
-                    )}
                   </div>
                 )}
               ]}
             />
           ) : (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>No staff members found.</div>
+            <div className="empty-state animate-fade-in">
+              <Users size={48} />
+              <div className="empty-state-title">No staff members found</div>
+              <div className="empty-state-desc">There is no matching staff activity or records for the selected period.</div>
+            </div>
           )}
         </div>
       </div>
@@ -494,14 +719,41 @@ export const FinanceSettlements: React.FC = () => {
                     </span>
                   </div>
 
-                  <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>AVAILABLE PAYOUT</span>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>
-                        ₹{Math.max(0, driverSummary?.pocket_balance || 0).toFixed(2)}
-                      </span>
+                  {selectedStaff.details && (
+                    <>
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CARRIED DEFICIT</span>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--error)' }}>
+                          ₹{Number(selectedStaff.details.carried_deficit || 0).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>DEFICIT RECOVERED</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--success)' }}>
+                            ₹{Number(selectedStaff.details.deficit_recovered || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>AVAILABLE PAYOUT</span>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>
+                            ₹{Math.max(0, Number(selectedStaff.details.net_amount || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {!selectedStaff.details && (
+                    <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>AVAILABLE PAYOUT</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>
+                          NOT GENERATED
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             ) : selectedStaff.roleRaw === 'warehouse_staff' ? (
@@ -559,102 +811,63 @@ export const FinanceSettlements: React.FC = () => {
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CURRENT PERIOD EARNINGS</span>
-                  <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    {selectedStaff.net_amount !== null 
-                      ? `₹${selectedStaff.net_amount.toFixed(2)}` 
-                      : `₹${dailyActivity.reduce((sum, d) => sum + d.dailyTotal, 0).toFixed(2)}`}
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>TOTAL PAYABLE</span>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+                    ₹{selectedStaff.status === 'NOT GENERATED' ? '0.00' : Math.max(0, Number(selectedStaff.net_amount || 0)).toFixed(2)}
                   </span>
                 </div>
               </div>
             )}
 
             {selectedStaff.status === 'paid' && selectedStaff.details && (
-              <div style={{ backgroundColor: 'rgba(34, 197, 94, 0.05)', border: '1px solid var(--success)', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
-                <h5 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                  PAYMENT DETAILS
-                </h5>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.9rem' }}>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Status</span>
-                    <span style={{ fontWeight: 600, color: 'var(--success)' }}>PAID</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Paid Amount</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>₹{Number(selectedStaff.net_amount).toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Provider</span>
-                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{selectedStaff.details.payment_provider || '—'}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Method</span>
-                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{selectedStaff.details.payment_method || '—'}</span>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Payment Reference</span>
-                    <span style={{ fontWeight: 500, fontFamily: 'monospace', color: 'var(--text-primary)', backgroundColor: 'var(--bg-base)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-light)', display: 'inline-block' }}>
-                      {selectedStaff.details.payment_reference || '—'}
-                    </span>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.8rem', marginBottom: '4px' }}>Paid At</span>
-                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                      {selectedStaff.details.paid_at ? new Date(selectedStaff.details.paid_at).toLocaleString() : '—'}
-                    </span>
-                  </div>
+              <div style={{ backgroundColor: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', gap: '24px' }}>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>PAID AT</span>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                    {selectedStaff.details.paid_at ? new Date(selectedStaff.details.paid_at).toLocaleString() : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>REFERENCE</span>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500, fontFamily: 'monospace' }}>
+                    {selectedStaff.details.payment_reference || '—'}
+                  </span>
                 </div>
               </div>
             )}
 
             <div>
-              <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem' }}>Detail</h4>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem' }}>
+                {selectedStaff.roleRaw === 'warehouse_staff' ? 'Salary Configuration' : 'Daily Activity Breakdown'}
+              </h4>
               
-              {modalLoading ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading authoritative activity...</div>
-              ) : selectedStaff.roleRaw === 'warehouse_staff' ? (
-                <div style={{ padding: '24px', backgroundColor: 'var(--bg-base)', borderRadius: '8px', color: 'var(--text-primary)' }}>
-                  {selectedStaff.status === 'NOT GENERATED' ? (
-                    <>
-                      <h5 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>MONTHLY SALARY CONFIGURATION</h5>
-                      {warehouseSalaryConfig ? (
-                        <>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <div>
-                              <span style={{ display: 'block', fontSize: '1.2rem', fontWeight: 600 }}>₹{Number(warehouseSalaryConfig.monthly_base_salary).toFixed(2)} / month</span>
-                              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Effective from {new Date(warehouseSalaryConfig.effective_from).toLocaleDateString()}</span>
-                            </div>
-                            <button onClick={() => openConfigModal(warehouseSalaryConfig.monthly_base_salary)} style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'transparent', color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Update Salary</button>
-                          </div>
-                          <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button onClick={handleGeneratePayroll} style={{ padding: '8px 16px', fontSize: '0.85rem', backgroundColor: 'var(--success)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Generate Payroll</button>
-                          </div>
-                        </>
-                      ) : (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: 'var(--error)', fontWeight: 600 }}>Salary: NOT CONFIGURED</span>
-                          <button onClick={() => openConfigModal()} style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Configure Salary</button>
-                        </div>
-                      )}
-                    </>
+              {selectedStaff.roleRaw === 'warehouse_staff' ? (
+                <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px' }}>
+                  {warehouseSalaryConfig ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Active Configuration (from {new Date(warehouseSalaryConfig.effective_from).toLocaleDateString()})</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>₹{Number(warehouseSalaryConfig.monthly_base_salary).toFixed(2)} / month</div>
+                      </div>
+                      <button onClick={() => openConfigModal(warehouseSalaryConfig.monthly_base_salary)} style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--primary)', backgroundColor: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                        Update Salary
+                      </button>
+                    </div>
                   ) : (
-                    <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      <span>Monthly payroll is fixed and does not have daily shift details.</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No salary configured for this employee.</div>
+                      <button onClick={() => openConfigModal()} style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                        Configure Salary
+                      </button>
                     </div>
                   )}
-                </div>
-              ) : dailyActivity.length === 0 ? (
-                <div style={{ padding: '32px', textAlign: 'center', backgroundColor: 'var(--bg-base)', borderRadius: '8px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <AlertCircle size={24} color="#94a3b8" />
-                  <span>No earnings recorded for this period.</span>
                 </div>
               ) : (
                 <DataTable
                   data={dailyActivity}
                   keyExtractor={r => r.date}
                   columns={[
-                    { key: 'date', header: 'DATE', render: r => <span>{new Date(r.date).toLocaleDateString()}</span> },
+                    { key: 'date', header: 'DATE', render: r => <span>{parseLocalDate(r.date).toLocaleDateString()}</span> },
                     { key: 'shiftEarnings', header: 'SHIFT EARNINGS', render: r => <span>₹{r.shiftEarnings.toFixed(2)}</span> },
                     { key: 'bonus', header: 'BONUS', render: r => <span>₹{r.bonus.toFixed(2)}</span> },
                     { key: 'deductions', header: 'DEDUCTIONS', render: r => <span>₹{r.deductions.toFixed(2)}</span> },
@@ -664,14 +877,47 @@ export const FinanceSettlements: React.FC = () => {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px', gap: '12px' }}>
-              {selectedStaff.status === 'NOT GENERATED' && selectedStaff.roleRaw === 'picker' && dailyActivity.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '24px', gap: '12px', flexWrap: 'wrap' }}>
+              {selectedStaff.status === 'NOT GENERATED' && (selectedStaff.roleRaw === 'driver' || selectedStaff.roleRaw === 'picker') && dailyActivity.length > 0 && (() => {
+                const closeDate = new Date(`${selectedStaff.periodRaw.start}T00:00:00+05:30`);
+                closeDate.setDate(closeDate.getDate() + 7);
+                const isClosed = new Date() >= closeDate;
+                
+                const handleGenerate = selectedStaff.roleRaw === 'driver' ? handleGenerateDriverSettlement : handleGeneratePickerSettlement;
+                
+                return (
+                  <>
+                    {!isClosed && (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <Info size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }}/> 
+                        Generation available on {closeDate.toLocaleDateString()}
+                      </span>
+                    )}
+                    <button 
+                      onClick={handleGenerate}
+                      disabled={!isClosed}
+                      style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--success)', color: 'white', cursor: isClosed ? 'pointer' : 'not-allowed', fontWeight: 600, opacity: isClosed ? 1 : 0.5 }}
+                    >
+                      Generate Settlement
+                    </button>
+                  </>
+                );
+              })()}
+
+              {selectedStaff.status === 'NOT GENERATED' && selectedStaff.roleRaw === 'warehouse_staff' && warehouseSalaryConfig && (
                 <button 
-                  onClick={handleGeneratePickerSettlement}
+                  onClick={handleGeneratePayroll}
                   style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--success)', color: 'white', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  Generate Settlement
+                  Generate Payroll
                 </button>
+              )}
+
+              {selectedStaff.status !== 'NOT GENERATED' && selectedStaff.status !== 'paid' && selectedStaff.net_amount <= 0 && selectedStaff.roleRaw === 'driver' && (
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600, marginRight: 'auto' }}>
+                  <Info size={16} style={{ verticalAlign: 'middle', marginRight: '4px' }}/>
+                  Deficit Carried Forward
+                </span>
               )}
               {selectedStaff.status !== 'NOT GENERATED' && selectedStaff.status !== 'paid' && selectedStaff.net_amount > 0 && (
                 <button 
@@ -699,47 +945,27 @@ export const FinanceSettlements: React.FC = () => {
             
             <div style={{ marginBottom: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
               <p style={{ margin: '0 0 4px 0' }}><strong>Employee:</strong> {selectedStaff.name} ({selectedStaff.employee_id})</p>
-              <p style={{ margin: '0 0 4px 0' }}><strong>Warehouse:</strong> {selectedStaff.warehouse}</p>
-              <p style={{ margin: 0 }}><strong>Role:</strong> Warehouse Staff</p>
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600 }}>Monthly Base Salary (₹)</label>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                value={configAmount}
-                onChange={(e) => setConfigAmount(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-                placeholder="e.g. 15000"
-              />
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>MONTHLY BASE SALARY (₹)</label>
+              <input type="number" className="input-field" value={configAmount} onChange={e => setConfigAmount(e.target.value)} placeholder="e.g. 15000" style={{ width: '100%' }} />
             </div>
 
             <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600 }}>Effective From Date</label>
-              <input
-                type="date"
-                value={configDate}
-                onChange={(e) => setConfigDate(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-              />
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>EFFECTIVE FROM</label>
+              <input type="date" className="input-field" value={configDate} onChange={e => setConfigDate(e.target.value)} style={{ width: '100%' }} />
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                <AlertCircle size={12} style={{ verticalAlign: 'middle', marginRight: '2px' }}/> Must be 1st of a month
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button 
-                onClick={() => setConfigModalOpen(false)}
-                disabled={configSaving}
-                style={{ padding: '10px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
-              >
+              <button onClick={() => setConfigModalOpen(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}>
                 Cancel
               </button>
-              <button 
-                onClick={handleSaveConfig}
-                disabled={configSaving}
-                style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: configSaving ? 0.7 : 1 }}
-              >
-                {configSaving ? 'Saving...' : 'Save Salary'}
+              <button onClick={handleSaveConfig} disabled={configSaving} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 500, opacity: configSaving ? 0.7 : 1 }}>
+                {configSaving ? 'Saving...' : 'Save Configuration'}
               </button>
             </div>
           </div>
@@ -751,77 +977,40 @@ export const FinanceSettlements: React.FC = () => {
           <div className="modal-content animate-slide-up glass-panel" style={{ backgroundColor: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '400px', color: 'var(--text-primary)' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Add Payroll Adjustment</h3>
             
-            <div style={{ marginBottom: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-              <p style={{ margin: '0 0 4px 0' }}><strong>Employee:</strong> {selectedStaff.name} ({selectedStaff.employee_id})</p>
-              <p style={{ margin: '0 0 4px 0' }}><strong>Warehouse:</strong> {selectedStaff.warehouse}</p>
-              <p style={{ margin: '0 0 4px 0' }}><strong>Payroll Month:</strong> {selectedStaff.periodRaw.start}</p>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', display: 'block' }}>Current Base</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>₹{Number(selectedStaff.details?.base_salary || 0).toFixed(2)}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', display: 'block' }}>Current Net</span>
-                  <span style={{ fontWeight: 600, color: 'var(--success)' }}>₹{Number(selectedStaff.details?.net_salary || 0).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600 }}>Adjustment Type</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>ADJUSTMENT TYPE</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   onClick={() => setAdjType('addition')}
-                  style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid', borderColor: adjType === 'addition' ? 'var(--primary)' : 'var(--border-light)', backgroundColor: adjType === 'addition' ? 'var(--primary)' : 'var(--bg-base)', color: adjType === 'addition' ? 'white' : 'var(--text-primary)', cursor: 'pointer', fontWeight: 600 }}
+                  style={{ flex: 1, padding: '8px', border: adjType === 'addition' ? '2px solid var(--success)' : '1px solid var(--border-light)', borderRadius: '6px', background: adjType === 'addition' ? 'rgba(34, 197, 94, 0.1)' : 'transparent', color: adjType === 'addition' ? 'var(--success)' : 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}
                 >
-                  Addition
+                  Addition (+)
                 </button>
                 <button 
                   onClick={() => setAdjType('deduction')}
-                  style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid', borderColor: adjType === 'deduction' ? 'var(--error)' : 'var(--border-light)', backgroundColor: adjType === 'deduction' ? 'var(--error)' : 'var(--bg-base)', color: adjType === 'deduction' ? 'white' : 'var(--text-primary)', cursor: 'pointer', fontWeight: 600 }}
+                  style={{ flex: 1, padding: '8px', border: adjType === 'deduction' ? '2px solid var(--error)' : '1px solid var(--border-light)', borderRadius: '6px', background: adjType === 'deduction' ? 'rgba(239, 68, 68, 0.1)' : 'transparent', color: adjType === 'deduction' ? 'var(--error)' : 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}
                 >
-                  Deduction
+                  Deduction (-)
                 </button>
               </div>
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600 }}>Amount (₹)</label>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                value={adjAmount}
-                onChange={(e) => setAdjAmount(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-                placeholder="e.g. 500"
-              />
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>AMOUNT (₹)</label>
+              <input type="number" className="input-field" value={adjAmount} onChange={e => setAdjAmount(e.target.value)} placeholder="e.g. 500" style={{ width: '100%' }} />
             </div>
 
             <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600 }}>Reason</label>
-              <textarea
-                value={adjReason}
-                onChange={(e) => setAdjReason(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', boxSizing: 'border-box', resize: 'vertical', minHeight: '60px' }}
-                placeholder="Required explanation..."
-              />
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>REASON / DESCRIPTION</label>
+              <input type="text" className="input-field" value={adjReason} onChange={e => setAdjReason(e.target.value)} placeholder="e.g. Overtime bonus, Uniform deduction..." style={{ width: '100%' }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button 
-                onClick={() => setAdjModalOpen(false)}
-                disabled={adjSaving}
-                style={{ padding: '10px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
-              >
+              <button onClick={() => setAdjModalOpen(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}>
                 Cancel
               </button>
-              <button 
-                onClick={handleSaveAdj}
-                disabled={adjSaving}
-                style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: adjSaving ? 0.7 : 1 }}
-              >
-                {adjSaving ? 'Saving...' : 'Add Adjustment'}
+              <button onClick={handleSaveAdj} disabled={adjSaving} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 500, opacity: adjSaving ? 0.7 : 1 }}>
+                {adjSaving ? 'Saving...' : 'Apply Adjustment'}
               </button>
             </div>
           </div>
@@ -829,53 +1018,28 @@ export const FinanceSettlements: React.FC = () => {
       )}
 
       {testPayModalOpen && selectedStaff && (
-        <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="modal-content animate-slide-up glass-panel" style={{ backgroundColor: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '400px', color: 'var(--text-primary)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', color: 'var(--primary)' }}>Test Pay Execution</h3>
-            
-            <div style={{ padding: '16px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--error)', borderRadius: '8px', marginBottom: '20px' }}>
-              <p style={{ margin: 0, color: 'var(--error)', fontWeight: 700, textAlign: 'center' }}>
-                TEST MODE — No real money will be transferred
-              </p>
+        <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content animate-slide-up glass-panel" style={{ backgroundColor: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '400px', color: 'var(--text-primary)', textAlign: 'center' }}>
+            <div style={{ width: '48px', height: '48px', backgroundColor: 'rgba(14, 165, 233, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: 'var(--primary)' }}>
+              <IndianRupee size={24} />
             </div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem' }}>Execute Test Payment</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+              This will simulate a successful bank transfer for <strong>₹{selectedStaff.net_amount.toFixed(2)}</strong> to <strong>{selectedStaff.name}</strong>.
+            </p>
 
-            <div style={{ marginBottom: '24px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Staff Name:</strong> <span>{selectedStaff.name}</span>
-              </p>
-              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Employee ID:</strong> <span>{selectedStaff.employee_id}</span>
-              </p>
-              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Role:</strong> <span>{selectedStaff.role}</span>
-              </p>
-              <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Period:</strong> <span>{selectedStaff.periodDisplay}</span>
-              </p>
-              <p style={{ margin: '0 0 0 0', display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
-                <strong>Payable Amount:</strong> <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.1rem' }}>₹{Number(selectedStaff.net_amount).toFixed(2)}</span>
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button 
-                onClick={() => setTestPayModalOpen(false)}
-                disabled={testPayLoading}
-                style={{ padding: '10px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
-              >
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button onClick={() => setTestPayModalOpen(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600 }}>
                 Cancel
               </button>
-              <button 
-                onClick={handleTestPay}
-                disabled={testPayLoading}
-                style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: testPayLoading ? 0.7 : 1 }}
-              >
+              <button onClick={handleTestPay} disabled={testPayLoading} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary)', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: testPayLoading ? 0.7 : 1 }}>
                 {testPayLoading ? 'Processing...' : 'Confirm Test Pay'}
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 };

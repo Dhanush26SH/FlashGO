@@ -215,10 +215,11 @@ export class FinanceService {
     }));
   }
 
-  static async getPickerSettlements(warehouseId?: string): Promise<any[]> {
+  static async getPickerSettlements(warehouseId?: string, periodStart?: string): Promise<any[]> {
     if (!supabase) return [];
     let query = supabase.from('picker_settlements').select('*, profiles!staff_id(full_name, id, role, employee_id), picker_settlement_items(*)').order('created_at', { ascending: false });
     if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    if (periodStart) query = query.eq('week_start', periodStart);
     const { data, error } = await query;
     if (error) throw error;
     if (!data) return [];
@@ -232,10 +233,11 @@ export class FinanceService {
     }));
   }
 
-  static async getDriverSettlements(warehouseId?: string): Promise<any[]> {
+  static async getDriverSettlements(warehouseId?: string, periodStart?: string): Promise<any[]> {
     if (!supabase) return [];
     let query = supabase.from('driver_settlements').select('*, profiles!driver_id(full_name, id, role, employee_id), driver_settlement_items(*)').order('created_at', { ascending: false });
     if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    if (periodStart) query = query.eq('week_start', periodStart);
     const { data, error } = await query;
     if (error) throw error;
     if (!data) return [];
@@ -247,6 +249,47 @@ export class FinanceService {
       ...s,
       warehouses: { name: s.warehouse_id ? (warehouseMap[s.warehouse_id] || 'Unassigned') : 'Unassigned' }
     }));
+  }
+
+  static async getOutstandingPickerPayables(warehouseId?: string): Promise<any[]> {
+    if (!supabase) return [];
+    let query = supabase.from('picker_settlements').select('*, profiles!staff_id(full_name, id, role, employee_id), picker_settlement_items(*)').eq('status', 'ready').gt('total_amount', 0).order('week_start', { ascending: false });
+    if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async getOutstandingDriverPayables(warehouseId?: string): Promise<any[]> {
+    if (!supabase) return [];
+    let query = supabase.from('driver_settlements').select('*, profiles!driver_id(full_name, id, role, employee_id), driver_settlement_items(*)').eq('status', 'ready').gt('net_amount', 0).order('week_start', { ascending: false });
+    if (warehouseId) query = query.eq('warehouse_id', warehouseId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async getOutstandingWarehousePayables(warehouseId?: string): Promise<any[]> {
+    if (!supabase) return [];
+    let query = supabase.from('warehouse_staff_payroll').select('*, profiles!staff_id(full_name, id, role, employee_id)').eq('status', 'pending').gt('net_salary', 0).order('salary_month', { ascending: false });
+    // Note: warehouse filtering is indirectly available if we had warehouse_id, but warehouse_staff_payroll does not store warehouse_id natively.
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async generateDriverSettlement(warehouseId: string, weekStart: string, staffIds: string[]): Promise<any> {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { data, error } = await supabase.rpc('create_driver_settlement_batch', {
+      p_warehouse_id: warehouseId,
+      p_week_start: weekStart,
+      p_staff_ids: staffIds
+    });
+    if (error) throw error;
+    if (data && data.failed_count > 0 && data.processed_count === 0) {
+      throw new Error(`Failed to generate: period may be active, driver has no unsettled ledgers, or settlement already exists.`);
+    }
+    return data;
   }
 
   // --- Warehouse Payroll ---
@@ -313,13 +356,14 @@ export class FinanceService {
     return reference;
   }
 
-  static async getWarehousePayroll(month: string): Promise<any[]> {
+  static async getWarehousePayroll(month?: string): Promise<any[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase
+    let query = supabase
       .from('warehouse_staff_payroll')
       .select('*, profiles!staff_id(full_name, id)')
-      .eq('salary_month', month)
       .order('generated_at', { ascending: false });
+    if (month) query = query.eq('salary_month', month);
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }
