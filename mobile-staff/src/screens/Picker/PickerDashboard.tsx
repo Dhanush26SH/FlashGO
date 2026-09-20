@@ -88,27 +88,38 @@ export default function PickerDashboard() {
         .from('orders')
         .select(`
           id, status, picker_assigned_at,
-          order_items(quantity, status)
+          order_items(quantity, status),
+          drop_zone_allocations(status, picker_id)
         `)
         .eq('picker_id', profile.id)
         .in('status', ['placed', 'picking', 'waiting_for_packing', 'packing', 'packed', 'staged'])
         .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+        .limit(20);
 
       if (error) throw error;
       
-      if (data && ['placed', 'picking'].includes(data.status)) {
-        if (!notifiedOrders.current.has(data.id)) {
-          notifiedOrders.current.add(data.id);
+      let activeOrder = null;
+      if (data) {
+        // Find the first order that is NOT safely placed in a Drop Zone
+        activeOrder = data.find(o => {
+          const isRelieved = o.drop_zone_allocations?.some(
+            (dza: any) => dza.picker_id === profile.id && ['placed', 'driver_assigned', 'picked_up'].includes(dza.status)
+          );
+          return !isRelieved;
+        });
+      }
+
+      if (activeOrder && ['placed', 'picking'].includes(activeOrder.status)) {
+        if (!notifiedOrders.current.has(activeOrder.id)) {
+          notifiedOrders.current.add(activeOrder.id);
           if (isRealtime) {
             playNewOrderSound();
           }
         }
       }
 
-      console.log('SET_ACTIVE_ORDER', data?.id);
-      setActiveOrder(data);
+      console.log('SET_ACTIVE_ORDER', activeOrder?.id);
+      setActiveOrder(activeOrder);
     } catch (err) {
       console.error("Fetch Active Order Error:", err);
     } finally {

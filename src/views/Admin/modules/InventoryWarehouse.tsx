@@ -150,8 +150,6 @@ export const InventoryWarehouse: React.FC = () => {
     }
   };
 
-
-
   useEffect(() => {
     fetchWarehouses();
   }, []);
@@ -173,7 +171,7 @@ export const InventoryWarehouse: React.FC = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedWarehouseId]);
+  }, [selectedWarehouseId, activeTab]);
 
   const activeTabStyle = { padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' };
   const inactiveTabStyle = { padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' };

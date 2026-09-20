@@ -101,6 +101,7 @@ export default function AppNavigator() {
             <Stack.Screen name="NavigationScreen" component={NavigationScreen} />
             <Stack.Screen name="VehicleType" component={require('../screens/DriverOnboarding/UpdateVehicleDetailsScreen').default} />
             <Stack.Screen name="DeliveryHistory" component={DeliveryHistoryScreen} />
+            <Stack.Screen name="DriverDropZoneScanScreen" component={require('../screens/Rider/DriverDropZoneScanScreen').default} />
           </>
         );
       case 'warehouse_staff':
@@ -137,6 +138,7 @@ export default function AppNavigator() {
             <Stack.Screen name="HandoverToDriver" component={HandoverToDriverScreen} />
             <Stack.Screen name="WeeklyItemTargetScreen" component={WeeklyItemTargetScreen} />
             <Stack.Screen name="PickerBonusOfferDetailScreen" component={PickerBonusOfferDetailScreen} />
+            <Stack.Screen name="PickerDropZoneScanScreen" component={require('../screens/Picker/PickerDropZoneScanScreen').default} />
           </>
         );
       default:

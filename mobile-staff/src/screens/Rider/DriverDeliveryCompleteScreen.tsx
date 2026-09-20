@@ -111,7 +111,7 @@ export default function DriverDeliveryCompleteScreen() {
   }
 
   const { trip, order, returnTask, earning } = data;
-  const isLongDistance = !!returnTask;
+  const requiresReturn = !!returnTask;
   
   // Format distance
   const distanceKm = trip.route_distance_meters ? (trip.route_distance_meters / 1000).toFixed(1) : '—';
@@ -157,13 +157,13 @@ export default function DriverDeliveryCompleteScreen() {
         </View>
       </View>
 
-      {isLongDistance && (
-        <View style={styles.longDistanceBox}>
+      {requiresReturn && (
+        <View style={styles.returnBox}>
           <TrendingUp color="#3b82f6" size={24} />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.ldTitle}>Return to Store Required</Text>
-            <Text style={styles.ldSub}>Order {order?.order_number}</Text>
-            <Text style={styles.ldDesc}>Return to the store to complete this trip and get your next order.</Text>
+            <Text style={styles.returnTitle}>Return to Store Required</Text>
+            <Text style={styles.returnSub}>Order {order?.order_number}</Text>
+            <Text style={styles.returnDesc}>Return to the store to complete this trip and get your next order.</Text>
           </View>
         </View>
       )}
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   statValue: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 8 },
   statLabel: { color: '#6b7280', fontSize: 13, marginTop: 4 },
 
-  longDistanceBox: {
+  returnBox: {
     flexDirection: 'row',
     backgroundColor: '#1e3a8a20',
     borderWidth: 1,
@@ -230,9 +230,9 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'flex-start'
   },
-  ldTitle: { color: '#60a5fa', fontSize: 16, fontWeight: 'bold' },
-  ldSub: { color: '#93c5fd', fontSize: 13, marginTop: 2 },
-  ldDesc: { color: '#bfdbfe', fontSize: 13, marginTop: 8, lineHeight: 18 },
+  returnTitle: { color: '#60a5fa', fontSize: 16, fontWeight: 'bold' },
+  returnSub: { color: '#93c5fd', fontSize: 13, marginTop: 2 },
+  returnDesc: { color: '#bfdbfe', fontSize: 13, marginTop: 8, lineHeight: 18 },
 
   bottomBar: { paddingVertical: 16 },
   okayBtn: {

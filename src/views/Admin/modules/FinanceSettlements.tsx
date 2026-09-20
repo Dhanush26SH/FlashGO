@@ -19,6 +19,14 @@ const parseLocalDate = (dateStr: string) => {
   return new Date(Number(y), Number(m) - 1, Number(d));
 };
 
+const getIstToUtcInterval = (startDateStr: string, endDateStr: string) => {
+  const startUtc = new Date(new Date(`${startDateStr}T00:00:00Z`).getTime() - (5.5 * 3600000)).toISOString();
+  const endIst = new Date(`${endDateStr}T00:00:00Z`);
+  endIst.setDate(endIst.getDate() + 1);
+  const endExclusiveUtc = new Date(endIst.getTime() - (5.5 * 3600000)).toISOString();
+  return { startUtc, endExclusiveUtc };
+};
+
 const generatePickerPeriods = (n = 52) => {
   const periods = [];
   let d = new Date();
@@ -218,7 +226,8 @@ export const FinanceSettlements: React.FC = () => {
            (payouts || []).forEach((p:any) => activityMap.add(p.staff_id));
            (bonuses || []).forEach((b:any) => activityMap.add(b.staff_id));
         } else if (activeTab === 'driver') {
-           const { data: ledgers } = await supabase.from('driver_financial_ledger').select('driver_id').gte('occurred_at', `${periodStart}T00:00:00Z`).lte('occurred_at', `${periodEnd}T23:59:59Z`);
+           const { startUtc, endExclusiveUtc } = getIstToUtcInterval(periodStart, periodEnd);
+           const { data: ledgers } = await supabase.from('driver_financial_ledger').select('driver_id').gte('occurred_at', startUtc).lt('occurred_at', endExclusiveUtc);
            (ledgers || []).forEach((l:any) => activityMap.add(l.driver_id));
         } else if (activeTab === 'warehouse_staff') {
            // For warehouse, if they have salary configs or time logs in the month. Let's just assume we rely on settlements for now, or just show all for current period.
@@ -344,15 +353,18 @@ export const FinanceSettlements: React.FC = () => {
         const { data: sumData } = await supabase.from('driver_financial_summary').select('*').eq('driver_id', staff.id).single();
         if (sumData) setDriverSummary(sumData);
 
+        const { startUtc, endExclusiveUtc } = getIstToUtcInterval(staff.periodRaw.start, staff.periodRaw.end);
+
         const { data: earnings } = await supabase.from('driver_financial_ledger')
           .select('*')
           .eq('driver_id', staff.id)
-          .gte('occurred_at', `${staff.periodRaw.start}T00:00:00Z`)
-          .lte('occurred_at', `${staff.periodRaw.end}T23:59:59Z`)
+          .gte('occurred_at', startUtc)
+          .lt('occurred_at', endExclusiveUtc)
           .in('transaction_type', ['delivery_earning', 'customer_tip', 'incentive', 'penalty', 'adjustment']);
         
         (earnings || []).forEach((e: any) => {
-          const d = e.occurred_at.split('T')[0];
+          const istTime = new Date(new Date(e.occurred_at).getTime() + (5.5 * 3600000));
+          const d = istTime.toISOString().split('T')[0];
           if (!dateMap[d]) dateMap[d] = { date: d, shiftEarnings: 0, bonus: 0, deductions: 0 };
           
           if (e.transaction_type === 'delivery_earning' || e.transaction_type === 'customer_tip') {

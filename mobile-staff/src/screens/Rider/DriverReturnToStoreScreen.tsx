@@ -177,12 +177,12 @@ export default function DriverReturnToStoreScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Return Required</Text>
+        <Text style={styles.title}>Return to Store</Text>
       </View>
 
       <View style={styles.content}>
         <Text style={styles.infoText}>
-          Return to {task.warehouses?.name} to receive new orders
+          Return to {task.warehouses?.name || 'Store'} to get your next order.
         </Text>
 
         <View style={styles.storeCard}>
@@ -201,45 +201,47 @@ export default function DriverReturnToStoreScreen() {
 
         <View style={{ flex: 1 }} />
 
-        <TouchableOpacity 
-          style={[styles.scanBtn, { backgroundColor: '#3b82f6', marginBottom: 16 }]} 
-          onPress={async () => {
-            if (processing) return;
-            setProcessing(true);
-            try {
-              const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
-              if (locStatus !== 'granted') throw new Error('Location permission is required.');
-              
-              const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-              
-              const { data: res, error } = await supabase.rpc('driver_verify_warehouse_arrival', {
-                p_task_id: task.id,
-                p_lat: loc.coords.latitude,
-                p_lng: loc.coords.longitude
-              });
-              
-              if (error) throw error;
-              
-              if (res?.success) {
-                navigation.navigate('DriverReturnHandoverScreen', { taskId: task.id });
-              } else {
-                Alert.alert('Too Far', 'You must be at the warehouse to start handover.');
-              }
-            } catch (err: any) {
-              Alert.alert('Error', err.message);
-            } finally {
-              setProcessing(false);
-            }
-          }}
-        >
-          <QrCode color="#fff" size={24} />
-          <Text style={[styles.scanBtnText, { color: '#fff' }]}>Handover to Warehouse</Text>
+        <TouchableOpacity style={[styles.scanBtn, { backgroundColor: '#10b981', marginBottom: 16 }]} onPress={handleScanPress}>
+          <QrCode color="#000" size={24} />
+          <Text style={[styles.scanBtnText, { color: '#000' }]}>Scan Store QR</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.scanBtn, { backgroundColor: '#27272a' }]} onPress={handleScanPress}>
-          <QrCode color="#a1a1aa" size={20} />
-          <Text style={[styles.scanBtnText, { color: '#a1a1aa', fontSize: 15 }]}>Legacy: Scan QR at Store</Text>
-        </TouchableOpacity>
+        {task.return_type === 'merchandise' && (
+          <TouchableOpacity 
+            style={[styles.scanBtn, { backgroundColor: '#3b82f6' }]} 
+            onPress={async () => {
+              if (processing) return;
+              setProcessing(true);
+              try {
+                const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
+                if (locStatus !== 'granted') throw new Error('Location permission is required.');
+                
+                const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                
+                const { data: res, error } = await supabase.rpc('driver_verify_warehouse_arrival', {
+                  p_task_id: task.id,
+                  p_lat: loc.coords.latitude,
+                  p_lng: loc.coords.longitude
+                });
+                
+                if (error) throw error;
+                
+                if (res?.success) {
+                  navigation.navigate('DriverReturnHandoverScreen', { taskId: task.id });
+                } else {
+                  Alert.alert('Too Far', 'You must be at the warehouse to start handover.');
+                }
+              } catch (err: any) {
+                Alert.alert('Error', err.message);
+              } finally {
+                setProcessing(false);
+              }
+            }}
+          >
+            <QrCode color="#fff" size={24} />
+            <Text style={[styles.scanBtnText, { color: '#fff' }]}>Handover Failed Items</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );

@@ -98,13 +98,54 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const verifyAndLoadProfile = async (user: any) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // 1. Force the internal client state to await pending storage syncs before query
+      await supabase.auth.getSession();
+
+      let data = null;
+      let error = null;
+      let retries = 3;
+
+      while (retries > 0) {
+        const result = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        data = result.data;
+        error = result.error;
+
+        // Bounded retry specifically for transient RLS permission denied (42501)
+        if (error && error.code === '42501') {
+          retries--;
+          if (retries === 0) break;
+          // Yield slightly for transient storage sync to complete
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        } else {
+          break; // Exit loop on success or non-transient error
+        }
+      }
         
-      if (error || !data) {
+      if (error) {
+        if (error.code === 'PGRST116') {
+          Alert.alert('Profile Not Found', 'Your customer profile could not be found.');
+          await supabase.auth.signOut();
+          setSessionUser(null);
+        } else if (error.code === '42501') {
+          Alert.alert('Authentication Sync Error', 'Please try logging in again.');
+          await supabase.auth.signOut();
+          setSessionUser(null);
+        } else {
+          Alert.alert('Network Error', error.message || 'Failed to load profile.');
+          // Do NOT sign out for genuine network errors; leave session intact for manual retry
+          setSessionUser(null);
+        }
+        return;
+      }
+
+      if (!data) {
+        Alert.alert('Profile Error', 'Profile data is missing.');
+        await supabase.auth.signOut();
         setSessionUser(null);
         return;
       }

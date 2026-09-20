@@ -210,7 +210,11 @@ export default function DriverOperationsMapScreen() {
           
           if (data.active_trip.status === 'accepted') {
             setReturnTask(null);
-            navigation.navigate('DriverPickup');
+            if (data.active_trip.drop_zone_code) {
+              navigation.navigate('DriverDropZoneScanScreen', { tripId: data.active_trip.id, zoneCode: data.active_trip.drop_zone_code });
+            } else {
+              navigation.navigate('DriverPickup');
+            }
           } else if (data.active_trip.status === 'in_transit') {
             setReturnTask(null);
             if (data.active_trip.arrived_at) {
@@ -232,6 +236,9 @@ export default function DriverOperationsMapScreen() {
                  .maybeSingle();
                  
                setReturnTask(retTask);
+               if (retTask) {
+                  navigation.navigate('DriverReturnToStoreScreen');
+               }
             }
           }
         } else if (data.pending_offer) {
@@ -262,6 +269,9 @@ export default function DriverOperationsMapScreen() {
           if (retError) console.error('[DriverReturnTask] error', retError);
           
           setReturnTask(retTask);
+          if (retTask) {
+            navigation.navigate('DriverReturnToStoreScreen');
+          }
           
           setActiveTrip(null);
           setPendingTrip(null);
@@ -683,14 +693,27 @@ export default function DriverOperationsMapScreen() {
       {/* Trips Overlay */}
       <View style={styles.tripsOverlay} pointerEvents="box-none">
         {activeTrip ? (
-          <TouchableOpacity style={[styles.tripBanner, { backgroundColor: '#3b82f6' }]} onPress={() => navigation.navigate('RiderDashboard', { tripId: activeTrip.id })}>
+          <TouchableOpacity 
+            style={[styles.tripBanner, { backgroundColor: activeTrip.drop_zone_code && activeTrip.status === 'accepted' ? '#f59e0b' : '#3b82f6' }]} 
+            onPress={() => {
+              if (activeTrip.status === 'accepted' && activeTrip.drop_zone_code) {
+                navigation.navigate('DriverDropZoneScanScreen', { tripId: activeTrip.id, zoneCode: activeTrip.drop_zone_code });
+              } else {
+                navigation.navigate('RiderDashboard', { tripId: activeTrip.id });
+              }
+            }}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={styles.tripIconBg}>
-                 <Text style={{fontSize: 16}}>🚀</Text>
+                 <Text style={{fontSize: 16}}>📦</Text>
               </View>
               <View>
-                <Text style={styles.tripTitle}>Active Trip ({activeTrip.status.toUpperCase()})</Text>
-                <Text style={styles.tripStore}>View Route & Details</Text>
+                <Text style={styles.tripTitle}>
+                  {activeTrip.drop_zone_code && activeTrip.status === 'accepted' ? 'Drop Zone Pickup' : `Active Trip (${activeTrip.status.toUpperCase()})`}
+                </Text>
+                <Text style={styles.tripStore}>
+                  {activeTrip.drop_zone_code && activeTrip.status === 'accepted' ? `Go to Drop Zone ${activeTrip.drop_zone_code}` : 'View Route & Details'}
+                </Text>
               </View>
             </View>
             <ChevronLeft color="#ffffff" size={20} style={{ transform: [{ rotate: '180deg' }] }} />

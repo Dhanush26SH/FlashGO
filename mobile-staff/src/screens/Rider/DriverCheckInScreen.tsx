@@ -208,7 +208,7 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
           <CameraIcon color={cameraPermission.granted ? '#10b981' : '#9ca3af'} size={24} />
           <View style={styles.permInfo}>
             <Text style={styles.permTitle}>Camera</Text>
-            <Text style={styles.permDesc}>Used to capture your live check-in selfie and scan the store QR code.</Text>
+            <Text style={styles.permDesc}>Used to scan the secure store QR code during check-in.</Text>
             <Text style={[styles.permStatus, { color: cameraPermission.granted ? '#10b981' : '#ef4444' }]}>
               Status: {cameraPermission.granted ? 'Allowed' : 'Not Allowed'}
             </Text>

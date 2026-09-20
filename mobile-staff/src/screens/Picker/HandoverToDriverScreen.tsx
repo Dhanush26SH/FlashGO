@@ -14,9 +14,13 @@ interface OrderData {
   status: string;
   driver_id: string | null;
   trip_id: string | null;
+  trip_created_at: string | null;
   bag_number: string | null;
   order_number: string | null;
   driver: DriverProfile | null;
+  drop_zone_status: string | null;
+  drop_zone_code: string | null;
+  drop_zone_id: string | null;
 }
 
 interface DriverProfile {
@@ -70,6 +74,7 @@ export default function HandoverToDriverScreen() {
         status: data.order_status,
         driver_id: data.driver_id,
         trip_id: data.trip_status === 'accepted' || data.trip_status === 'in_transit' ? 'trip' : null,
+        trip_created_at: data.trip_created_at,
         bag_number: data.bag_number,
         order_number: data.order_number,
         driver: data.driver_id ? {
@@ -77,7 +82,10 @@ export default function HandoverToDriverScreen() {
           full_name: data.full_name,
           phone: data.phone,
           employee_id: data.employee_id
-        } : null
+        } : null,
+        drop_zone_status: data.drop_zone_status,
+        drop_zone_code: data.drop_zone_code,
+        drop_zone_id: data.drop_zone_id
       };
 
       setOrder(formattedData);
@@ -118,6 +126,60 @@ export default function HandoverToDriverScreen() {
       supabase.removeChannel(channel);
     };
   }, [orderId, fetchOrder]);
+
+  // ─── Drop Zone Fallback 15s Timer ───
+  const [fallbackLoading, setFallbackLoading] = useState(false);
+  const [allZonesOccupied, setAllZonesOccupied] = useState(false);
+
+  useEffect(() => {
+    let interval: any;
+    if (order && !order.driver_id && !order.drop_zone_status && order.trip_created_at) {
+      interval = setInterval(async () => {
+        const createdTime = new Date(order.trip_created_at!).getTime();
+        const now = Date.now();
+        if (now - createdTime >= 15000) {
+          // Trigger fallback!
+          if (!fallbackLoading && !allZonesOccupied) {
+            setFallbackLoading(true);
+            try {
+              const { data, error } = await supabase.rpc('allocate_fallback_drop_zone', {
+                p_order_id: orderId
+              });
+              if (error) throw error;
+              if (data && data.success) {
+                // Backend successfully allocated. Refetch to update UI state.
+                fetchOrder();
+              } else if (data && data.code === 'NO_FREE_DROP_ZONE') {
+                setAllZonesOccupied(true);
+              }
+            } catch (e) {
+              console.error('Fallback error:', e);
+            } finally {
+              setFallbackLoading(false);
+            }
+          }
+        }
+      }, 1000); // Check every second
+
+      // Retry every 5 seconds if all zones were occupied
+      if (allZonesOccupied) {
+        clearInterval(interval);
+        interval = setInterval(async () => {
+           setAllZonesOccupied(false); // Reset to re-trigger the immediate check above
+        }, 5000);
+      }
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [order, fallbackLoading, allZonesOccupied, orderId, fetchOrder]);
+
+  const handleDropZoneScan = () => {
+    navigation.navigate('PickerDropZoneScanScreen', { 
+      orderId, 
+      zoneCode: order?.drop_zone_code 
+    });
+  };
 
   // ─── Handover action ───
   const handleHandover = async () => {
@@ -245,6 +307,22 @@ export default function HandoverToDriverScreen() {
                 </View>
               </View>
             </View>
+          ) : order?.drop_zone_status === 'allocated' ? (
+            <View style={styles.waitingContainer}>
+              <Package color="#10b981" size={24} style={{ marginBottom: 12 }} />
+              <Text style={styles.waitingTitle}>Take order to {order.drop_zone_code}</Text>
+              <Text style={styles.waitingSubtitle}>
+                No driver available. Please store this order at Drop Zone {order.drop_zone_code}.
+              </Text>
+            </View>
+          ) : allZonesOccupied ? (
+             <View style={styles.waitingContainer}>
+              <ActivityIndicator color="#f59e0b" style={{ marginBottom: 12 }} />
+              <Text style={[styles.waitingTitle, { color: '#f59e0b' }]}>All Drop Zones are currently occupied.</Text>
+              <Text style={styles.waitingSubtitle}>
+                Waiting for a free zone or a driver...
+              </Text>
+            </View>
           ) : (
             <View style={styles.waitingContainer}>
               <ActivityIndicator color="#10b981" style={{ marginBottom: 12 }} />
@@ -283,28 +361,40 @@ export default function HandoverToDriverScreen() {
 
       {/* ── Bottom CTA ── */}
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.handoverButton,
-            (!handoverReady || submitting) && styles.handoverButtonDisabled,
-          ]}
-          onPress={handleHandover}
-          disabled={!handoverReady || submitting}
-          activeOpacity={0.8}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text
-              style={[
-                styles.handoverButtonText,
-                (!handoverReady) && styles.handoverButtonTextDisabled,
-              ]}
-            >
-              {driverAssigned ? 'Handover Order' : 'Waiting for Driver...'}
+        {order?.drop_zone_status === 'allocated' ? (
+          <TouchableOpacity
+            style={styles.handoverButton}
+            onPress={handleDropZoneScan}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.handoverButtonText}>
+              Scan {order.drop_zone_code} QR
             </Text>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.handoverButton,
+              (!handoverReady || submitting) && styles.handoverButtonDisabled,
+            ]}
+            onPress={handleHandover}
+            disabled={!handoverReady || submitting}
+            activeOpacity={0.8}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text
+                style={[
+                  styles.handoverButtonText,
+                  !handoverReady && styles.handoverButtonTextDisabled,
+                ]}
+              >
+                Handover to Driver
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );

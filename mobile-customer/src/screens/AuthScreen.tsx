@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, useWindowDimensions, Alert } from 'react-native';
 import { theme } from '../theme';
 import { supabase } from '../lib/supabase';
@@ -13,6 +13,13 @@ export default function AuthScreen() {
   const [otpCode, setOtpCode] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   const handleSendOtp = async () => {
     if (!email.includes('@')) {
@@ -20,7 +27,9 @@ export default function AuthScreen() {
       return;
     }
     setIsAuthenticating(true);
+
     const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
+    
     setIsAuthenticating(false);
     
     if (error) {
@@ -30,9 +39,15 @@ export default function AuthScreen() {
     
     setOtpSent(true);
     setResendCooldown(60);
-    const interval = setInterval(() => {
+    
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    
+    intervalRef.current = setInterval(() => {
       setResendCooldown(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
+        if (prev <= 1) { 
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          return 0; 
+        }
         return prev - 1;
       });
     }, 1000);
@@ -44,7 +59,11 @@ export default function AuthScreen() {
       return;
     }
     setIsAuthenticating(true);
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: otpCode, type: 'email' });
+    const { error } = await supabase.auth.verifyOtp({ 
+      email: email.trim(), 
+      token: otpCode, 
+      type: 'email'
+    });
     setIsAuthenticating(false);
     if (error) { Alert.alert('Verification Failed', error.message); return; }
   };
@@ -103,7 +122,12 @@ export default function AuthScreen() {
               <Text style={styles.primaryBtnText}>{isAuthenticating ? 'Verifying...' : 'Verify & Continue'}</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setOtpSent(false)}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
+              setOtpSent(false);
+              setOtpCode('');
+              setResendCooldown(0);
+              if (intervalRef.current) clearInterval(intervalRef.current);
+            }}>
               <Text style={styles.secondaryBtnText}>Change Email</Text>
             </TouchableOpacity>
 

@@ -21,7 +21,8 @@ import {
   Calendar,
   CalendarDays,
   QrCode,
-  X
+  X,
+  Package
 } from 'lucide-react';
 
 // Import newly refactored sub-modules
@@ -42,6 +43,7 @@ import { ProcurementSupplier } from './modules/ProcurementSupplier';
 import { AnalyticsReports } from './modules/AnalyticsReports';
 import { NotificationCenter } from './modules/NotificationCenter';
 import { FleetManagement } from './modules/FleetManagement';
+import { DropZoneManagement } from './modules/DropZoneManagement';
 import { WorkSlotManagement } from './modules/WorkSlotManagement';
 import { DriverApprovals } from './modules/DriverApprovals';
 import { WorkforceActivity } from './modules/WorkforceActivity';
@@ -53,7 +55,7 @@ export const AdminView: React.FC = () => {
   const [showStoreQR, setShowStoreQR] = useState(false);
   
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'catalog' | 'inventory' | 'warehouse_tasks' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
+    'overview' | 'orders' | 'catalog' | 'inventory' | 'drop_zones' | 'warehouse_tasks' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
   >('overview');
 
   React.useEffect(() => {
@@ -79,6 +81,7 @@ export const AdminView: React.FC = () => {
     { id: 'delivery', label: 'Live Delivery Map', icon: <Map size={16} />, clearance: ['super_admin', 'support_ops'] },
     { id: 'catalog', label: 'Catalog Manager', icon: <BookOpen size={16} />, clearance: ['super_admin', 'warehouse_lead'] },
     { id: 'inventory', label: 'Inventory & Stock', icon: <Warehouse size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
+    { id: 'drop_zones', label: 'Drop Zone Management', icon: <Package size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'warehouse_tasks', label: 'Warehouse Tasks', icon: <Map size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'workforce_history', label: 'Staff Work History', icon: <CalendarDays size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'picker_offers', label: 'Picker Offers', icon: <Gift size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
@@ -137,6 +140,8 @@ export const AdminView: React.FC = () => {
         return <ProductCatalog />;
       case 'inventory':
         return <InventoryWarehouse />;
+      case 'drop_zones':
+        return <DropZoneManagement />;
       case 'warehouse_tasks':
         return <WarehouseTasks />;
 
