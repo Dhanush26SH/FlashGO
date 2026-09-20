@@ -3,13 +3,50 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { User, Briefcase, ChevronDown } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 
 export default function RequestAccessScreen() {
   const { setRole, profile, setProfile } = useAuth();
+  const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [requestedRole, setRequestedRole] = useState<'picker' | 'driver' | 'warehouse_staff'>('picker');
   const [loading, setLoading] = useState(false);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  
+  const [bankDetailsComplete, setBankDetailsComplete] = useState(false);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const checkBankDetails = async () => {
+      if (!profile?.id || (requestedRole !== 'picker' && requestedRole !== 'driver')) return;
+      try {
+        const { data, error } = await supabase
+          .from('staff_payout_details')
+          .select('*')
+          .eq('staff_id', profile.id)
+          .maybeSingle();
+        
+        if (isMounted) {
+          if (data && !error) {
+            const isComplete = Boolean(
+              data.account_number && data.ifsc && data.branch_name && data.bank_name && data.account_holder
+            );
+            setBankDetailsComplete(isComplete);
+          } else {
+            setBankDetailsComplete(false);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    if (isFocused) {
+      checkBankDetails();
+    }
+    return () => { isMounted = false; };
+  }, [isFocused, profile?.id, requestedRole]);
 
   const handleSubmit = async () => {
     if (!fullName.trim()) {
@@ -17,11 +54,23 @@ export default function RequestAccessScreen() {
       return;
     }
 
+    if (requestedRole === 'picker' || requestedRole === 'driver') {
+      if (!phone.trim()) {
+        Alert.alert('Required', 'Please enter your phone number.');
+        return;
+      }
+      if (!bankDetailsComplete) {
+        Alert.alert('Required', 'Please complete your Bank Details.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase.rpc('request_staff_access', {
         p_full_name: fullName.trim(),
-        p_requested_role: requestedRole
+        p_requested_role: requestedRole,
+        p_phone: (requestedRole === 'picker' || requestedRole === 'driver') ? phone.trim() : null
       });
 
       if (error) throw error;
@@ -98,6 +147,39 @@ export default function RequestAccessScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        )}
+
+        {(requestedRole === 'picker' || requestedRole === 'driver') && (
+          <View style={[styles.inputBox, { marginTop: 16 }]}>
+            <Text style={{ color: '#94a3b8', marginRight: 8 }}>📞</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Phone Number"
+              placeholderTextColor="#4b5563"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+          </View>
+        )}
+
+        {(requestedRole === 'picker' || requestedRole === 'driver') && (
+          <TouchableOpacity 
+            style={[styles.dropdownBtn, { marginTop: 16, justifyContent: 'space-between' }]}
+            onPress={() => navigation.navigate('OnboardingBankDetails')}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ color: '#94a3b8', marginRight: 12 }}>🏦</Text>
+              <Text style={styles.dropdownText}>
+                Bank Details
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {bankDetailsComplete && <Text style={{ color: '#10b981', marginRight: 8, fontSize: 12 }}>Added ✓</Text>}
+              {!bankDetailsComplete && <Text style={{ color: '#94a3b8', marginRight: 8, fontSize: 12 }}>Add</Text>}
+              <Text style={{ color: '#94a3b8' }}>→</Text>
+            </View>
+          </TouchableOpacity>
         )}
 
         <TouchableOpacity 

@@ -6,7 +6,7 @@ import { FleetService, type Vehicle, type DriverCompliance } from '../../../serv
 import { supabase } from '../../../services/api/supabaseClient';
 
 export const FleetManagement: React.FC = () => {
-  const { addToast, logisticsTrips, profiles, darkStores } = useApp();
+  const { addToast, logisticsTrips, profiles } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [fleet, setFleet] = useState<Vehicle[]>([]);
   const [complianceRecords, setComplianceRecords] = useState<DriverCompliance[]>([]);
@@ -17,6 +17,9 @@ export const FleetManagement: React.FC = () => {
   const [complianceSaving, setComplianceSaving] = useState(false);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
   const [newVehicle, setNewVehicle] = useState({ license_plate: '', vehicle_type: 'Electric Bike', warehouse_id: '', status: 'active' });
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [warehouseError, setWarehouseError] = useState<string | null>(null);
 
   const fetchFleetData = async () => {
     try {
@@ -31,6 +34,25 @@ export const FleetManagement: React.FC = () => {
 
   useEffect(() => {
     fetchFleetData();
+    const fetchWarehouses = async () => {
+      setLoadingWarehouses(true);
+      setWarehouseError(null);
+      try {
+        const { data, error } = await supabase
+          .from('warehouses')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name');
+        if (error) throw error;
+        setWarehouses(data || []);
+      } catch (e: any) {
+        setWarehouseError('Failed to load warehouses');
+        addToast(e.message, 'error');
+      } finally {
+        setLoadingWarehouses(false);
+      }
+    };
+    fetchWarehouses();
   }, []);
 
   const handleAddVehicle = async () => {
@@ -428,10 +450,19 @@ export const FleetManagement: React.FC = () => {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem' }}>Warehouse</label>
-              <select value={newVehicle.warehouse_id} onChange={e => setNewVehicle({...newVehicle, warehouse_id: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-                <option value="">Select Warehouse...</option>
-                {darkStores.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
+              {warehouseError ? (
+                <div style={{ color: 'var(--danger, #ef4444)', fontSize: '0.85rem' }}>{warehouseError}</div>
+              ) : (
+                <select 
+                  value={newVehicle.warehouse_id} 
+                  onChange={e => setNewVehicle({...newVehicle, warehouse_id: e.target.value})} 
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}
+                  disabled={loadingWarehouses}
+                >
+                  <option value="">{loadingWarehouses ? 'Loading warehouses...' : 'Select Warehouse...'}</option>
+                  {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              )}
             </div>
             
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>

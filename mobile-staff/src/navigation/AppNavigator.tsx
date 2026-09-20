@@ -19,6 +19,8 @@ import NotificationScreen from '../screens/Picker/NotificationScreen';
 import TroubleshootScreen from '../screens/Picker/TroubleshootScreen';
 import SelectLanguageScreen from '../screens/Profile/SelectLanguageScreen';
 import PayoutsScreen from '../screens/Profile/PayoutsScreen';
+import BankDetailsScreen from '../screens/Profile/BankDetailsScreen';
+import EditBankDetailsScreen from '../screens/Profile/EditBankDetailsScreen';
 import WarningsScreen from '../screens/Performance/WarningsScreen';
 import PickerFaceVerificationScreen from '../screens/Picker/PickerFaceVerificationScreen';
 import PickerFacePreviewScreen from '../screens/Picker/PickerFacePreviewScreen';
@@ -42,6 +44,7 @@ import WarehouseReturnQRScannerScreen from '../screens/Warehouse/WarehouseReturn
 import ReturnIntakeSummaryScreen from '../screens/Warehouse/ReturnIntakeSummaryScreen';
 import ReturnItemScannerScreen from '../screens/Warehouse/ReturnItemScannerScreen';
 import DriverReturnHandoverScreen from '../screens/Rider/DriverReturnHandoverScreen';
+import OnboardingBankDetailsScreen from '../screens/Auth/OnboardingBankDetailsScreen';
 import { View, Text } from 'react-native';
 import SplashScreen from '../components/SplashScreen';
 
@@ -59,7 +62,12 @@ export default function AppNavigator() {
       case 'auth':
         return <Stack.Screen name="Login" component={LoginScreen} />;
       case 'request_access':
-        return <Stack.Screen name="RequestAccess" component={RequestAccessScreen} />;
+        return (
+          <>
+            <Stack.Screen name="RequestAccess" component={RequestAccessScreen} />
+            <Stack.Screen name="OnboardingBankDetails" component={OnboardingBankDetailsScreen} />
+          </>
+        );
       case 'pending':
         return <Stack.Screen name="Pending" component={PendingScreen} />;
       case 'retired':
@@ -76,6 +84,8 @@ export default function AppNavigator() {
             <Stack.Screen name="Notification" component={NotificationScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />
             <Stack.Screen name="SelectLanguage" component={SelectLanguageScreen} />
+            <Stack.Screen name="BankDetails" component={BankDetailsScreen} />
+            <Stack.Screen name="EditBankDetails" component={EditBankDetailsScreen} />
             <Stack.Screen name="DriverPayouts" component={DriverPayoutsScreen} />
             <Stack.Screen name="Payouts" component={PayoutsScreen} />
             <Stack.Screen name="Warnings" component={WarningsScreen} />
@@ -114,6 +124,8 @@ export default function AppNavigator() {
             <Stack.Screen name="Notification" component={NotificationScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />
             <Stack.Screen name="SelectLanguage" component={SelectLanguageScreen} />
+            <Stack.Screen name="BankDetails" component={BankDetailsScreen} />
+            <Stack.Screen name="EditBankDetails" component={EditBankDetailsScreen} />
             <Stack.Screen name="Payouts" component={PayoutsScreen} />
             <Stack.Screen name="Warnings" component={WarningsScreen} />
             <Stack.Screen name="SlotDetails" component={SlotDetailsScreen} />

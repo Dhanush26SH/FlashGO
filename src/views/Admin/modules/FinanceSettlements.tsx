@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './FinanceSettlements.css';
-import { IndianRupee, Users, Calendar, X, AlertCircle, Info, Filter } from 'lucide-react';
+import { IndianRupee, Users, Calendar, X, AlertCircle, Info, Filter, Edit2, Check } from 'lucide-react';
 import { FinanceService } from '../../../services/api/FinanceService';
 import { supabase } from '../../../services/api/supabaseClient';
 import { DataTable } from '../../../components/Admin/DataTable';
@@ -111,6 +111,18 @@ export const FinanceSettlements: React.FC = () => {
 
   const [testPayModalOpen, setTestPayModalOpen] = useState(false);
   const [testPayLoading, setTestPayLoading] = useState(false);
+
+  const [staffDetailsModalOpen, setStaffDetailsModalOpen] = useState(false);
+  const [selectedStaffInfo, setSelectedStaffInfo] = useState<any>(null);
+  const [staffPayoutDetails, setStaffPayoutDetails] = useState<any>(null);
+  const [staffPhone, setStaffPhone] = useState<string | null>(null);
+  const [staffDetailsLoading, setStaffDetailsLoading] = useState(false);
+
+  // Phone editing state
+  const [phoneEditMode, setPhoneEditMode] = useState(false);
+  const [phoneEditValue, setPhoneEditValue] = useState('');
+  const [phoneEditSaving, setPhoneEditSaving] = useState(false);
+  const [phoneEditError, setPhoneEditError] = useState('');
   
   const [dailyActivity, setDailyActivity] = useState<any[]>([]);
 
@@ -210,7 +222,6 @@ export const FinanceSettlements: React.FC = () => {
            (ledgers || []).forEach((l:any) => activityMap.add(l.driver_id));
         } else if (activeTab === 'warehouse_staff') {
            // For warehouse, if they have salary configs or time logs in the month. Let's just assume we rely on settlements for now, or just show all for current period.
-           // Genuine activity filtering for warehouse is simpler: if they have a config and it's current month, show them.
         }
         
         const settlementStaffIds = new Set(matchedSettlements.map(s => s.staff_id || s.driver_id));
@@ -451,6 +462,62 @@ export const FinanceSettlements: React.FC = () => {
     }
   };
 
+  const openStaffDetails = async (staff: any) => {
+    setSelectedStaffInfo(staff);
+    setStaffDetailsModalOpen(true);
+    setStaffDetailsLoading(true);
+    setStaffPayoutDetails(null);
+    setStaffPhone(null);
+
+    try {
+      if (!supabase) return;
+      
+      const { data: profileData } = await supabase.from('profiles').select('phone').eq('id', staff.id).single();
+      if (profileData) setStaffPhone(profileData.phone);
+      
+      const { data: payoutData } = await supabase.from('staff_payout_details').select('*').eq('staff_id', staff.id).single();
+      if (payoutData) setStaffPayoutDetails(payoutData);
+
+    } catch (e: any) {
+      console.error('Failed to load staff details', e);
+    } finally {
+      setStaffDetailsLoading(false);
+    }
+  };
+
+  const closeStaffDetails = () => {
+    setStaffDetailsModalOpen(false);
+    setSelectedStaffInfo(null);
+    setStaffPayoutDetails(null);
+    setStaffPhone(null);
+    setPhoneEditMode(false);
+    setPhoneEditError('');
+  };
+
+  const handleSavePhone = async () => {
+    if (!selectedStaffInfo || !supabase) return;
+    setPhoneEditError('');
+    setPhoneEditSaving(true);
+    
+    try {
+      const { error } = await supabase.rpc('admin_update_staff_phone', {
+        p_staff_id: selectedStaffInfo.id,
+        p_phone: phoneEditValue
+      });
+      
+      if (error) throw error;
+      
+      setStaffPhone(phoneEditValue);
+      setPhoneEditMode(false);
+      addToast('Phone number updated successfully', 'success');
+    } catch (e: any) {
+      console.error('Failed to update phone', e);
+      setPhoneEditError(e.message || 'Failed to update phone');
+    } finally {
+      setPhoneEditSaving(false);
+    }
+  };
+
   const handleGenerateDriverSettlement = async () => {
     const confirmMsg = `Generate weekly settlement for ${selectedStaff.name}?\nPeriod: ${selectedStaff.periodDisplay}`;
     if (!window.confirm(confirmMsg)) return;
@@ -631,7 +698,11 @@ export const FinanceSettlements: React.FC = () => {
               data={roster}
               keyExtractor={(s, index) => `${s.id}-${index}`}
               columns={[
-                { key: 'name', header: 'NAME', render: r => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+                { key: 'name', header: 'NAME', render: r => (
+                  <span style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => openStaffDetails(r)}>
+                    {r.name}
+                  </span>
+                )},
                 { key: 'employee_id', header: 'EMPLOYEE ID', sortable: true },
                 { key: 'warehouse', header: 'WAREHOUSE' },
                 { key: 'period', header: showUnpaidOnly ? 'ORIGINAL PERIOD' : 'PAY PERIOD', render: r => <span style={{ fontSize: '0.85rem' }}>{r.periodDisplay}</span> },
@@ -1036,6 +1107,108 @@ export const FinanceSettlements: React.FC = () => {
                 {testPayLoading ? 'Processing...' : 'Confirm Test Pay'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {staffDetailsModalOpen && selectedStaffInfo && (
+        <div className="modal-overlay animate-fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content animate-slide-up glass-panel" style={{ backgroundColor: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '600px', color: 'var(--text-primary)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--primary)' }}>Staff Details</h3>
+              <button onClick={closeStaffDetails} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                <X size={24} />
+              </button>
+            </div>
+
+            {staffDetailsLoading ? (
+              <div style={{ padding: '40px', textAlign: 'center' }}>Loading Details...</div>
+            ) : (
+              <>
+                <div style={{ marginBottom: '24px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '1.1rem', color: 'var(--text-primary)' }}>Staff Information</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: 'var(--bg-base)', padding: '16px', borderRadius: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>FULL NAME</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{selectedStaffInfo.name}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>EMPLOYEE ID</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{selectedStaffInfo.employee_id || '—'}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>PHONE NUMBER</span>
+                      {phoneEditMode ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <input
+                            type="text"
+                            value={phoneEditValue}
+                            onChange={e => setPhoneEditValue(e.target.value)}
+                            placeholder="Enter phone number"
+                            style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem', width: '100%' }}
+                            disabled={phoneEditSaving}
+                          />
+                          {phoneEditError && <div style={{ color: 'var(--error)', fontSize: '0.75rem' }}>{phoneEditError}</div>}
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={handleSavePhone} disabled={phoneEditSaving} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '4px', border: 'none', backgroundColor: 'var(--success)', color: 'white', cursor: 'pointer', fontSize: '0.75rem' }}>
+                              <Check size={14} /> {phoneEditSaving ? 'Saving' : 'Save'}
+                            </button>
+                            <button onClick={() => { setPhoneEditMode(false); setPhoneEditError(''); }} disabled={phoneEditSaving} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>
+                              <X size={14} /> Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{staffPhone || 'Not added'}</span>
+                          <button onClick={() => { setPhoneEditValue(staffPhone || ''); setPhoneEditMode(true); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 0, display: 'flex' }} title="Edit Phone">
+                            <Edit2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>WAREHOUSE</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{selectedStaffInfo.warehouse}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>ROLE</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, textTransform: 'capitalize' }}>{selectedStaffInfo.roleRaw.replace('_', ' ')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '1.1rem', color: 'var(--text-primary)' }}>Bank Details</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: 'var(--bg-base)', padding: '16px', borderRadius: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>ACCOUNT HOLDER NAME</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{staffPayoutDetails?.account_holder || 'Not added'}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>ACCOUNT NUMBER</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                        {staffPayoutDetails?.account_number ? `**** **** ${staffPayoutDetails.account_number.slice(-4)}` : 'Not added'}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>IFSC CODE</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{staffPayoutDetails?.ifsc || 'Not added'}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>BANK NAME</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{staffPayoutDetails?.bank_name || 'Not added'}</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>BRANCH</span>
+                      {/* branch_name might not exist in older driver_payout_details schema, fallback to Not added if not present */}
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{staffPayoutDetails?.branch_name || 'Not added'}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

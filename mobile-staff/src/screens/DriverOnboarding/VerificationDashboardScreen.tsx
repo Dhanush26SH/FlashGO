@@ -6,13 +6,14 @@ import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { CheckCircle, AlertCircle, Clock, UserCheck, ShieldAlert, FileText } from 'lucide-react-native';
 
 export default function VerificationDashboardScreen() {
-  const { session } = useAuth();
+  const { session, setRole } = useAuth();
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [reapplying, setReapplying] = useState(false);
   const [missingRequirements, setMissingRequirements] = useState<string[]>([]);
 
   const fetchData = async () => {
@@ -20,20 +21,13 @@ export default function VerificationDashboardScreen() {
     try {
       // 1. Onboarding base
       const { data: obData } = await supabase.from('driver_onboarding').select('*').eq('id', session.user.id).single();
-      const { data: whData } = obData?.warehouse_id ? await supabase.from('warehouses').select('name').eq('id', obData.warehouse_id).single() : { data: null };
       
-      // 2. Nominee
-      const { data: nominee } = await supabase.from('driver_nominee_details').select('driver_id').eq('driver_id', session.user.id).single();
-      
-      const missing = [];
-      if (!nominee) missing.push('Nominee Details');
-
       setData({
         ...obData,
-        warehouseName: whData?.name,
-        hasNominee: !!nominee
+        warehouseName: 'Pending Admin Assignment',
+        hasNominee: true // Mocked to bypass legacy checks if any remain
       });
-      setMissingRequirements(missing);
+      setMissingRequirements([]);
     } catch (e) {
       console.error(e);
     } finally {
@@ -80,8 +74,8 @@ export default function VerificationDashboardScreen() {
         <View style={[styles.banner, styles.bannerInfo]}>
           <Clock size={24} color="#3b82f6" />
           <View style={styles.bannerTextContainer}>
-            <Text style={styles.bannerTitle}>Waiting for Warehouse Approval</Text>
-            <Text style={styles.bannerDesc}>Please visit your selected FlashGO warehouse and meet the Manager for final verification.</Text>
+            <Text style={styles.bannerTitle}>Waiting for Admin Approval</Text>
+            <Text style={styles.bannerDesc}>Your application has been submitted successfully. FlashGO Admin will review your details and assign your warehouse.</Text>
           </View>
         </View>
       );
@@ -104,6 +98,28 @@ export default function VerificationDashboardScreen() {
           <View style={styles.bannerTextContainer}>
             <Text style={styles.bannerTitle}>Application Rejected</Text>
             <Text style={styles.bannerDesc}>{rejection_reason}</Text>
+            <TouchableOpacity 
+              style={{ marginTop: 16, backgroundColor: '#ef4444', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignSelf: 'flex-start', opacity: reapplying ? 0.7 : 1 }}
+              disabled={reapplying}
+              onPress={async () => {
+                setReapplying(true);
+                try {
+                  const { error } = await supabase.rpc('acknowledge_staff_rejection');
+                  if (error) throw error;
+                  if (setRole) {
+                    setRole('request_access');
+                  }
+                } catch (e: any) {
+                  console.error(e);
+                  alert(e.message || 'Failed to acknowledge rejection.');
+                  setReapplying(false);
+                }
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
+                {reapplying ? 'Processing...' : 'Reapply'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       );
@@ -131,33 +147,6 @@ export default function VerificationDashboardScreen() {
           <Text style={styles.profileName}>{session?.user?.user_metadata?.full_name || 'Driver'}</Text>
           <Text style={styles.profileStore}>{data?.warehouseName || 'No Store Selected'}</Text>
         </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Required Steps</Text>
-        
-        <TouchableOpacity 
-          style={styles.taskCard} 
-          onPress={() => isEditable ? navigation.navigate('NomineeDetails') : null}
-          disabled={!isEditable}
-        >
-          <View style={styles.taskCardLeft}>
-            <UserCheck size={24} color={data?.hasNominee ? '#10b981' : '#94a3b8'} />
-            <Text style={styles.taskCardText}>Nominee Details</Text>
-          </View>
-          {data?.hasNominee ? <CheckCircle size={20} color="#10b981" /> : <Text style={styles.actionText}>Add</Text>}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recheck Your Details</Text>
-        <TouchableOpacity style={styles.taskCard} onPress={() => isEditable ? navigation.navigate('RecheckDetails') : null} disabled={!isEditable}>
-          <View style={styles.taskCardLeft}>
-            <FileText size={24} color="#94a3b8" />
-            <Text style={styles.taskCardText}>Store, Work & Vehicle Details</Text>
-          </View>
-          {isEditable && <Text style={styles.actionText}>Review</Text>}
-        </TouchableOpacity>
       </View>
 
       {isEditable && (

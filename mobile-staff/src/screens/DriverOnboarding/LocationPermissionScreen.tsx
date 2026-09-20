@@ -22,10 +22,10 @@ export default function LocationPermissionScreen() {
       }
 
       // Always proceed to next step, but record the truth
-      navigation.replace('NotificationPermission');
+      navigation.replace('PersonalDetails');
     } catch (e) {
       console.error(e);
-      navigation.replace('NotificationPermission');
+      navigation.replace('PersonalDetails');
     }
   };
 

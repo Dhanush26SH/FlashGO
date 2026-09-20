@@ -46,11 +46,12 @@ export class UsersService {
     if (error) throw error;
   }
 
-  static async approveDriverApplication(driverId: string, action: 'approve' | 'reject', reason?: string): Promise<void> {
+  static async approveDriverApplication(driverId: string, action: 'approve' | 'reject', warehouseId?: string, reason?: string): Promise<void> {
     const { error } = await supabase.rpc('approve_driver_application', {
       p_driver_id: driverId,
       p_action: action,
-      p_reason: reason || null
+      p_reason: reason || null,
+      p_warehouse_id: warehouseId || null
     });
     if (error) throw error;
   }

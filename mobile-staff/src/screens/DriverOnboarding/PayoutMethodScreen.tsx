@@ -33,11 +33,11 @@ export default function PayoutMethodScreen() {
 
     setLoading(true);
     try {
-      // Upsert into driver_payout_details (Strict RLS)
+      // Upsert into staff_payout_details (Strict RLS)
       await supabase
-        .from('driver_payout_details')
+        .from('staff_payout_details')
         .upsert({
-          driver_id: session.user.id,
+          staff_id: session.user.id,
           payout_method_type: method,
           upi_id: method === 'upi' ? upiId : null,
           bank_name: method === 'bank' ? bankName : null,

@@ -70,7 +70,7 @@ async function run() {
   console.log("Normal vehicle_type update:", normRes.error ? normRes.error.message : 'SUCCESS');
 
   // Incrementally fill missing items
-  await driverA.client.from('driver_payout_details').insert({ driver_id: driverA.id, payout_method_type: 'upi', upi_id: 'test@upi' });
+  await driverA.client.from('staff_payout_details').insert({ staff_id: driverA.id, payout_method_type: 'upi', upi_id: 'test@upi' });
   res = await driverA.client.rpc('submit_driver_application');
   console.log("Submit after payout:", res.error?.message || res.data);
 
@@ -99,7 +99,7 @@ async function run() {
   console.log("Submit fully complete application:", res.error?.message || res.data);
 
   console.log("\n=== 5. CROSS-DRIVER PROTECTION ===");
-  const crossRes = await driverB.client.from('driver_payout_details').select('*').eq('driver_id', driverA.id);
+  const crossRes = await driverB.client.from('staff_payout_details').select('*').eq('staff_id', driverA.id);
   console.log("Driver B reading Driver A payout:", crossRes.data?.length === 0 ? 'BLOCKED_BY_RLS' : 'FAILED_SECURITY');
 
   console.log("\n=== 6. REAL WAREHOUSE-SCOPED ADMIN TEST ===");

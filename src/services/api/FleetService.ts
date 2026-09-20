@@ -139,10 +139,14 @@ export class FleetService {
   static async approveDriverVehicle(driverId: string, vehicleId: string): Promise<void> {
     if (!supabase) throw new Error('Supabase client not initialized');
     
-    // Set vehicle to active
-    await this.updateVehicle(vehicleId, { status: 'active' });
-    
-    // Assign vehicle
-    await this.assignVehicle(driverId, vehicleId);
+    // Use the atomic RPC to safely approve and assign the personal vehicle
+    const { error } = await supabase.rpc('approve_driver_owned_vehicle', {
+      p_vehicle_id: vehicleId
+    });
+
+    if (error) {
+      console.error('Error approving driver vehicle:', error);
+      throw error;
+    }
   }
 }

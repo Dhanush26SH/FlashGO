@@ -4,6 +4,7 @@ import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/n
 import { Bell, ArrowRight } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
+import PickerHeader from '../../components/PickerHeader';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -559,25 +560,6 @@ export default function PickerDashboard() {
 
   const renderOnlineDashboard = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Picker'}</Text>
-          <Text style={styles.userDetails}>
-            ID: {profile?.id?.substring(0, 8).toUpperCase() || '----'}
-          </Text>
-          <Text style={styles.warehouseDetails}>{shiftDetails?.warehouses?.name}</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <View style={styles.toggleContainer}>
-            <Text style={[styles.toggleText, { color: '#10b981' }]}>ONLINE / ACTIVE</Text>
-          </View>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Bell size={24} color="#374151" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {/* Current Work Area or Order Card */}
       {activeOrder && activeOrder.status === 'placed' ? (
         renderOrderPickingCard()
@@ -700,33 +682,6 @@ export default function PickerDashboard() {
 
   const renderNormalDashboard = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Picker'}</Text>
-          <Text style={styles.userDetails}>
-            ID: {profile?.id?.substring(0, 8).toUpperCase() || '----'}
-          </Text>
-          {shiftDetails?.warehouses?.name && (
-            <Text style={styles.warehouseDetails}>{shiftDetails.warehouses.name}</Text>
-          )}
-        </View>
-        <View style={styles.headerRight}>
-          <View style={styles.toggleContainer}>
-            <Text style={styles.toggleText}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
-            <Switch
-              trackColor={{ false: '#d1d5db', true: '#10b981' }}
-              thumbColor={'#ffffff'}
-              onValueChange={toggleOnlineStatus}
-              value={isOnline}
-            />
-          </View>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Bell size={24} color="#374151" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {/* Next Slot Section */}
       <View style={styles.nextSlotContainer}>
         <Text style={styles.nextSlotHeader}>Next slot</Text>
@@ -748,21 +703,6 @@ export default function PickerDashboard() {
             <ArrowRight size={16} color="#374151" />
           </TouchableOpacity>
         </View>
-
-        {/* Card 2 — Book a slot */}
-        <View style={styles.card}>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle}>Book a slot</Text>
-            <Text style={styles.cardSubtitle}>Choose a work slot at your assigned FlashGO store</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.cardButton}
-            onPress={() => navigation.navigate('Slots')}
-          >
-            <Text style={styles.cardButtonText}>Book now</Text>
-            <ArrowRight size={16} color="#374151" />
-          </TouchableOpacity>
-        </View>
       </View>
     </ScrollView>
   );
@@ -776,9 +716,40 @@ export default function PickerDashboard() {
     new Date(shiftDetails.shift_end).getTime() > Date.now();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <PickerHeader
+        profile={profile}
+        subTitle={shiftDetails?.warehouses?.name}
+        rightContent={
+          (shiftIsCurrentlyValid && isOnline) ? (
+            <>
+              <View style={styles.toggleContainer}>
+                <Text style={[styles.toggleText, { color: '#ffffff', opacity: 0.9 }]}>ONLINE / ACTIVE</Text>
+              </View>
+              <TouchableOpacity style={styles.iconBtn}>
+                <Bell size={24} color="#374151" />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.toggleContainer}>
+                <Text style={[styles.toggleText, { color: '#ffffff' }]}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
+                <Switch
+                  trackColor={{ false: '#d1d5db', true: '#10b981' }}
+                  thumbColor={'#ffffff'}
+                  onValueChange={toggleOnlineStatus}
+                  value={isOnline}
+                />
+              </View>
+              <TouchableOpacity style={styles.iconBtn}>
+                <Bell size={24} color="#374151" />
+              </TouchableOpacity>
+            </>
+          )
+        }
+      />
       {(shiftIsCurrentlyValid && isOnline) ? renderOnlineDashboard() : renderNormalDashboard()}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -845,35 +816,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginRight: 8,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greeting: {
-    color: '#111827',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  userDetails: {
-    color: '#4b5563',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  warehouseDetails: {
-    color: '#6b7280',
-    fontSize: 14,
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+
   toggleContainer: {
     flexDirection: 'row',
     alignItems: 'center',

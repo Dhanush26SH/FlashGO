@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Target, Gift, ChevronRight, CheckCircle, Clock } from 'lucide-react-native';
+import PickerHeader from '../../components/PickerHeader';
 
 export default function OffersScreen({ navigation }: any) {
   const { profile } = useAuth();
@@ -177,9 +178,7 @@ export default function OffersScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Offers & Targets</Text>
-      </View>
+      <PickerHeader profile={profile} />
 
       <View style={styles.tabContainer}>
         <TouchableOpacity 
@@ -323,8 +322,6 @@ export default function OffersScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f3f4f6' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: '#ffffff', padding: 16, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
   tabContainer: { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
   tab: { flex: 1, paddingVertical: 16, alignItems: 'center' },
   activeTab: { borderBottomWidth: 2, borderBottomColor: '#2563eb' },

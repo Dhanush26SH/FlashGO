@@ -64,25 +64,10 @@ export default function DriverOnboardingNavigator() {
 
         // Determine resume point based on completed fields
         if (!data.location_permission_granted) { setInitialRoute('LocationPermission'); return; }
-        if (!data.notification_permission_granted) { setInitialRoute('NotificationPermission'); return; }
-        if (!data.language_pref) { setInitialRoute('LanguageSelection'); return; }
         if (!data.vehicle_type) { setInitialRoute('PersonalDetails'); return; }
-        if (!data.work_area) { setInitialRoute('WorkArea'); return; }
-        if (!data.work_type) { setInitialRoute('WorkType'); return; }
-        if (!data.warehouse_id) { setInitialRoute('WarehouseSelection'); return; }
         
-        // Next, check payout details
-        const { data: payout } = await supabase.from('driver_payout_details').select('driver_id').eq('driver_id', session.user.id).single();
-        if (!payout) { setInitialRoute('PayoutMethod'); return; }
-
-        if (!data.selfie_url) { setInitialRoute('SelfieCapture'); return; }
-        
-        // Terms
-        const { data: terms } = await supabase.from('driver_agreement_acceptances').select('driver_id').eq('driver_id', session.user.id).single();
-        if (!terms) { setInitialRoute('Terms'); return; }
-
-        // If we reach here, base onboarding is done, but they might be missing nominee.
-        // We route them to VerificationDashboard where they can complete the rest.
+        // If we reach here, base onboarding is done.
+        // We route them to VerificationDashboard where they can submit.
         setInitialRoute('VerificationDashboard');
       }
     };

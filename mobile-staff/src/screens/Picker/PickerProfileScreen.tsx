@@ -8,8 +8,12 @@ import {
   Bell, 
   ChevronRight, 
   CreditCard, 
-  LogOut 
+  LogOut,
+  Building,
+  Star,
+  Headphones
 } from 'lucide-react-native';
+import PickerHeader from '../../components/PickerHeader';
 
 export default function PickerProfileScreen() {
   const navigation = useNavigation<any>();
@@ -95,39 +99,52 @@ export default function PickerProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header Section */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Picker'}</Text>
-          <Text style={styles.userDetails}>
-            ID: {profile?.id?.substring(0, 8).toUpperCase() || '----'}
-          </Text>
-          {shiftInfo?.warehouses?.name && (
-            <Text style={styles.warehouseDetails}>{shiftInfo.warehouses.name}</Text>
-          )}
-        </View>
-        <View style={styles.headerRight}>
-          <View style={styles.toggleContainer}>
-            <Text style={styles.toggleText}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
-            <Switch
-              trackColor={{ false: '#d1d5db', true: '#10b981' }}
-              thumbColor={'#ffffff'}
-              onValueChange={(val) => toggleOnlineStatus(val)}
-              value={isOnline}
-            />
-          </View>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Bell size={24} color="#374151" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <PickerHeader
+        profile={profile}
+        subTitle={shiftInfo?.warehouses?.name}
+        rightContent={
+          <>
+            <View style={styles.toggleContainer}>
+              <Text style={[styles.toggleText, { color: '#ffffff' }]}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
+              <Switch
+                trackColor={{ false: '#d1d5db', true: '#10b981' }}
+                thumbColor={'#ffffff'}
+                onValueChange={(val) => toggleOnlineStatus(val)}
+                value={isOnline}
+              />
+            </View>
+            <TouchableOpacity style={styles.iconBtn}>
+              <Bell size={24} color="#374151" />
+            </TouchableOpacity>
+          </>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Menu Section */}
         <View style={styles.card}>
           <MenuItem 
+            icon={<Building size={22} color="#10b981" />} 
+            title="Bank Details" 
+            onPress={() => navigation.navigate('BankDetails')} 
+          />
+          <View style={styles.divider} />
+          <MenuItem 
             icon={<CreditCard size={22} color="#10b981" />} 
             title="Payouts" 
             onPress={() => navigation.navigate('Payouts')} 
+          />
+          <View style={styles.divider} />
+          <MenuItem 
+            icon={<Star size={22} color="#10b981" />} 
+            title="Your Rating" 
+            onPress={() => {}} 
+          />
+          <View style={styles.divider} />
+          <MenuItem 
+            icon={<Headphones size={22} color="#10b981" />} 
+            title="Help & Support" 
+            onPress={() => {}} 
           />
         </View>
 
@@ -154,36 +171,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f3f4f6', // Clean light-grey background
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
-    backgroundColor: '#f3f4f6',
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greeting: {
-    color: '#111827',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  userDetails: {
-    color: '#4b5563',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  warehouseDetails: {
-    color: '#6b7280',
-    fontSize: 14,
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   toggleContainer: {
     flexDirection: 'row',

@@ -37,6 +37,10 @@ export const DriverApprovals: React.FC = () => {
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [excludedEmails, setExcludedEmails] = useState<Set<string>>(new Set());
+  const [pendingBankDetails, setPendingBankDetails] = useState<Record<string, boolean>>({});
+  const [pendingVehicles, setPendingVehicles] = useState<Record<string, any>>({});
+  const [pendingCompliance, setPendingCompliance] = useState<Record<string, any>>({});
+  const [pendingOnboarding, setPendingOnboarding] = useState<Record<string, any>>({});
 
   useEffect(() => {
     loadData();
@@ -91,6 +95,61 @@ export const DriverApprovals: React.FC = () => {
       
       const realShifts = await StaffService.getShifts();
       setShifts(realShifts);
+      
+      // Fetch bank details for pending staff
+      if (supabase) {
+        const pendingIds = profs.filter((p: any) => p.is_pending_staff).map(p => p.id);
+        if (pendingIds.length > 0) {
+          const { data } = await supabase
+            .from('staff_payout_details')
+            .select('*')
+            .in('staff_id', pendingIds);
+            
+          if (data) {
+            const statusMap: Record<string, boolean> = {};
+            data.forEach(d => {
+              statusMap[d.staff_id] = Boolean(
+                d.account_number && d.ifsc && d.branch_name && d.bank_name && d.account_holder
+              );
+            });
+            setPendingBankDetails(statusMap);
+          }
+          
+          // Fetch driver_compliance
+          const { data: compData } = await supabase
+            .from('driver_compliance')
+            .select('*')
+            .in('driver_id', pendingIds);
+          if (compData) {
+            const compMap: Record<string, any> = {};
+            compData.forEach(c => compMap[c.driver_id] = c);
+            setPendingCompliance(compMap);
+          }
+
+          // Fetch personal vehicles
+          const { data: vehData } = await supabase
+            .from('vehicles')
+            .select('*')
+            .in('owner_driver_id', pendingIds)
+            .eq('ownership_type', 'driver_owned');
+          if (vehData) {
+            const vehMap: Record<string, any> = {};
+            vehData.forEach(v => vehMap[v.owner_driver_id] = v);
+            setPendingVehicles(vehMap);
+          }
+
+          // Fetch onboarding data for true vehicle_type
+          const { data: obData } = await supabase
+            .from('driver_onboarding')
+            .select('*')
+            .in('id', pendingIds);
+          if (obData) {
+            const obMap: Record<string, any> = {};
+            obData.forEach(o => obMap[o.id] = o);
+            setPendingOnboarding(obMap);
+          }
+        }
+      }
     } catch (e) {
       console.error('Failed to load real data', e);
       // Fallback
@@ -115,6 +174,11 @@ export const DriverApprovals: React.FC = () => {
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStaffTab, setActiveStaffTab] = useState<'active' | 'retired'>('active');
+
+  // Driver rejection modal state
+  const [rejectModalDriver, setRejectModalDriver] = useState<{ id: string; name: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
 
   // Get active staff and filter by search query
   const staffMembers = profiles
@@ -158,10 +222,8 @@ export const DriverApprovals: React.FC = () => {
       
       if (supabase) {
         if (selectedRole === 'driver') {
-          console.log("[DEV] STAFF_APPROVAL_PAYLOAD (DRIVER)", { p_driver_id: staffId, p_action: 'approve' });
-          await UsersService.approveDriverApplication(staffId, 'approve');
-          // For drivers, we also want to set their primary hub (warehouse)
-          await UsersService.updateStaffWarehouse(staffId, selectedWarehouseId);
+          console.log("[DEV] STAFF_APPROVAL_PAYLOAD (DRIVER)", { p_driver_id: staffId, p_action: 'approve', p_warehouse_id: selectedWarehouseId });
+          await UsersService.approveDriverApplication(staffId, 'approve', selectedWarehouseId);
         } else {
           console.log("[DEV] STAFF_APPROVAL_PAYLOAD", { p_user_id: staffId, p_role: selectedRole, p_clean_name: cleanName, p_warehouse_id: selectedWarehouseId });
           await UsersService.approveStaffRole(staffId, selectedRole, cleanName, selectedWarehouseId);
@@ -179,6 +241,15 @@ export const DriverApprovals: React.FC = () => {
   };
 
   const handleRejectStaff = async (staffId: string) => {
+    const targetStaff = pendingStaff.find(p => p.id === staffId);
+    const selectedRole = pendingRoleAssignments[staffId] || (targetStaff as any)?.requested_role || 'picker';
+
+    if (selectedRole === 'driver') {
+      setRejectModalDriver({ id: staffId, name: targetStaff?.full_name || 'Driver' });
+      setRejectReason('');
+      return;
+    }
+
     try {
       if (supabase) {
         await UsersService.rejectStaffAccess(staffId);
@@ -188,6 +259,29 @@ export const DriverApprovals: React.FC = () => {
     } catch (err) {
       console.error("Failed to reject staff:", err);
       addToast('Failed to reject staff member', 'error');
+    }
+  };
+
+  const handleConfirmRejectDriver = async () => {
+    if (!rejectModalDriver) return;
+    const reason = rejectReason.trim();
+    if (!reason) {
+      addToast('Please provide a rejection reason.', 'error');
+      return;
+    }
+    setIsRejecting(true);
+    try {
+      if (supabase) {
+        await UsersService.approveDriverApplication(rejectModalDriver.id, 'reject', undefined, reason);
+      }
+      addToast(`Rejected driver application for ${rejectModalDriver.name}`, 'info');
+      setRejectModalDriver(null);
+      loadData();
+    } catch (err: any) {
+      console.error("Failed to reject driver:", err);
+      addToast(`Failed to reject driver: ${err.message || 'Unknown error'}`, 'error');
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -292,11 +386,42 @@ export const DriverApprovals: React.FC = () => {
                           <div className="staff-avatar-wrapper">
                             <div style={staffAvatarStyle('customer')}>{(displayName || '?').charAt(0)}</div>
                           </div>
-                          <h4 className="staff-name" style={{ margin: 0, minWidth: '160px' }}>{displayName}</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <h4 className="staff-name" style={{ margin: 0, minWidth: '160px' }}>{displayName}</h4>
+                            {staff.phone && <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{staff.phone}</span>}
+                          </div>
                           <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--warning)', padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(234, 179, 8, 0.1)' }}>
                             REQUESTED: {reqRole.replace('_', ' ')}
                           </span>
+                          {(reqRole.toLowerCase() === 'picker' || reqRole.toLowerCase() === 'driver') && pendingBankDetails[staff.id] ? (
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#10b981', padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
+                              BANK DETAILS: ADDED
+                            </span>
+                          ) : (reqRole.toLowerCase() === 'picker' || reqRole.toLowerCase() === 'driver') && !pendingBankDetails[staff.id] ? (
+                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--danger)', padding: '4px 8px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+                              BANK DETAILS: MISSING
+                            </span>
+                          ) : null}
                         </div>
+                        {reqRole.toLowerCase() === 'driver' && (
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                            {pendingVehicles[staff.id] ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--info)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--info)', backgroundColor: 'rgba(56, 189, 248, 0.05)' }}>
+                                VEHICLE TYPE: {pendingOnboarding[staff.id]?.vehicle_type || 'Unknown'}
+                              </span>
+                            ) : null}
+                            {pendingVehicles[staff.id] ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--info)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--info)', backgroundColor: 'rgba(56, 189, 248, 0.05)' }}>
+                                REG: {pendingVehicles[staff.id].license_plate}
+                              </span>
+                            ) : null}
+                            {pendingCompliance[staff.id]?.dl_number ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--info)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--info)', backgroundColor: 'rgba(56, 189, 248, 0.05)' }}>
+                                DL: {pendingCompliance[staff.id].dl_number}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', backgroundColor: 'var(--bg-base)', padding: '12px', borderRadius: '8px' }}>
@@ -327,7 +452,12 @@ export const DriverApprovals: React.FC = () => {
                         </div>
                         
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                          <button onClick={() => handleApproveStaff(staff.id, staff.full_name)} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', height: '35px' }}>Approve</button>
+                          <button 
+                            disabled={!pendingWarehouseAssignments[staff.id]}
+                            onClick={() => handleApproveStaff(staff.id, staff.full_name)} 
+                            style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff', border: 'none', cursor: pendingWarehouseAssignments[staff.id] ? 'pointer' : 'not-allowed', opacity: pendingWarehouseAssignments[staff.id] ? 1 : 0.5, fontSize: '0.8rem', fontWeight: 'bold', height: '35px' }}>
+                            Approve
+                          </button>
                           <button onClick={() => handleRejectStaff(staff.id)} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', height: '35px' }}>Reject</button>
                         </div>
                       </div>
@@ -496,6 +626,42 @@ export const DriverApprovals: React.FC = () => {
       )}
 
 
+      {rejectModalDriver && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel" style={{ width: '400px', backgroundColor: 'var(--bg-base)', padding: '24px', borderRadius: '12px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-primary)', fontSize: '1.2rem' }}>Reject Driver Application</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
+              Rejecting <strong style={{ color: 'var(--text-primary)' }}>{rejectModalDriver.name}</strong>
+            </p>
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 'bold' }}>Reason for rejection</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Enter rejection reason..."
+                rows={4}
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                disabled={isRejecting}
+                onClick={() => setRejectModalDriver(null)} 
+                style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                disabled={isRejecting}
+                onClick={handleConfirmRejectDriver} 
+                style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'var(--danger)', color: '#fff', border: 'none', cursor: isRejecting ? 'not-allowed' : 'pointer', fontSize: '0.9rem', fontWeight: 600, opacity: isRejecting ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                {isRejecting ? 'Rejecting...' : 'Reject Application'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -12,14 +12,13 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
   const { shift } = route.params;
   const { profile } = useAuth() as any;
   const isFocused = useIsFocused();
-  const [step, setStep] = useState<'PERMISSIONS' | 'SELFIE' | 'TRANSITION' | 'QR' | 'SUBMITTING'>('PERMISSIONS');
+  const [step, setStep] = useState<'PERMISSIONS' | 'QR' | 'SUBMITTING'>('PERMISSIONS');
   
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null);
   
   const cameraRef = useRef<any>(null);
-  const [selfiePath, setSelfiePath] = useState<string | null>(null);
-  const [scannedQR, setScannedQR] = useState<string | null>(null);
+    const [scannedQR, setScannedQR] = useState<string | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
 
   const checkLocationPermission = async () => {
@@ -59,80 +58,8 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
     }
   };
 
-  const takeSelfie = async () => {
-    if (cameraRef.current) {
-      try {
-        if (!profile?.id) {
-          Alert.alert('Session unavailable', 'Your login session is not available right now. Please sign in again and retry check-in.');
-          return;
-        }
-
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, base64: true });
-        
-        console.log('DRIVER_SELFIE_CAPTURE_RESULT', photo ? 'Success' : 'Failed');
-        
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        console.log('DRIVER_CHECKIN_AUTH', sessionData?.session?.user?.id ? 'Authenticated' : 'No Session', sessionError ? sessionError.message : null);
-        console.log('DRIVER_CHECKIN_PROFILE', profile?.id || null);
-        console.log('DRIVER_CHECKIN_SHIFT', shift?.id || null);
-
-        if (!profile?.id) {
-          Alert.alert('Session unavailable', 'Your login session is not available right now. Please sign in again and retry check-in.');
-          return;
-        }
-        
-        if (!shift?.id) {
-          Alert.alert('Shift unavailable', 'Your gig information could not be found. Please go back to the feed and try again.');
-          return;
-        }
-
-        const ext = photo.uri.substring(photo.uri.lastIndexOf('.'));
-        const fileName = `${profile.id}/${shift.id}/${Date.now()}${ext}`;
-        
-        console.log('DRIVER_SELFIE_UPLOAD_START', fileName);
-        
-        const { error: uploadError } = await supabase.storage
-          .from('driver_check_ins')
-          .upload(fileName, decode(photo.base64), { contentType: 'image/jpeg' });
-
-        if (uploadError) {
-          console.log('DRIVER_SELFIE_UPLOAD_RESULT', 'Failed');
-          console.log('DRIVER_SELFIE_CHECKIN_ERROR', uploadError.message);
-          throw uploadError;
-        }
-        
-        console.log('DRIVER_SELFIE_UPLOAD_RESULT', 'Success');
-
-        setSelfiePath(fileName);
-        setStep('TRANSITION');
-        setTimeout(() => {
-          setStep('QR');
-        }, 500);
-      } catch (err: any) {
-        Alert.alert('Upload Failed', err.message);
-      }
-    }
-  };
-
-  const decode = (base64: string) => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    const bufferLength = base64.length * 0.75;
-    const arrayBuffer = new ArrayBuffer(bufferLength);
-    const bytes = new Uint8Array(arrayBuffer);
-    let p = 0;
-    for (let i = 0; i < base64.length; i += 4) {
-      const enc1 = chars.indexOf(base64[i]);
-      const enc2 = chars.indexOf(base64[i + 1]);
-      const enc3 = chars.indexOf(base64[i + 2]);
-      const enc4 = chars.indexOf(base64[i + 3]);
-      bytes[p++] = (enc1 << 2) | (enc2 >> 4);
-      bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
-      bytes[p++] = ((enc3 & 3) << 6) | (enc4 & 63);
-    }
-    return arrayBuffer;
-  };
-
+  
+  
   const handleBarCodeScanned = ({ data }: any) => {
     if (step === 'QR' && !scannedQR) {
       setScannedQR(data);
@@ -149,8 +76,7 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
         p_shift_id: shift.id,
         p_lat: location.coords.latitude,
         p_lng: location.coords.longitude,
-        p_raw_qr_token: qrToken,
-        p_selfie_path: selfiePath
+        p_raw_qr_token: qrToken
       });
       
       if (error) throw error;
@@ -189,11 +115,7 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
             title = 'Invalid QR Code';
             message = 'The scanned QR code is invalid or has expired. Please try scanning the monitor again.';
             break;
-          case 'INVALID_SELFIE_EVIDENCE':
-            title = 'Selfie Verification Failed';
-            message = 'Your check-in selfie could not be verified. Please capture a new one.';
-            break;
-          case 'DRIVER_UNAUTHORIZED_OR_SUSPENDED':
+                    case 'DRIVER_UNAUTHORIZED_OR_SUSPENDED':
             title = 'Account Suspended';
             message = 'Your account is currently suspended or not authorized to take deliveries.';
             break;
@@ -213,11 +135,7 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
 
         Alert.alert(title, message, actions);
         setScannedQR(null);
-        if (code === 'INVALID_SELFIE_EVIDENCE') {
-          setStep('SELFIE');
-        } else {
-          setStep('QR');
-        }
+        setStep('QR');
       }
     } catch (err: any) {
       if (err.message?.includes('Driver must have an assigned vehicle to go online')) {
@@ -304,7 +222,7 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
       </View>
 
       {bothPermissionsGranted && (
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep('SELFIE')}>
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep('QR')}>
           <Text style={styles.primaryBtnText}>Continue Check-In</Text>
         </TouchableOpacity>
       )}
@@ -341,29 +259,11 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
 
         {step === 'PERMISSIONS' && renderPermissionsStep()}
 
-        {step === 'SELFIE' && (
-          <View style={styles.stepContainer}>
-            <View style={styles.stepHeader}>
-              <Text style={styles.stepTitle}>1 Live Selfie — Current step</Text>
-              <Text style={styles.stepSubtitle}>Take a clear photo of your face.</Text>
-            </View>
-            <View style={styles.cameraFrame}>
-              {isFocused && <CameraView style={styles.camera} facing="front" ref={cameraRef} />}
-            </View>
-            <TouchableOpacity style={styles.primaryBtn} onPress={takeSelfie}>
-              <LucideCamera color="#fff" size={20} />
-              <Text style={styles.primaryBtnText}>Capture & Upload</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {step === 'QR' && (
           <View style={styles.stepContainer}>
-            <View style={styles.stepHeader}>
-              <Text style={styles.stepTitleCompleted}>1 Live Selfie — Completed ✓</Text>
-            </View>
             <View style={styles.stepHeaderActive}>
-              <Text style={styles.stepTitle}>2 Scan Store QR — Current step</Text>
+              <Text style={styles.stepTitle}>1 Scan Store QR — Current step</Text>
               <Text style={styles.stepSubtitle}>Scan the rotating QR displayed at the FlashGO store.</Text>
             </View>
             <View style={styles.cameraFrame}>
@@ -379,12 +279,6 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
           </View>
         )}
 
-        {step === 'TRANSITION' && (
-          <View style={styles.submittingContainer}>
-            <ActivityIndicator size="large" color="#10b981" />
-            <Text style={styles.submittingText}>Switching to scanner...</Text>
-          </View>
-        )}
 
         {step === 'SUBMITTING' && (
           <View style={styles.submittingContainer}>

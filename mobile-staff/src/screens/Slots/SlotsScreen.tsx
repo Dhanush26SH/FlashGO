@@ -5,6 +5,7 @@ import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PickerHeader from '../../components/PickerHeader';
 
 export default function SlotsScreen() {
   const navigation = useNavigation<any>();
@@ -220,15 +221,14 @@ export default function SlotsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hi, {profile?.full_name || 'Staff'}</Text>
-          <Text style={styles.userDetails}>{profile?.id?.substring(0, 8).toUpperCase()}</Text>
-        </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <MoreVertical size={24} color="#ffffff" />
-        </TouchableOpacity>
-      </View>
+      <PickerHeader
+        profile={profile}
+        rightContent={
+          <TouchableOpacity style={styles.menuButton}>
+            <MoreVertical size={24} color="#ffffff" />
+          </TouchableOpacity>
+        }
+      />
 
       {/* Near You / Selected Location Banner */}
       <View style={styles.nearYouContainer}>
@@ -325,38 +325,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 55, // For status bar
-    paddingBottom: 16,
-    backgroundColor: '#10b981', // Solid FlashGO Green Header
-    borderBottomWidth: 0,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-    zIndex: 10
-  },
-  headerLeft: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  greeting: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  userDetails: {
-    fontSize: 12,
-    color: '#d1fae5',
-    fontWeight: '600',
   },
   menuButton: {
     padding: 8,

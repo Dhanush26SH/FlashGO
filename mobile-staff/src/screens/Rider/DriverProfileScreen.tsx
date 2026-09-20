@@ -16,12 +16,9 @@ export default function ProfileScreen() {
   
   // Onboarding Data
   const [onboardingStatus, setOnboardingStatus] = useState<string | null>('not_started');
-  const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   
   // Details status
-  const [nomineeStatus, setNomineeStatus] = useState<'Completed' | 'Required'>('Required');
   const [payoutStatus, setPayoutStatus] = useState<'Completed' | 'Required'>('Required');
-  const [agreementStatus, setAgreementStatus] = useState<'Accepted' | 'Pending'>('Pending');
   
   // Vehicle status
   const [vehicleDetails, setVehicleDetails] = useState<{ label: string, plate: string, status: string } | null>(null);
@@ -42,34 +39,20 @@ export default function ProfileScreen() {
 
         // Driver-specific fetches
         let onboardingPromise: any = Promise.resolve({ data: null });
-        let nomineePromise: any = Promise.resolve({ data: null });
         let payoutPromise: any = Promise.resolve({ data: null });
-        let agreementPromise: any = Promise.resolve({ data: null });
         let vehiclePromise: any = Promise.resolve({ data: null });
 
         if (profile.role === 'driver') {
           onboardingPromise = supabase
             .from('driver_onboarding')
-            .select('status, selfie_url, vehicle_type')
+            .select('status, vehicle_type')
             .eq('id', profile.id)
             .maybeSingle();
 
-          nomineePromise = supabase
-            .from('driver_nominee_details')
-            .select('driver_id')
-            .eq('driver_id', profile.id)
-            .maybeSingle();
-
           payoutPromise = supabase
-            .from('driver_payout_details')
-            .select('driver_id')
-            .eq('driver_id', profile.id)
-            .maybeSingle();
-
-          agreementPromise = supabase
-            .from('driver_agreement_acceptances')
-            .select('driver_id')
-            .eq('driver_id', profile.id)
+            .from('staff_payout_details')
+            .select('staff_id')
+            .eq('staff_id', profile.id)
             .maybeSingle();
 
           vehiclePromise = supabase
@@ -80,12 +63,10 @@ export default function ProfileScreen() {
             .maybeSingle();
         }
 
-        const [whRes, onbRes, nomRes, payRes, agrRes, vehRes] = await Promise.allSettled([
+        const [whRes, onbRes, payRes, vehRes] = await Promise.allSettled([
           warehousePromise,
           onboardingPromise,
-          nomineePromise,
           payoutPromise,
-          agreementPromise,
           vehiclePromise
         ]);
 
@@ -102,26 +83,12 @@ export default function ProfileScreen() {
         if (onbRes.status === 'fulfilled' && onbRes.value.data) {
           const ob = onbRes.value.data;
           setOnboardingStatus(ob.status);
-          
-          if (ob.selfie_url) {
-            // Generate Signed URL
-            const { data: signedData, error: signError } = await supabase
-              .storage
-              .from('driver_documents')
-              .createSignedUrl(ob.selfie_url, 3600);
-            
-            if (!signError && signedData?.signedUrl) {
-              setSelfieUrl(signedData.signedUrl);
-            }
-          }
         } else {
           setOnboardingStatus('not_started');
         }
 
         // Process Details
-        if (nomRes.status === 'fulfilled' && nomRes.value.data) setNomineeStatus('Completed');
         if (payRes.status === 'fulfilled' && payRes.value.data) setPayoutStatus('Completed');
-        if (agrRes.status === 'fulfilled' && agrRes.value.data) setAgreementStatus('Accepted');
         
         // Process Vehicle
         if (vehRes.status === 'fulfilled' && vehRes.value.data) {
@@ -189,17 +156,6 @@ export default function ProfileScreen() {
         
         {/* Header Section */}
         <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            {selfieUrl ? (
-              <Image source={{ uri: selfieUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarText}>
-                  {profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : 'U'}
-                </Text>
-              </View>
-            )}
-          </View>
           <View style={styles.userInfo}>
             <Text style={styles.name}>{profile?.full_name || 'Driver'}</Text>
             {profile?.employee_id && (
@@ -258,37 +214,15 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.divider} />
               
-              <View style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <FileText size={20} color="#94a3b8" />
-                  <Text style={styles.rowTitle}>Nominee Details</Text>
-                </View>
-                <Text style={[styles.statusTextValue, nomineeStatus === 'Completed' ? styles.textSuccess : styles.textWarning]}>
-                  {nomineeStatus}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.row}>
+              <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BankDetails')}>
                 <View style={styles.rowLeft}>
                   <CreditCard size={20} color="#94a3b8" />
-                  <Text style={styles.rowTitle}>Payout Details</Text>
+                  <Text style={styles.rowTitle}>Bank Details</Text>
                 </View>
                 <Text style={[styles.statusTextValue, payoutStatus === 'Completed' ? styles.textSuccess : styles.textWarning]}>
                   {payoutStatus}
                 </Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <FileText size={20} color="#94a3b8" />
-                  <Text style={styles.rowTitle}>Agreement</Text>
-                </View>
-                <Text style={[styles.statusTextValue, agreementStatus === 'Accepted' ? styles.textSuccess : styles.textWarning]}>
-                  {agreementStatus}
-                </Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.divider} />
 
               <View style={[styles.row, { alignItems: 'flex-start' }]}>
@@ -321,25 +255,7 @@ export default function ProfileScreen() {
           </>
         )}
 
-        {/* App Settings */}
-        <Text style={styles.sectionHeader}>App Settings</Text>
-        <View style={styles.sectionCard}>
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Settings size={20} color="#94a3b8" />
-              <Text style={styles.rowTitle}>Dark Theme</Text>
-            </View>
-            <Text style={styles.rowValue}>On</Text>
-          </View>
-          <View style={styles.divider} />
-          
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <Text style={styles.rowTitle}>App Language</Text>
-            </View>
-            <Text style={styles.rowValue}>English</Text>
-          </View>
-        </View>
+
 
         {/* Support */}
         <Text style={styles.sectionHeader}>Support</Text>

@@ -76,7 +76,7 @@ export default function PersonalDetailsScreen({ navigation, route }: any) {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Failed to submit vehicle details');
 
-      navigation.replace('WorkArea');
+      navigation.replace('VerificationDashboard');
     } catch (e: any) {
       const msg = e.message || e.details || 'Failed to save vehicle details. Please try again.';
       alert(`Error: ${msg}`);
