@@ -59,8 +59,8 @@ export default function NavigationScreen() {
           setTesterFlags(data.flags);
         }
       });
-      supabase.from('driver_sessions').select('device_info').eq('driver_id', profile.id).single()
-        .then(({ data }) => { if (isSubscribed && data?.device_info) deviceInfoRef.current = data.device_info; });
+      supabase.from('driver_sessions').select('id').eq('driver_id', profile.id).single()
+        .then(({ data }) => { /* no-op since device_info doesn't exist */ });
     }
     return () => { isSubscribed = false; };
   }, [profile?.id, profile?.role]);
@@ -141,8 +141,7 @@ export default function NavigationScreen() {
         await supabase.from('driver_sessions').update({
           latest_lat: lat,
           latest_lng: lng,
-          updated_at: new Date().toISOString(),
-          device_info: deviceInfoRef.current
+          updated_at: new Date().toISOString()
         }).eq('driver_id', profile.id);
       } catch (telemetryErr) {
         console.warn('Failed to publish telemetry:', telemetryErr);
@@ -298,8 +297,7 @@ export default function NavigationScreen() {
           await supabase.from('driver_sessions').update({
             latest_lat: finalCoord[1],
             latest_lng: finalCoord[0],
-            updated_at: new Date().toISOString(),
-            device_info: deviceInfoRef.current
+            updated_at: new Date().toISOString()
           }).eq('driver_id', profile.id);
           return;
        }
@@ -322,14 +320,20 @@ export default function NavigationScreen() {
        const newLoc = { coords: { latitude: currentPoint[1], longitude: currentPoint[0] } };
        setLocation(newLoc as any);
        
+       console.log('[TEST SIMULATION] driver_id:', profile?.id, 'updating coords:', currentPoint[1], currentPoint[0]);
+       
        if (profile?.id) {
          deviceInfoRef.current.mode = 'test_simulated';
-         await supabase.from('driver_sessions').update({
+         const { error } = await supabase.from('driver_sessions').update({
            latest_lat: currentPoint[1],
            latest_lng: currentPoint[0],
-           updated_at: new Date().toISOString(),
-           device_info: deviceInfoRef.current
+           updated_at: new Date().toISOString()
          }).eq('driver_id', profile.id);
+         if (error) {
+           console.error('[TEST SIMULATION] DB update error:', error);
+         } else {
+           console.log('[TEST SIMULATION] DB update success');
+         }
        }
     }, tickMs);
   };

@@ -175,6 +175,12 @@ export interface Order {
   driver_name?: string;
   rated?: boolean;
   rating?: number;
+  cod_collection?: {
+    id: string;
+    status: 'pending' | 'collected' | 'settled';
+    collected_at?: string;
+    amount: number;
+  };
 }
 
 export interface Vendor {

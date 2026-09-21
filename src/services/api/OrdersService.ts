@@ -12,7 +12,8 @@ export class OrdersService {
         picker:profiles!picker_id(full_name),
         driver:profiles!driver_id(full_name),
         substitutions:order_substitutions(*),
-        events:order_events(*)
+        events:order_events(*),
+        cod_collection:cod_collections(*)
       `)
       .order('created_at', { ascending: false });
     
@@ -25,6 +26,7 @@ export class OrdersService {
       customer_phone: o.customer?.phone,
       picker_name: o.picker?.full_name,
       driver_name: o.driver?.full_name,
+      cod_collection: Array.isArray(o.cod_collection) ? o.cod_collection[0] : o.cod_collection,
       substitutions: (o.substitutions || []).map((sub: any) => ({
         ...sub,
         customer_action: sub.status

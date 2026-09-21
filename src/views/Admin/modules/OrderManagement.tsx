@@ -17,6 +17,10 @@ export const OrderManagement: React.FC = () => {
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   
+  // COD Settlement State
+  const [codSettleOrder, setCodSettleOrder] = useState<Order | null>(null);
+  const [isSettlingCod, setIsSettlingCod] = useState(false);
+
   // Inner Tab Navigation
   const [activeTab, setActiveTab] = useState<'orders' | 'returns'>('orders');
 
@@ -117,6 +121,23 @@ export const OrderManagement: React.FC = () => {
         console.error(e);
         addToast(e.message || 'Error processing cancellation and refund', 'error');
       }
+    }
+  };
+
+  const handleSettleCod = async () => {
+    if (!codSettleOrder || !codSettleOrder.driver_id || !codSettleOrder.cod_collection) return;
+    setIsSettlingCod(true);
+    try {
+      const { FinanceService } = await import('../../../services/api/FinanceService');
+      const ref = "CASH-DESK-" + Date.now();
+      await FinanceService.adminSettleDriverCod(codSettleOrder.driver_id, [codSettleOrder.id], ref);
+      addToast(`COD Cash ₹${codSettleOrder.cod_collection.amount} Settled`, 'success');
+      setCodSettleOrder(null);
+      refreshData();
+    } catch (e: any) {
+      addToast(`Settlement failed: ${e.message}`, 'error');
+    } finally {
+      setIsSettlingCod(false);
     }
   };
 
@@ -224,7 +245,41 @@ export const OrderManagement: React.FC = () => {
               { key: 'customer_name', header: 'CUSTOMER', sortable: true, render: (r) => <div><div style={{ fontWeight: 700 }}>{r.customer_name}</div><div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)' }}>{r.customer_phone}</div></div> },
               { key: 'total_amount', header: 'TOTAL', sortable: true, render: (r) => <span style={{ fontWeight: 800 }}>₹{Number(r.total_amount).toFixed(2)}</span> },
               { key: 'staff', header: 'STAFF HANDLERS', render: (r) => <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}><div>Picker: {r.picker_name || 'Unassigned'}</div><div>Rider: {r.driver_name || 'Unassigned'}</div></div> },
-              { key: 'payment', header: 'PAYMENT TYPE', render: () => <span className="admin-badge-success">ONLINE PAY</span> },
+              { key: 'payment', header: 'PAYMENT TYPE', render: (r) => {
+                if (r.payment_method === 'cod') {
+                  const codState = r.cod_collection;
+                  let codUI = <span className="admin-badge-info">COD</span>;
+                  if (codState) {
+                    if (codState.status === 'pending' && r.cod_collected) {
+                      codUI = (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+                          <span className="admin-badge-info">COD</span>
+                          <button onClick={(e) => { e.stopPropagation(); setCodSettleOrder(r); }} style={{ padding: '4px 8px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>
+                            Settle COD ₹{codState.amount}
+                          </button>
+                        </div>
+                      );
+                    } else if (codState.status === 'settled') {
+                      codUI = (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                          <span className="admin-badge-info">COD</span>
+                          <span style={{ fontSize: '0.6rem', color: '#10b981', fontWeight: 800 }}>
+                            COD SETTLED • {codState.collected_at ? new Date(codState.collected_at).toLocaleString() : ''}
+                          </span>
+                        </div>
+                      );
+                    }
+                  }
+                  return codUI;
+                }
+                if (r.payment_method === 'upi' || r.payment_method === 'card' || r.payment_method === 'wallet' || r.payment_method === 'razorpay') {
+                  return <span className="admin-badge-success">ONLINE PAY</span>;
+                }
+                if (r.payment_method) {
+                  return <span className="admin-badge-info" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>{String(r.payment_method).toUpperCase()}</span>;
+                }
+                return <span className="admin-badge-info" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>UNKNOWN</span>;
+              } },
               { key: 'status', header: 'STATUS', sortable: true, render: (r) => <span className={`admin-badge-${r.status === 'delivered' ? 'success' : 'info'}`}>{r.status.toUpperCase()}</span> }
             ]}
           />
@@ -432,6 +487,42 @@ export const OrderManagement: React.FC = () => {
         </div>
       )}
       </>
+      )}
+
+      {/* COD Settlement Confirmation Modal */}
+      {codSettleOrder && codSettleOrder.cod_collection && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'var(--bg-base)', borderRadius: '12px', width: '400px', padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginTop: 0, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', marginBottom: '16px' }}>Confirm COD Settlement</h3>
+            
+            <div style={{ marginBottom: '24px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: '8px' }}><strong>Order:</strong> #{codSettleOrder.id.toUpperCase().slice(-6)}</div>
+              <div style={{ marginBottom: '8px' }}><strong>Driver:</strong> {codSettleOrder.driver_name || codSettleOrder.driver_id}</div>
+              <div style={{ marginBottom: '16px' }}><strong>Cash to receive:</strong> <span style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>₹{codSettleOrder.cod_collection.amount}</span></div>
+              
+              <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '8px', padding: '12px', color: '#d97706' }}>
+                Confirm that ₹{codSettleOrder.cod_collection.amount} cash has physically been received from {codSettleOrder.driver_name || 'the driver'}.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => setCodSettleOrder(null)} 
+                disabled={isSettlingCod}
+                style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', border: '1px solid var(--border-light)', color: 'var(--text-secondary)', cursor: isSettlingCod ? 'not-allowed' : 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSettleCod} 
+                disabled={isSettlingCod}
+                style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', fontWeight: 'bold', cursor: isSettlingCod ? 'not-allowed' : 'pointer', opacity: isSettlingCod ? 0.7 : 1 }}
+              >
+                {isSettlingCod ? 'Confirming...' : 'Confirm Cash Received'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
 

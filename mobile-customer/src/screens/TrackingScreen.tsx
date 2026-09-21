@@ -131,17 +131,21 @@ export default function TrackingScreen() {
   };
 
   const fetchDriverLocation = async (driverId: string) => {
-    const { data } = await supabase.from('driver_sessions')
+    console.log('[TRACKING] fetchDriverLocation called for driverId:', driverId);
+    const { data, error } = await supabase.from('driver_sessions')
       .select('latest_lat, latest_lng')
       .eq('driver_id', driverId)
       .eq('status', 'active')
       .maybeSingle();
+      
+    console.log('[TRACKING] initial SELECT result:', { data, error });
     if (data && data.latest_lat && data.latest_lng) {
       setDriverLocation({ lat: data.latest_lat, lng: data.latest_lng });
     }
   };
 
   const subscribeDriver = (driverId: string | null) => {
+    console.log('[TRACKING] Setting up subscription for driverId:', driverId);
     if (!driverId) {
       if (driverChannelRef.current) {
         supabase.removeChannel(driverChannelRef.current);
@@ -161,20 +165,41 @@ export default function TrackingScreen() {
       subscribedDriverIdRef.current = null;
     }
 
-    const channel = supabase.channel(`driver-${driverId}`);
-    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions', filter: `driver_id=eq.${driverId}` }, (payload) => {
+    const channelName = `driver-${driverId}`;
+    console.log('[TRACKING] Channel name:', channelName);
+    const filter = `driver_id=eq.${driverId}`;
+    console.log('[TRACKING] postgres_changes filter:', filter);
+
+    const channel = supabase.channel(channelName);
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions', filter }, (payload) => {
+        console.log('[TRACKING] Received EVENT:', payload.eventType, 'payload:', payload);
         const newData = payload.new as any;
         if (newData.latest_lat && newData.latest_lng) {
+          console.log('[TRACKING] Valid coords received, updating map to', newData.latest_lat, newData.latest_lng);
           setDriverLocation({ lat: newData.latest_lat, lng: newData.latest_lng });
           // Update webview map if available
           const js = `updateDriverLocation(${newData.latest_lat}, ${newData.latest_lng}); true;`;
+          console.log('[TRACKING] Injecting JS:', js);
           webViewRef.current?.injectJavaScript(js);
+        } else {
+          console.log('[TRACKING] Coordinates missing in payload.new');
         }
     });
     
-    channel.subscribe();
+    channel.subscribe((status) => {
+        console.log('[TRACKING] Subscription status:', status);
+    });
     driverChannelRef.current = channel;
     subscribedDriverIdRef.current = driverId;
+
+    // Temporary diagnostic subscription without filter
+    const channelNoFilter = supabase.channel(`driver-no-filter-${driverId}`);
+    channelNoFilter.on('postgres_changes', { event: '*', schema: 'public', table: 'driver_sessions' }, (payload) => {
+        console.log('[TRACKING NO_FILTER] Received EVENT:', payload.eventType, 'payload:', payload);
+    });
+    channelNoFilter.subscribe((status) => {
+        console.log('[TRACKING NO_FILTER] Subscription status:', status);
+    });
   };
 
   const handlePayOnline = async () => {
