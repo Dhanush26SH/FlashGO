@@ -44,8 +44,16 @@ serve(async (req) => {
       throw new Error("Missing required parameters");
     }
 
-    // Bypassing signature verification since we are directly using the key without a secret
-    const isValid = true;
+    const secret = Deno.env.get('RAZORPAY_KEY_SECRET');
+    if (!secret) {
+      throw new Error("Razorpay secret not configured");
+    }
+
+    const isValid = await verifySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature, secret);
+    
+    if (!isValid) {
+      throw new Error("Invalid signature");
+    }
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',

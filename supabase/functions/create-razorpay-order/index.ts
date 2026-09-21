@@ -62,15 +62,56 @@ serve(async (req) => {
       throw new Error(`Order payment status (${order.payment_status}) is not pending`);
     }
     
-    const keyId = Deno.env.get('RAZORPAY_KEY_ID') || 'rzp_test_NgwEwXk1hnhpL6';
-    
-    // Bypassing Razorpay server-side order creation
-    const amountInPaise = Math.round(order.total_amount * 100);
-    const mockRzpOrderId = ""; // Empty string so frontend omits order_id
+    const keyId = Deno.env.get('RAZORPAY_KEY_ID')?.trim();
+    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET')?.trim();
 
+    if (!keyId || !keySecret) {
+      console.error(`Razorpay configuration error: keyId exists: ${!!keyId}, keySecret exists: ${!!keySecret}`);
+      throw new Error("Server configuration error");
+    }
+
+    const amountInPaise = Math.round(order.total_amount * 100);
+
+    // Create a real Razorpay Order
+    const basicAuth = btoa(`${keyId}:${keySecret}`);
+    const rzpResponse = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basicAuth}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        amount: amountInPaise,
+        currency: "INR",
+        receipt: orderId
+      })
+    });
+
+    if (!rzpResponse.ok) {
+      const errorText = await rzpResponse.text();
+      const prefixMatch = keyId.match(/^(rzp_test_|rzp_live_)/);
+      const prefix = prefixMatch ? prefixMatch[1] : "unknown_prefix";
+      console.error(
+        "Razorpay API error:",
+        `HTTP Status: ${rzpResponse.status}`,
+        `Response Body: ${errorText}`,
+        `Request Amount: ${amountInPaise}`,
+        `Currency: INR`,
+        `Receipt: ${orderId}`,
+        `keyId exists: ${!!keyId}`,
+        `keySecret exists: ${!!keySecret}`,
+        `key prefix: ${prefix}`
+      );
+      throw new Error("Failed to create Razorpay order");
+    }
+
+    const rzpData = await rzpResponse.json();
+    const rzpOrderId = rzpData.id;
+
+    // Persist real Razorpay order ID
     const { error: updateError } = await supabaseAdmin
       .from('orders')
-      .update({ payment_intent_id: mockRzpOrderId })
+      .update({ payment_intent_id: rzpOrderId })
       .eq('id', orderId);
 
     if (updateError) {
@@ -80,7 +121,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       keyId,
-      orderId: mockRzpOrderId,
+      orderId: rzpOrderId,
       amount: amountInPaise,
       currency: "INR",
       internalOrderId: orderId

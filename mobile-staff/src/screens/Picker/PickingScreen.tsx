@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Alert, Image, Modal, ScrollView, TextInput
+  Alert, Image, Modal, ScrollView, TextInput, FlatList
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Check, X, Camera as CameraIcon, Keyboard } from 'lucide-react-native';
@@ -40,6 +40,12 @@ export default function PickingScreen() {
   // Multi-quantity state
   const [showQuantityConfirm, setShowQuantityConfirm] = useState(false);
   const [manualPickedQuantity, setManualPickedQuantity] = useState(1);
+
+  // Alternative locations state
+  const [showLocationsModal, setShowLocationsModal] = useState(false);
+  const [alternativeLocations, setAlternativeLocations] = useState<any[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{ id: string, code: string } | null>(null);
 
   useEffect(() => {
     fetchOrderData();
@@ -89,6 +95,7 @@ export default function PickingScreen() {
         setShowManualEntry(false);
         setShowQuantityConfirm(false);
         setManualPickedQuantity(1);
+        setSelectedLocation(null);
       } else {
         await finishPicking();
       }
@@ -156,7 +163,7 @@ export default function PickingScreen() {
         const { error } = await supabase.rpc('pick_fefo_location_item', {
           p_warehouse_id: profile.warehouse_id,
           p_product_id: currentItem.product_id,
-          p_location_id: currentItem.location_id,
+          p_location_id: selectedLocation ? selectedLocation.id : currentItem.location_id,
           p_quantity: 1,
           p_order_id: orderId,
           p_user_id: profile.id,
@@ -189,7 +196,7 @@ export default function PickingScreen() {
       const { error } = await supabase.rpc('pick_fefo_location_item', {
         p_warehouse_id: profile.warehouse_id,
         p_product_id: currentItem.product_id,
-        p_location_id: currentItem.location_id,
+        p_location_id: selectedLocation ? selectedLocation.id : currentItem.location_id,
         p_quantity: manualPickedQuantity,
         p_order_id: orderId,
         p_user_id: profile.id,
@@ -227,6 +234,30 @@ export default function PickingScreen() {
       sStr: s < 10 ? `0${s}` : `${s}`
     };
   };
+
+  const fetchAlternativeLocations = async (productId: string) => {
+    setLoadingLocations(true);
+    setShowLocationsModal(true);
+    try {
+      const { data, error } = await supabase.rpc('get_product_warehouse_placements', {
+        p_product_id: productId,
+        p_warehouse_id: profile.warehouse_id
+      });
+      if (error) throw error;
+      setAlternativeLocations(data || []);
+    } catch (err: any) {
+      Alert.alert('Error fetching locations', err.message);
+      setShowLocationsModal(false);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const handleSelectLocation = (loc: any) => {
+    setSelectedLocation({ id: loc.location_id, code: loc.location_code });
+    setShowLocationsModal(false);
+  };
+
 
   if (loading && items.length === 0) {
     return (
@@ -311,8 +342,12 @@ export default function PickingScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         {/* ── LOCATION STRIP ── */}
         <View style={styles.locationContainer}>
-          <Text style={styles.locationText}>{currentItem.location_code || 'UNAVAILABLE'}</Text>
-          <Text style={styles.locationMore}>More</Text>
+          <Text style={styles.locationText}>
+            {selectedLocation ? selectedLocation.code : (currentItem.location_code || 'UNAVAILABLE')}
+          </Text>
+          <TouchableOpacity onPress={() => fetchAlternativeLocations(currentItem.product_id)}>
+            <Text style={styles.locationMore}>More</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── PRODUCT AREA ── */}
@@ -531,6 +566,47 @@ export default function PickingScreen() {
           </SafeAreaView>
         </View>
       </Modal>
+
+      {/* ── LOCATIONS MODAL ── */}
+      <Modal visible={showLocationsModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Alternative Locations</Text>
+              <TouchableOpacity onPress={() => setShowLocationsModal(false)}>
+                <X color="#3f3f46" size={24} />
+              </TouchableOpacity>
+            </View>
+            {loadingLocations ? (
+              <ActivityIndicator size="large" color="#10b981" style={{ margin: 40 }} />
+            ) : alternativeLocations.length === 0 ? (
+              <Text style={{ textAlign: 'center', padding: 20, color: '#71717a' }}>No other locations available.</Text>
+            ) : (
+              <FlatList
+                data={alternativeLocations}
+                keyExtractor={(item) => item.location_id}
+                contentContainerStyle={{ padding: 16 }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    style={[
+                      styles.locationItem, 
+                      (selectedLocation ? selectedLocation.id === item.location_id : currentItem.location_id === item.location_id) && styles.locationItemActive
+                    ]}
+                    onPress={() => handleSelectLocation(item)}
+                  >
+                    <View>
+                      <Text style={styles.locationItemCode}>{item.location_code}</Text>
+                    </View>
+                    <View style={styles.locationItemQtyBox}>
+                      <Text style={styles.locationItemQty}>{item.available_quantity} available</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -629,4 +705,61 @@ const styles = StyleSheet.create({
   confirmBtn: { width: '100%', backgroundColor: '#10b981', paddingVertical: 16, borderRadius: 10, alignItems: 'center' },
   confirmBtnDisabled: { backgroundColor: '#9ca3af' },
   confirmBtnText: { color: '#ffffff', fontSize: 18, fontWeight: 'bold' },
+  locationItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e4e4e7',
+    marginBottom: 8,
+    backgroundColor: '#fff',
+  },
+  locationItemActive: {
+    borderColor: '#10b981',
+    backgroundColor: '#f0fdf4',
+  },
+  locationItemCode: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#18181b',
+  },
+  locationItemQtyBox: {
+    backgroundColor: '#f4f4f5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  locationItemQty: {
+    fontSize: 14,
+    color: '#3f3f46',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f4f4f5',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#18181b',
+  },
 });

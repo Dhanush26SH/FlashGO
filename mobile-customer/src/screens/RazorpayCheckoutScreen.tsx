@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, Platform, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -18,10 +18,50 @@ export default function RazorpayCheckoutScreen() {
   const [rzpKeyId, setRzpKeyId] = useState<string>('rzp_test_NgwEwXk1hnhpL6');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cleaningUp, setCleaningUp] = useState(false);
+  const isPaymentSuccessful = useRef(false);
+  const isCleaningUpRef = useRef(false);
 
   useEffect(() => {
     initiateRazorpayOrder();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', async (e: any) => {
+      // If payment was verified successfully, allow navigation without cleanup
+      if (isPaymentSuccessful.current) {
+        return;
+      }
+      
+      // If already cleaning up, prevent duplicate triggers
+      if (isCleaningUpRef.current) {
+        e.preventDefault();
+        return;
+      }
+
+      // We are leaving the screen with an unresolved payment
+      e.preventDefault();
+      
+      isCleaningUpRef.current = true;
+      setCleaningUp(true);
+      setError(null);
+      
+      try {
+        await failPendingPayment(orderId);
+        await refreshServerCart();
+        
+        // After successful cleanup, re-dispatch the navigation action to actually leave
+        navigation.dispatch(e.data.action);
+      } catch (err) {
+        console.error("Failed to restore cart on navigation back:", err);
+        setError("Failed to restore cart. Please check your connection and try going back again.");
+        isCleaningUpRef.current = false;
+        setCleaningUp(false);
+      }
+    });
+    
+    return unsubscribe;
+  }, [navigation, orderId]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -103,6 +143,7 @@ export default function RazorpayCheckoutScreen() {
         }
 
         // Successfully paid!
+        isPaymentSuccessful.current = true;
         await refreshServerCart();
 
         if (isConversion) {
@@ -114,29 +155,10 @@ export default function RazorpayCheckoutScreen() {
         console.error(err);
         setError(err.message || "Payment verification failed");
         setLoading(false);
-        try {
-          await failPendingPayment(orderId);
-          await refreshServerCart();
-        } catch (e) {
-          console.error("Failed to restore cart on verification failure:", e);
-        }
       }
     } else if (message.type === 'DISMISSED') {
-      try {
-        await failPendingPayment(orderId);
-        await refreshServerCart();
-      } catch (e) {
-        console.error("Failed to restore cart on dismiss:", e);
-      }
+      // The beforeRemove listener will catch this goBack and perform the cart cleanup
       navigation.goBack();
-    } else if (message.type === 'ERROR') {
-      try {
-        await failPendingPayment(orderId);
-        await refreshServerCart();
-      } catch (e) {
-        console.error("Failed to restore cart on error:", e);
-      }
-      setError(message.error || "Payment failed");
     }
   };
 
@@ -216,9 +238,6 @@ export default function RazorpayCheckoutScreen() {
             };
             
             var rzp = new Razorpay(options);
-            rzp.on('payment.failed', function (response){
-              sendMsg({ type: 'ERROR', error: response.error.description });
-            });
             document.getElementById('loader').style.display = 'none';
             rzp.open();
           }, 500);
@@ -274,6 +293,16 @@ export default function RazorpayCheckoutScreen() {
            <View style={[styles.center, { backgroundColor: 'rgba(255,255,255,0.9)', flex: 1 }]}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Text style={styles.loadingText}>Verifying payment...</Text>
+           </View>
+         </View>
+      )}
+
+      {/* Cleaning up overlay */}
+      {cleaningUp && (
+         <View style={StyleSheet.absoluteFillObject}>
+           <View style={[styles.center, { backgroundColor: 'rgba(255,255,255,0.9)', flex: 1 }]}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Restoring cart...</Text>
            </View>
          </View>
       )}

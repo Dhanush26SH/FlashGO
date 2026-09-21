@@ -13,7 +13,7 @@ export default function PaymentOptionsScreen() {
   const { quote, couponCode, deliveryInstruction } = route.params || {};
   const { activeAddress, checkoutAddress, sessionUser, clearCart } = useMobileAppContext();
   
-  const [selectedMethod, setSelectedMethod] = useState<'cod' | 'razorpay_google_pay' | 'razorpay_other_upi' | 'razorpay_card' | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<'cod' | 'razorpay' | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const submitLockRef = useRef(false);
   const idempotencyKeyRef = useRef<string>('');
@@ -76,9 +76,7 @@ export default function PaymentOptionsScreen() {
     setIsProcessing(true);
     try {
       // Map UI payment method to backend value
-      const backendMethod = selectedMethod === 'cod' ? 'cod'
-        : selectedMethod === 'razorpay_card' ? 'card'
-        : 'upi'; // google_pay and other_upi both map to 'upi'
+      const backendMethod = selectedMethod === 'cod' ? 'cod' : 'upi'; // map razorpay to 'upi' to trigger prepaid flow
 
       // V2: identity from auth.uid(), cart from server, address by ID only
       const orderId = await processCheckoutV2({
@@ -169,9 +167,7 @@ export default function PaymentOptionsScreen() {
 
   const getSelectedLabel = () => {
     if (selectedMethod === 'cod') return 'Cash on Delivery';
-    if (selectedMethod === 'razorpay_google_pay') return 'Google Pay';
-    if (selectedMethod === 'razorpay_other_upi') return 'UPI';
-    if (selectedMethod === 'razorpay_card') return 'Credit / Debit Card';
+    if (selectedMethod === 'razorpay') return 'Razorpay';
     return '';
   };
 
@@ -194,14 +190,8 @@ export default function PaymentOptionsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommended UPI</Text>
-          {renderPaymentOption('razorpay_google_pay', 'Google Pay', 'Pay using Google Pay', Smartphone)}
-          {renderPaymentOption('razorpay_other_upi', 'Other UPI Apps', 'Choose another UPI app', Smartphone)}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cards</Text>
-          {renderPaymentOption('razorpay_card', 'Credit / Debit Card', 'Secure card payment', CreditCard)}
+          <Text style={styles.sectionTitle}>Online Payment</Text>
+          {renderPaymentOption('razorpay', 'Razorpay', 'Pay securely online', CreditCard)}
         </View>
 
         <View style={styles.section}>

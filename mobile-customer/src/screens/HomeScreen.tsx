@@ -18,6 +18,7 @@ import { fetchTrendingByTag } from '../services/api';
 import ActiveOrderBanner from '../components/ActiveOrderBanner';
 import FlashGoPageEnd from '../components/FlashGoPageEnd';
 import HomeProductSections from '../components/HomeProductSections';
+import PendingPaymentRecovery from '../components/PendingPaymentRecovery';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -330,6 +331,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            <PendingPaymentRecovery />
             
           {/* Hero Promotional Banner */}
           {!searchQuery && (

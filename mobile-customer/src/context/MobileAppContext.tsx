@@ -29,6 +29,8 @@ interface MobileAppContextProps {
   requireLocationForShopping: () => boolean;
   wishlistProductIds: Set<string>;
   toggleWishlistItem: (productId: string) => Promise<void>;
+  pendingOrder: any | null;
+  refreshPendingOrder: () => Promise<void>;
 }
 
 const MobileAppContext = createContext<MobileAppContextProps | undefined>(undefined);
@@ -37,6 +39,7 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [wishlistProductIds, setWishlistProductIds] = useState<Set<string>>(new Set());
+  const [pendingOrder, setPendingOrder] = useState<any>(null);
 
   // Re-use the existing logic to manage cart, warehouse, and products
   const mobileApp = useMobileApp(sessionUser?.id || null);
@@ -131,14 +134,15 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           Alert.alert('Profile Not Found', 'Your customer profile could not be found.');
           await supabase.auth.signOut();
           setSessionUser(null);
+          setPendingOrder(null);
         } else if (error.code === '42501') {
           Alert.alert('Authentication Sync Error', 'Please try logging in again.');
           await supabase.auth.signOut();
           setSessionUser(null);
+          setPendingOrder(null);
         } else {
           Alert.alert('Network Error', error.message || 'Failed to load profile.');
           // Do NOT sign out for genuine network errors; leave session intact for manual retry
-          setSessionUser(null);
         }
         return;
       }
@@ -147,6 +151,7 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         Alert.alert('Profile Error', 'Profile data is missing.');
         await supabase.auth.signOut();
         setSessionUser(null);
+        setPendingOrder(null);
         return;
       }
       
@@ -154,6 +159,7 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         Alert.alert('Unauthorized', 'Access restricted to customers only.');
         await supabase.auth.signOut();
         setSessionUser(null);
+        setPendingOrder(null);
         return;
       }
 
@@ -161,10 +167,12 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         Alert.alert('Suspended', 'Your account has been suspended.');
         await supabase.auth.signOut();
         setSessionUser(null);
+        setPendingOrder(null);
         return;
       }
       
       setSessionUser(user);
+      await refreshPendingOrder(user.id);
 
       // Load wishlist
       try {
@@ -177,8 +185,34 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (err) {
       console.error(err);
       setSessionUser(null);
+      setPendingOrder(null);
     } finally {
       setIsLoadingSession(false);
+    }
+  };
+
+  const refreshPendingOrder = async (userId: string = sessionUser?.id) => {
+    if (!userId) {
+      setPendingOrder(null);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('customer_id', userId)
+        .eq('status', 'payment_pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+      if (!error && data) {
+        setPendingOrder(data);
+      } else {
+        setPendingOrder(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch pending order:', err);
     }
   };
 
@@ -208,6 +242,8 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       requireLocationForShopping,
       wishlistProductIds,
       toggleWishlistItem,
+      pendingOrder,
+      refreshPendingOrder,
     }}>
       {children}
     </MobileAppContext.Provider>
