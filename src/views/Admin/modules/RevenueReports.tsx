@@ -157,26 +157,32 @@ export const RevenueReports = () => {
       XLSX.utils.book_append_sheet(wb, summaryWs, 'Executive Summary');
 
       // Helper to create and format sheet
-      const addSheet = (data: any[], name: string) => {
-        const ws = XLSX.utils.json_to_sheet(castNumbers(data));
+      const addSheet = (data: any[], name: string, defaultHeaders: string[] = []) => {
+        let ws: XLSX.WorkSheet;
         if (data.length > 0) {
+          ws = XLSX.utils.json_to_sheet(castNumbers(data));
           const keys = Object.keys(data[0]);
           ws['!cols'] = keys.map(k => ({ wch: k.includes('ID') ? 36 : k.includes('Date') || k.includes('Time') ? 15 : k.includes('Name') || k.includes('Address') || k.includes('Category') ? 25 : 15 }));
           ws['!autofilter'] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws['!ref'] || 'A1:A1')) };
           ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+        } else if (defaultHeaders.length > 0) {
+          ws = XLSX.utils.aoa_to_sheet([defaultHeaders]);
+          ws['!cols'] = defaultHeaders.map(k => ({ wch: k.includes('ID') ? 36 : k.includes('Date') || k.includes('Time') ? 15 : k.includes('Name') || k.includes('Address') || k.includes('Category') ? 25 : 15 }));
+        } else {
+          ws = XLSX.utils.json_to_sheet([]);
         }
         XLSX.utils.book_append_sheet(wb, ws, name);
       };
 
-      addSheet(exportData.revenue_by_date || [], 'Revenue by Date');
-      addSheet(exportData.warehouse_performance || [], 'Warehouse Performance');
-      addSheet(exportData.orders || [], 'Orders');
-      addSheet(exportData.category_sales || [], 'Category Sales');
-      addSheet(exportData.payment_breakdown || [], 'Payment Breakdown');
-      addSheet(exportData.refunds || [], 'Refunds');
-      addSheet(exportData.workforce_payouts || [], 'Workforce Payouts');
-      addSheet(exportData.warehouse_payroll || [], 'Warehouse Payroll');
-      addSheet(exportData.procurement_spend || [], 'Procurement Spend');
+      addSheet(exportData.revenue_by_date || [], 'Revenue by Date', ['Date', 'GOV', 'Net Revenue', 'Delivered Orders', 'AOV', 'Online Revenue', 'COD Revenue', 'Refunds', 'Discounts']);
+      addSheet(exportData.warehouse_performance || [], 'Warehouse Performance', ['Warehouse', 'GOV', 'Net Revenue', 'Delivered Orders', 'AOV', 'Online Revenue', 'COD Revenue', 'Refunds', 'Discounts']);
+      addSheet(exportData.orders || [], 'Orders', ['Order ID', 'Delivered Date', 'Delivered Time', 'Warehouse', 'Payment Method', 'Payment Status', 'GOV', 'Discount', 'Final Total', 'Refund Amount', 'Net Revenue']);
+      addSheet(exportData.category_sales || [], 'Category Sales', ['Category', 'Items Sold', 'Delivered Orders', 'Sales Value']);
+      addSheet(exportData.payment_breakdown || [], 'Payment Breakdown', ['Date', 'Online Revenue', 'COD Revenue', 'Wallet Used', 'Total Delivered Revenue']);
+      addSheet(exportData.refunds || [], 'Refunds', ['Refund ID', 'Order ID', 'Refund Date', 'Warehouse', 'Amount', 'Reason', 'Status']);
+      addSheet(exportData.workforce_payouts || [], 'Workforce Payouts', ['Settlement ID', 'Paid Date', 'Role', 'Warehouse', 'Gross Earnings', 'Bonus/Adjustments', 'Deductions/Penalties', 'Net Paid']);
+      addSheet(exportData.warehouse_payroll || [], 'Warehouse Payroll', ['Payroll ID', 'Salary Month', 'Staff ID', 'Staff Name', 'Warehouse', 'Base Salary', 'Additions/Adjustments', 'Deductions', 'Net Salary', 'Status', 'Paid Date']);
+      addSheet(exportData.procurement_spend || [], 'Procurement Spend', ['PO ID', 'Date', 'Warehouse', 'Supplier', 'Status', 'Total Cost']);
 
       const startStr = startDate.toISOString().split('T')[0];
       const endStr = endDate.toISOString().split('T')[0];
