@@ -41,6 +41,7 @@ import { WarehouseTasks } from './modules/WarehouseTasks';
 import { FinanceSettlements } from './modules/FinanceSettlements';
 import { ProcurementSupplier } from './modules/ProcurementSupplier';
 import { AnalyticsReports } from './modules/AnalyticsReports';
+import { RevenueReports } from './modules/RevenueReports';
 import { NotificationCenter } from './modules/NotificationCenter';
 import { FleetManagement } from './modules/FleetManagement';
 import { DropZoneManagement } from './modules/DropZoneManagement';
@@ -55,7 +56,7 @@ export const AdminView: React.FC = () => {
   const [showStoreQR, setShowStoreQR] = useState(false);
   
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'orders' | 'catalog' | 'inventory' | 'drop_zones' | 'warehouse_tasks' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
+    'overview' | 'orders' | 'catalog' | 'inventory' | 'drop_zones' | 'warehouse_tasks' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'revenue_reports' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
   >('overview');
 
   React.useEffect(() => {
@@ -88,6 +89,7 @@ export const AdminView: React.FC = () => {
     { id: 'driver_approvals', label: 'Staff Approvals', icon: <Users size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
     { id: 'procurement', label: 'Procurement & Replenishment', icon: <Truck size={16} />, clearance: ['super_admin', 'warehouse_manager', 'warehouse_lead'] },
     { id: 'finance', label: 'Finance & Settlements', icon: <IndianRupee size={16} />, clearance: ['super_admin'] },
+    { id: 'revenue_reports', label: 'Revenue & Reports', icon: <BarChart3 size={16} />, clearance: ['super_admin'] },
     { id: 'fleet', label: 'Fleet Management', icon: <Navigation size={16} />, clearance: ['super_admin', 'support_ops'] },
     { id: 'work_slots', label: 'Work Slot Management', icon: <Calendar size={16} />, clearance: ['super_admin', 'warehouse_manager'] },
 
@@ -157,6 +159,8 @@ export const AdminView: React.FC = () => {
         return <ProcurementSupplier />;
       case 'finance':
         return <FinanceSettlements />;
+      case 'revenue_reports':
+        return <RevenueReports />;
       case 'marketing':
         return <MarketingCMS />;
       case 'analytics':

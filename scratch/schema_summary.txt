@@ -1,0 +1,306 @@
+TABLE: admin_audit_logs
+  id (uuid), admin_id (uuid), action_type (text), entity_type (text), entity_id (text), warehouse_id (uuid), before_state (jsonb), after_state (jsonb), metadata (jsonb), created_at (timestamp with time zone)
+
+TABLE: admin_dispatch_failed_trips
+  trip_id (uuid), warehouse_id (uuid), warehouse_name (text), status (text), trip_created_at (timestamp with time zone), trip_updated_at (timestamp with time zone), total_attempts (bigint), attempts (json)
+
+TABLE: app_settings
+  key (text), value (text)
+
+TABLE: cart_items
+  id (uuid), cart_id (uuid), product_id (uuid), quantity (integer), added_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: carts
+  id (uuid), customer_id (uuid), revision (bigint), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: categories
+  id (uuid), name (text), slug (text), icon (text), image_url (text), active (boolean), created_at (timestamp with time zone), storage_zone (text)
+
+TABLE: cod_collections
+  id (uuid), order_id (uuid), driver_id (uuid), amount (numeric), status (USER-DEFINED), collected_by (uuid), collected_at (timestamp with time zone), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: coupons
+  id (uuid), code (text), discount_type (USER-DEFINED), discount_value (numeric), min_order_value (numeric), max_discount (numeric), active (boolean), expires_at (timestamp with time zone), created_at (timestamp with time zone), valid_from (timestamp with time zone), valid_until (timestamp with time zone)
+
+TABLE: customer_addresses
+  id (uuid), customer_id (uuid), label (character varying), address_line (text), lat (numeric), lng (numeric), is_default (boolean), created_at (timestamp with time zone), updated_at (timestamp with time zone), city (text), locality (text), street_address (text), receiver_name (text), receiver_phone (text), zip_code (text), flat_house_no (text), floor (text), landmark (text)
+
+TABLE: customer_wishlist
+  customer_id (uuid), product_id (uuid), created_at (timestamp with time zone)
+
+TABLE: cycle_counts
+  id (uuid), warehouse_id (uuid), product_id (uuid), batch_id (uuid), location (text), status (text), system_quantity (integer), counted_quantity (integer), variance (integer), counter_id (uuid), reviewer_id (uuid), notes (text), created_at (timestamp with time zone), submitted_at (timestamp with time zone), resolved_at (timestamp with time zone), location_id (uuid)
+
+TABLE: dev_test_accounts
+  email (text), bypass_geofence (boolean), is_e2e_test_account (boolean)
+
+TABLE: driver_agreement_acceptances
+  driver_id (uuid), agreement_version (text), accepted_at (timestamp with time zone)
+
+TABLE: driver_check_in_records
+  id (uuid), driver_id (uuid), staff_shift_id (uuid), warehouse_id (uuid), check_in_time (timestamp with time zone), submitted_lat (double precision), submitted_lng (double precision), calculated_distance_meters (double precision), selfie_storage_path (text), qr_challenge_id (uuid), status (text), failure_reason (text), is_late (boolean), late_by_minutes (integer)
+
+TABLE: driver_cod_settlement_items
+  settlement_id (uuid), cod_collection_id (uuid)
+
+TABLE: driver_cod_settlement_requests
+  id (uuid), driver_id (uuid), admin_id (uuid), amount (numeric), status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: driver_cod_settlements
+  id (uuid), driver_id (uuid), ledger_entry_id (uuid), total_amount (numeric), payment_reference (text), settled_by (uuid), settled_at (timestamp with time zone)
+
+TABLE: driver_compliance
+  driver_id (uuid), dl_expiry (date), insurance_expiry (date), rc_expiry (date), bg_check_status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), dl_number (text)
+
+TABLE: driver_daily_incentive_campaigns
+  id (uuid), warehouse_id (uuid), business_date (date), enabled (boolean), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: driver_daily_incentive_milestones
+  id (uuid), campaign_id (uuid), target_earnings (numeric), reward_amount (numeric), sort_order (integer), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: driver_earning_rate_cards
+  id (uuid), warehouse_id (uuid), effective_from (timestamp with time zone), status (text), created_at (timestamp with time zone), created_by (uuid)
+
+TABLE: driver_earning_tiers
+  id (uuid), rate_card_id (uuid), min_items (integer), max_items (integer), earning_amount (numeric), sort_order (integer), created_at (timestamp with time zone)
+
+TABLE: driver_earnings
+  id (uuid), driver_id (uuid), order_id (uuid), earning_amount (numeric), commission_amount (numeric), created_at (timestamp with time zone)
+
+TABLE: driver_financial_ledger
+  id (uuid), driver_id (uuid), amount (numeric), transaction_type (USER-DEFINED), order_id (uuid), trip_id (uuid), source_reference_id (uuid), reversal_of_ledger_id (uuid), description (text), occurred_at (timestamp with time zone), created_at (timestamp with time zone), created_by (uuid), metadata (jsonb)
+
+TABLE: driver_financial_summary
+  driver_id (uuid), pocket_balance (numeric), unsettled_cod (numeric), weekly_earnings (numeric), weekly_tips (numeric), weekly_deductions (numeric)
+
+TABLE: driver_nominee_details
+  driver_id (uuid), nominee_name (text), relationship (text), dob (date), mobile (text), emergency_mobile (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: driver_onboarding
+  id (uuid), status (text), location_permission_granted (boolean), notification_permission_granted (boolean), language_pref (text), vehicle_type (text), work_area (text), work_type (text), warehouse_id (uuid), selfie_url (text), fee_paid (boolean), rejection_reason (text), submission_time (timestamp with time zone), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: driver_return_tasks
+  id (uuid), driver_id (uuid), trip_id (uuid), warehouse_id (uuid), status (text), created_at (timestamp with time zone), completed_at (timestamp with time zone), return_type (text), order_id (uuid)
+
+TABLE: driver_sessions
+  id (uuid), driver_id (uuid), vehicle_number (text), latest_lat (double precision), latest_lng (double precision), status (text), updated_at (timestamp with time zone), staff_shift_id (uuid)
+
+TABLE: driver_settlement_batches
+  id (uuid), warehouse_id (uuid), week_start (date), status (text), requested_staff_count (integer), successful_staff_count (integer), failed_staff_count (integer), created_by (uuid), created_at (timestamp with time zone)
+
+TABLE: driver_settlement_items
+  settlement_id (uuid), ledger_id (uuid), amount_snapshot (numeric), transaction_type (text)
+
+TABLE: driver_settlements
+  id (uuid), batch_id (uuid), driver_id (uuid), warehouse_id (uuid), week_start (date), delivery_earnings (numeric), customer_tips (numeric), incentives (numeric), gross_amount (numeric), penalties (numeric), deductions (numeric), adjustments (numeric), net_amount (numeric), status (text), payment_provider (text), payment_method (text), payment_reference (text), provider_payment_id (text), provider_reference (text), idempotency_key (text), created_by (uuid), created_at (timestamp with time zone), paid_at (timestamp with time zone), actor_id (uuid), carried_deficit (numeric), deficit_recovered (numeric), remaining_deficit (numeric)
+
+TABLE: driver_training_modules
+  id (uuid), title (text), description (text), content_reference (text), is_required (boolean), display_order (integer), is_active (boolean), created_at (timestamp with time zone), content (text)
+
+TABLE: driver_training_progress
+  driver_id (uuid), module_id (uuid), completed_at (timestamp with time zone)
+
+TABLE: driver_trip_offers
+  id (uuid), trip_id (uuid), driver_id (uuid), attempt_number (integer), status (text), offered_at (timestamp with time zone), expires_at (timestamp with time zone), responded_at (timestamp with time zone)
+
+TABLE: drop_zone_allocations
+  id (uuid), order_id (uuid), trip_id (uuid), warehouse_id (uuid), drop_zone_id (uuid), picker_id (uuid), status (text), placed_at (timestamp with time zone), driver_id (uuid), driver_assigned_at (timestamp with time zone), picked_up_at (timestamp with time zone), created_at (timestamp with time zone)
+
+TABLE: drop_zones
+  id (uuid), warehouse_id (uuid), zone_code (text), is_active (boolean), qr_token (uuid), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: goods_receipt_items
+  id (uuid), receipt_id (uuid), procurement_order_item_id (uuid), product_id (uuid), quantity_received (integer), accepted_quantity (integer), rejected_quantity (integer), unit_cost (numeric), batch_number (text), expiry_date (date), created_at (timestamp with time zone), damaged_quantity (integer), expired_quantity (integer)
+
+TABLE: goods_receipts
+  id (uuid), receipt_number (text), procurement_order_id (uuid), vendor_id (uuid), warehouse_id (uuid), received_by (uuid), notes (text), created_at (timestamp with time zone)
+
+TABLE: inventory_locations
+  id (uuid), warehouse_id (uuid), product_id (uuid), zone (text), aisle (text), rack (text), shelf (text), bin_barcode (text), created_at (timestamp with time zone)
+
+TABLE: inventory_reservations
+  id (uuid), order_id (uuid), warehouse_id (uuid), product_id (uuid), quantity (integer), status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: logistics_trips
+  id (uuid), warehouse_id (uuid), driver_id (uuid), status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), offered_at (timestamp with time zone), offer_expires_at (timestamp with time zone), next_offer_at (timestamp with time zone), arrived_at (timestamp with time zone), route_distance_meters (numeric), in_transit_at (timestamp with time zone), completion_acknowledged_at (timestamp with time zone), delivered_at (timestamp with time zone)
+
+TABLE: notifications
+  id (uuid), recipient_id (uuid), title (text), message (text), type (text), is_read (boolean), created_at (timestamp with time zone), entity_type (text), entity_id (text), metadata (jsonb), event_key (text)
+
+TABLE: order_delivery_otp
+  id (uuid), order_id (uuid), otp_hash (text), attempts (integer), max_attempts (integer), expires_at (timestamp with time zone), verified_at (timestamp with time zone), status (text), created_at (timestamp with time zone)
+
+TABLE: order_events
+  id (uuid), order_id (uuid), idempotency_key (text), actor_id (uuid), actor_role (text), event_type (text), previous_status (text), new_status (text), description (text), metadata (jsonb), created_at (timestamp with time zone)
+
+TABLE: order_items
+  id (uuid), order_id (uuid), product_id (uuid), quantity (integer), price (numeric), picked_quantity (integer), status (text), inventory_location_id (uuid), product_name_snapshot (text), product_image_snapshot (text), sku_snapshot (text), manufacturer_barcode_snapshot (text), cancelled_quantity (integer), substituted_quantity (integer), pack_quantity_snapshot (numeric), pack_unit_snapshot (text), logistics_weight_grams_snapshot (integer)
+
+TABLE: order_notes
+  id (uuid), order_id (uuid), author_id (uuid), note (text), created_at (timestamp with time zone)
+
+TABLE: order_packing_operations
+  order_id (uuid), warehouse_id (uuid), packer_id (uuid), packing_started_at (timestamp with time zone), packed_at (timestamp with time zone), bag_number (text), staging_location_id (uuid), staged_by (uuid), staged_at (timestamp with time zone), handed_off_by (uuid), handed_off_at (timestamp with time zone), trip_id (uuid), driver_id (uuid)
+
+TABLE: order_substitutions
+  id (uuid), order_id (uuid), original_item_id (uuid), suggested_product_id (uuid), status (text), actioned_at (timestamp with time zone), created_at (timestamp with time zone), order_item_id (uuid), quantity (integer)
+
+TABLE: order_unpack_queue
+  id (uuid), order_id (uuid), warehouse_id (uuid), status (text), created_at (timestamp with time zone), processed_at (timestamp with time zone), processed_by (uuid)
+
+TABLE: orders
+  id (uuid), customer_id (uuid), picker_id (uuid), driver_id (uuid), status (USER-DEFINED), total_amount (numeric), discount_amount (numeric), coupon_code (text), delivery_fee (numeric), delivery_address (text), delivery_lat (double precision), delivery_lng (double precision), otp_code (character varying), bag_number (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), warehouse_id (uuid), picking_status (text), packing_status (text), cancellation_reason (text), inventory_deducted (boolean), payment_method (text), trip_id (uuid), delivery_sequence (integer), payment_status (text), payment_intent_id (text), delivery_speed (text), is_cold_chain (boolean), cod_collected (boolean), order_number (text), customer_name_snapshot (text), customer_snapshot_name (text), customer_snapshot_phone (text), customer_snapshot_email (text), warehouse_name_snapshot (text), address_snapshot_formatted (text), address_snapshot_flat (text), address_snapshot_floor (text), address_snapshot_landmark (text), address_snapshot_locality (text), address_snapshot_state (text), address_snapshot_postcode (text), address_snapshot_instructions (text), subtotal_amount (numeric), handling_fee (numeric), tax_amount (numeric), wallet_applied_amount (numeric), refunded_amount (numeric), checkout_idempotency_key (text), picker_assigned_at (timestamp with time zone)
+
+TABLE: payment_transactions
+  id (uuid), order_id (uuid), user_id (uuid), amount (numeric), payment_method (text), status (text), transaction_id (text), idempotency_key (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: payroll_adjustments
+  id (uuid), payroll_id (uuid), adjustment_type (text), amount (numeric), reason (text), created_by (uuid), created_at (timestamp with time zone)
+
+TABLE: picker_bonus_awards
+  id (uuid), staff_id (uuid), offer_id (uuid), period_key (text), milestone_id (uuid), offer_name_snapshot (text), milestone_target (integer), configured_total_reward (numeric), incremental_award_amount (numeric), awarded_at (timestamp with time zone), earning_date (date)
+
+TABLE: picker_bonus_offer_milestones
+  id (uuid), offer_id (uuid), target_value (integer), reward_amount (numeric), sort_order (integer)
+
+TABLE: picker_bonus_offers
+  id (uuid), name (text), start_date (date), end_date (date), is_active (boolean), target_type (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: picker_settlement_batches
+  id (uuid), warehouse_id (uuid), week_start (date), status (text), requested_staff_count (integer), successful_staff_count (integer), failed_staff_count (integer), created_by (uuid), created_at (timestamp with time zone)
+
+TABLE: picker_settlement_bonus_items
+  settlement_id (uuid), picker_bonus_award_id (uuid), amount_snapshot (numeric)
+
+TABLE: picker_settlement_items
+  settlement_id (uuid), staff_shift_payout_id (uuid), amount_snapshot (numeric)
+
+TABLE: picker_settlements
+  id (uuid), batch_id (uuid), staff_id (uuid), warehouse_id (uuid), week_start (date), total_amount (numeric), status (text), payment_provider (text), payment_method (text), payment_reference (text), provider_payment_id (text), provider_reference (text), idempotency_key (text), created_by (uuid), created_at (timestamp with time zone), paid_at (timestamp with time zone), actor_id (uuid), shift_earnings (numeric), bonus_earnings (numeric), deductions (numeric), net_amount (numeric)
+
+TABLE: picker_shift_incentive_milestones
+  id (uuid), shift_id (uuid), target_items (integer), reward_amount (numeric), sort_order (integer)
+
+TABLE: picker_weekly_targets
+  id (uuid), target_items (integer), is_active (boolean), effective_from (timestamp with time zone), effective_to (timestamp with time zone), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: platform_settings
+  id (integer), base_delivery_fee (numeric), free_delivery_threshold (numeric), updated_at (timestamp with time zone)
+
+TABLE: procurement_order_items
+  id (uuid), procurement_order_id (uuid), product_id (uuid), quantity (integer), cost_per_unit (numeric), created_at (timestamp with time zone), received_quantity (integer)
+
+TABLE: procurement_orders
+  id (uuid), vendor_id (uuid), status (text), total_cost (numeric), created_at (timestamp with time zone), warehouse_id (uuid)
+
+TABLE: product_batches
+  id (uuid), product_id (uuid), warehouse_id (uuid), batch_number (text), expiry_date (date), received_quantity (integer), available_quantity (integer), status (text), created_at (timestamp with time zone), goods_receipt_item_id (uuid), staging_quantity (integer)
+
+TABLE: products
+  id (uuid), category_id (uuid), name (text), description (text), price (numeric), discount_price (numeric), sku (text), barcode (text), image_url (text), stock_quantity (integer), warehouse_location (text), rating_avg (numeric), rating_count (integer), created_at (timestamp with time zone), is_active (boolean), subcategory_id (uuid), tags (ARRAY), country_of_origin (text), internal_sku_barcode (text), manufacturer_barcode (text), manufacturer_barcode_verified (boolean), internal_barcode (text), pack_quantity (numeric), pack_unit (text), logistics_weight_grams (integer)
+
+TABLE: profiles
+  id (uuid), email (text), phone (text), full_name (text), role (USER-DEFINED), loyalty_points (integer), referral_code (text), referred_by (uuid), wallet_balance (numeric), created_at (timestamp with time zone), employee_id (text), warehouse_id (uuid), cod_wallet_liability (numeric), current_vehicle_id (uuid), is_suspended (boolean), suspended_at (timestamp with time zone), suspension_reason (text), is_online (boolean), is_pending_staff (boolean), requested_role (USER-DEFINED), warehouse_is_online (boolean), is_retired (boolean), retired_at (timestamp with time zone), retired_reason (text)
+
+TABLE: promotions
+  id (uuid), title (text), subtitle (text), image_url (text), target_type (text), target_id (text), active (boolean), display_order (integer), starts_at (timestamp with time zone), ends_at (timestamp with time zone), created_by (uuid), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: putaway_tasks
+  id (uuid), warehouse_id (uuid), product_id (uuid), batch_id (uuid), quantity (integer), source_type (text), status (text), destination_location (text), worker_id (uuid), created_at (timestamp with time zone), completed_at (timestamp with time zone), claimed_at (timestamp with time zone), placed_quantity (integer)
+
+TABLE: refunds
+  id (uuid), order_id (uuid), customer_id (uuid), payment_transaction_id (uuid), amount (numeric), reason (text), status (text), idempotency_key (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), order_item_id (uuid), support_ticket_id (uuid), refunded_quantity (integer)
+
+TABLE: return_handover_challenges
+  id (uuid), driver_return_task_id (uuid), token_hash (text), expires_at (timestamp with time zone), consumed_at (timestamp with time zone), created_at (timestamp with time zone)
+
+TABLE: return_intake_items
+  id (uuid), return_intake_id (uuid), order_id (uuid), product_id (uuid), expected_quantity (integer), received_quantity (integer)
+
+TABLE: return_intakes
+  id (uuid), driver_return_task_id (uuid), trip_id (uuid), driver_id (uuid), warehouse_id (uuid), received_by_staff_id (uuid), status (text), created_at (timestamp with time zone), completed_at (timestamp with time zone), voided_at (timestamp with time zone), voided_by (uuid), void_reason (text)
+
+TABLE: return_scan_operations
+  scan_operation_id (uuid), return_intake_id (uuid), created_at (timestamp with time zone), product_id (uuid)
+
+TABLE: staff_payout_details
+  staff_id (uuid), payout_method_type (text), upi_id (text), bank_name (text), account_holder (text), account_number (text), ifsc (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), branch_name (text)
+
+TABLE: staff_shift_payouts
+  id (uuid), staff_id (uuid), shift_id (uuid), work_slot_id (uuid), warehouse_id (uuid), role (USER-DEFINED), base_amount (numeric), incentive_amount (numeric), total_amount (numeric), items_count (integer), active_minutes (integer), complaints_count (integer), shift_started_at (timestamp with time zone), shift_ended_at (timestamp with time zone), earning_date (date), status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: staff_shifts
+  id (uuid), staff_id (uuid), warehouse_id (uuid), shift_start (timestamp with time zone), shift_end (timestamp with time zone), status (text), created_at (timestamp with time zone), work_slot_id (uuid), started_at (timestamp with time zone), items_picked (integer), earnings (numeric), complaints (integer), current_duty (text), picker_rate_snapshot (numeric), completed_at (timestamp with time zone)
+
+TABLE: staff_support_messages
+  id (uuid), ticket_id (uuid), sender_id (uuid), message (text), created_at (timestamp with time zone)
+
+TABLE: staff_support_tickets
+  id (uuid), staff_id (uuid), category (text), subject (text), description (text), status (text), priority (text), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: stock_ledgers
+  id (uuid), warehouse_id (uuid), product_id (uuid), quantity_change (integer), reason (text), performed_by (uuid), created_at (timestamp with time zone), batch_id (uuid), order_id (uuid), order_item_id (uuid)
+
+TABLE: stock_transfers
+  id (uuid), source_warehouse_id (uuid), destination_warehouse_id (uuid), product_id (uuid), batch_id (uuid), status (text), requested_quantity (integer), dispatched_quantity (integer), received_quantity (integer), created_by (uuid), approved_by (uuid), dispatched_by (uuid), received_by (uuid), created_at (timestamp with time zone), approved_at (timestamp with time zone), dispatched_at (timestamp with time zone), received_at (timestamp with time zone), notes (text)
+
+TABLE: subcategories
+  id (uuid), category_id (uuid), name (text), sort_order (integer), active (boolean), created_at (timestamp with time zone)
+
+TABLE: subscriptions
+  id (uuid), user_id (uuid), type (USER-DEFINED), status (text), next_delivery_date (date), expires_at (timestamp with time zone), created_at (timestamp with time zone)
+
+TABLE: supplier_dispatch_batches
+  id (uuid), procurement_order_id (uuid), procurement_order_item_id (uuid), product_id (uuid), batch_number (text), dispatched_quantity (integer), received_quantity (integer), expiry_date (date), created_at (timestamp with time zone)
+
+TABLE: support_ticket_messages
+  id (uuid), ticket_id (uuid), sender_id (uuid), message (text), created_at (timestamp with time zone)
+
+TABLE: support_tickets
+  id (uuid), customer_id (uuid), related_order_id (uuid), category (text), status (text), created_at (timestamp with time zone), subject (text), description (text), priority (text), updated_at (timestamp with time zone), order_item_id (uuid), affected_quantity (integer)
+
+TABLE: vehicles
+  id (uuid), license_plate (text), vehicle_type (text), warehouse_id (uuid), status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), ownership_type (text), owner_driver_id (uuid)
+
+TABLE: vendor_products
+  id (uuid), vendor_id (uuid), product_id (uuid), vendor_sku (text), purchase_price (numeric), minimum_order_quantity (integer), is_active (boolean), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: vendors
+  id (uuid), name (text), contact_person (text), email (text), phone (text), address (text), created_at (timestamp with time zone)
+
+TABLE: wallet_transactions
+  id (uuid), user_id (uuid), amount (numeric), type (USER-DEFINED), description (text), created_at (timestamp with time zone)
+
+TABLE: warehouse_locations
+  id (uuid), warehouse_id (uuid), location_code (text), barcode (text), zone (text), rack (text), shelf_level (text), position (text), capacity (integer), is_active (boolean), created_at (timestamp with time zone)
+
+TABLE: warehouse_placement_events
+  id (uuid), warehouse_id (uuid), product_id (uuid), from_location_id (uuid), to_location_id (uuid), quantity (integer), event_type (text), source (text), actor_id (uuid), created_at (timestamp with time zone)
+
+TABLE: warehouse_product_placements
+  id (uuid), warehouse_id (uuid), location_id (uuid), product_id (uuid), quantity (integer), placed_at (timestamp with time zone), placement_source (text)
+
+TABLE: warehouse_qr_challenges
+  id (uuid), warehouse_id (uuid), raw_token (text), expires_at (timestamp with time zone), created_at (timestamp with time zone)
+
+TABLE: warehouse_staff_payroll
+  id (uuid), staff_id (uuid), salary_month (date), salary_config_id (uuid), base_salary (numeric), additions (numeric), deductions (numeric), net_salary (numeric), status (text), payment_provider (text), payment_method (text), payment_reference (text), provider_payment_id (text), provider_reference (text), generated_by (uuid), generated_at (timestamp with time zone), paid_at (timestamp with time zone), actor_id (uuid), payment_intent_id (text)
+
+TABLE: warehouse_staff_salary_configs
+  id (uuid), staff_id (uuid), monthly_base_salary (numeric), effective_from (date), effective_to (date), created_by (uuid), created_at (timestamp with time zone)
+
+TABLE: warehouse_staging_locations
+  id (uuid), warehouse_id (uuid), name (text), active (boolean), created_at (timestamp with time zone)
+
+TABLE: warehouse_stock
+  id (uuid), warehouse_id (uuid), product_id (uuid), quantity (integer), created_at (timestamp with time zone), warehouse_location (text), reorder_threshold (integer), target_stock_level (integer), staging_quantity (integer)
+
+TABLE: warehouses
+  id (uuid), name (text), code (text), address (text), lat (double precision), lng (double precision), manager_id (uuid), created_at (timestamp with time zone), delivery_radius_meters (integer), capacity_description (text), is_active (boolean), service_radius_km (numeric), work_area (text)
+
+TABLE: work_slot_picker_incentives
+  id (uuid), work_slot_id (uuid), target_items (integer), reward_amount (numeric), sort_order (integer), created_at (timestamp with time zone), updated_at (timestamp with time zone)
+
+TABLE: work_slots
+  id (uuid), warehouse_id (uuid), target_role (text), start_time (timestamp with time zone), end_time (timestamp with time zone), capacity (integer), status (text), created_at (timestamp with time zone), updated_at (timestamp with time zone), estimated_hourly_rate_min (numeric), estimated_hourly_rate_max (numeric), picker_incentive_enabled (boolean), picker_pay_rate (numeric)
+
