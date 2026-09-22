@@ -1,25 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { 
-  Bell, 
   ChevronRight, 
   CreditCard, 
   LogOut,
   Building,
   Star,
-  Headphones
+  Headphones,
+  FileText
 } from 'lucide-react-native';
 import PickerHeader from '../../components/PickerHeader';
 
-export default function PickerProfileScreen() {
+export default function WarehouseProfileScreen() {
   const navigation = useNavigation<any>();
   const { profile } = useAuth() as any;
-  const [isOnline, setIsOnline] = useState(!!profile?.is_online);
-  const [shiftInfo, setShiftInfo] = useState<any>(null);
+  const [warehouseName, setWarehouseName] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -36,63 +35,41 @@ export default function PickerProfileScreen() {
   };
 
   useEffect(() => {
-    setIsOnline(!!profile?.is_online);
-    fetchShiftInfo();
+    fetchWarehouseInfo();
   }, [profile]);
 
-  const fetchShiftInfo = async () => {
-    if (!profile?.id) return;
+  const fetchWarehouseInfo = async () => {
+    if (!profile?.warehouse_id) return;
     try {
       const { data, error } = await supabase
-        .from('staff_shifts')
-        .select(`
-          id, status, shift_start, shift_end,
-          warehouses ( name )
-        `)
-        .eq('staff_id', profile.id)
-        .eq('status', 'active')
+        .from('warehouses')
+        .select('name')
+        .eq('id', profile.warehouse_id)
         .single();
       
       if (!error && data) {
-        setShiftInfo(data);
+        setWarehouseName(data.name);
       } else {
-        setShiftInfo(null);
-        // Force offline if no active shift but they are online
-        if (profile?.is_online) {
-          toggleOnlineStatus(false, true);
-        }
+        setWarehouseName(null);
       }
     } catch (e) {
-      console.log('Error fetching shift', e);
+      console.log('Error fetching warehouse', e);
     }
   };
 
-  const toggleOnlineStatus = async (value: boolean, silent = false) => {
-    setIsOnline(value);
-    if (!profile?.id) return;
-    try {
-      const { data, error } = await supabase.rpc('picker_toggle_online', { p_is_online: value });
-      if (error) throw error;
-      if (data && data.success === false) {
-        throw new Error(data.code || 'Failed to update online status');
-      }
-    } catch (e: any) {
-      setIsOnline(!value);
-      if (!silent) {
-        Alert.alert("Status Update Failed", e.message || "Failed to update online status. Please check your active shifts.");
-      }
-    }
-  };
-
-  const MenuItem = ({ icon, title, onPress }: any) => (
-    <TouchableOpacity style={styles.menuRow} onPress={onPress}>
+  const MenuItem = ({ icon, title, onPress, disabled, comingSoon }: any) => (
+    <TouchableOpacity style={[styles.menuRow, disabled && { opacity: 0.5 }]} onPress={onPress} disabled={disabled}>
       <View style={styles.menuLeft}>
         <View style={styles.iconContainer}>
           {icon}
         </View>
         <Text style={styles.menuTitle}>{title}</Text>
       </View>
-      <ChevronRight size={20} color="#9ca3af" />
+      {comingSoon ? (
+        <Text style={styles.comingSoonText}>Coming soon</Text>
+      ) : (
+        <ChevronRight size={20} color="#9ca3af" />
+      )}
     </TouchableOpacity>
   );
 
@@ -101,23 +78,7 @@ export default function PickerProfileScreen() {
       {/* Header Section */}
       <PickerHeader
         profile={profile}
-        subTitle={shiftInfo?.warehouses?.name}
-        rightContent={
-          <>
-            <View style={styles.toggleContainer}>
-              <Text style={[styles.toggleText, { color: '#ffffff' }]}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
-              <Switch
-                trackColor={{ false: '#d1d5db', true: '#10b981' }}
-                thumbColor={'#ffffff'}
-                onValueChange={(val) => toggleOnlineStatus(val)}
-                value={isOnline}
-              />
-            </View>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Bell size={24} color="#374151" />
-            </TouchableOpacity>
-          </>
-        }
+        subTitle={warehouseName || 'Unassigned Warehouse'}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -130,9 +91,9 @@ export default function PickerProfileScreen() {
           />
           <View style={styles.divider} />
           <MenuItem 
-            icon={<CreditCard size={22} color="#10b981" />} 
-            title="Payouts" 
-            onPress={() => navigation.navigate('Payouts')} 
+            icon={<FileText size={22} color="#10b981" />} 
+            title="Payments" 
+            onPress={() => navigation.navigate('WarehousePayroll')} 
           />
           <View style={styles.divider} />
           <MenuItem 
@@ -171,23 +132,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f3f4f6', // Clean light-grey background
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  toggleText: {
-    color: '#374151',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  iconBtn: {
-    padding: 6,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
   },
   scrollContent: {
     padding: 16,
@@ -228,6 +172,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     fontWeight: '500',
+  },
+  comingSoonText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontStyle: 'italic',
   },
   divider: {
     height: 1,

@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LayoutDashboard, Package, Layers, User } from 'lucide-react-native';
 import WarehouseTaskScreen from '../screens/Warehouse/WarehouseTaskScreen';
 
-import WarehouseProfile from '../screens/Warehouse/WarehouseProfile';
+import WarehouseProfileScreen from '../screens/Warehouse/WarehouseProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -14,9 +14,9 @@ export default function WarehouseMainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0f172a',
+          backgroundColor: '#ffffff',
           borderTopWidth: 1,
-          borderTopColor: '#1e293b',
+          borderTopColor: '#e5e7eb',
         },
         tabBarActiveTintColor: '#10b981',
         tabBarInactiveTintColor: '#64748b',
@@ -31,7 +31,7 @@ export default function WarehouseMainTabs() {
       />
       <Tab.Screen 
         name="Profile" 
-        component={WarehouseProfile} 
+        component={WarehouseProfileScreen} 
         options={{
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />
         }}

@@ -21,9 +21,13 @@ import { FlashGoDB } from '../../../services/db';
 import { SupportService } from '../../../services/api/SupportService';
 import type { SupportTicket, SupportTicketMessage } from '../../../services/api/SupportService';
 import { WalletService } from '../../../services/api/WalletService';
+import { StaffSupportAdminService } from '../../../services/api/StaffSupportAdminService';
+import type { StaffSupportTicket, StaffSupportMessage } from '../../../services/api/StaffSupportAdminService';
 
 export const SupportSettings: React.FC = () => {
   const { addToast, currentUser } = useApp();
+
+  const [supportTab, setSupportTab] = useState<'customer' | 'staff'>('customer');
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string>('');
@@ -36,9 +40,32 @@ export const SupportSettings: React.FC = () => {
   const [refundAmountInput, setRefundAmountInput] = useState('');
   const [refundQtyInput, setRefundQtyInput] = useState('');
 
+  // Staff Support State
+  const [staffTickets, setStaffTickets] = useState<StaffSupportTicket[]>([]);
+  const [selectedStaffTicketId, setSelectedStaffTicketId] = useState<string>('');
+  const [staffMessages, setStaffMessages] = useState<StaffSupportMessage[]>([]);
+  const [staffChatReply, setStaffChatReply] = useState('');
+
   useEffect(() => {
     loadTickets();
+    loadStaffTickets();
   }, []);
+
+  const loadStaffTickets = async () => {
+    try {
+      const data = await StaffSupportAdminService.getAllActiveTickets();
+      setStaffTickets(data);
+      if (data.length > 0 && !selectedStaffTicketId) setSelectedStaffTicketId(data[0].id);
+    } catch (e) {
+      console.error('Failed to load staff support tickets', e);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedStaffTicketId) {
+      StaffSupportAdminService.getTicketMessages(selectedStaffTicketId).then(setStaffMessages);
+    }
+  }, [selectedStaffTicketId, staffTickets]);
 
   const loadTickets = async () => {
     try {
@@ -132,7 +159,6 @@ export const SupportSettings: React.FC = () => {
     }
   };
 
-  // Resolve Ticket
   const handleResolveTicket = async (id: string) => {
     try {
       await SupportService.resolveTicket(id);
@@ -143,6 +169,33 @@ export const SupportSettings: React.FC = () => {
       console.error("Resolve ticket error:", e);
     }
   };
+
+  const handleResolveStaffTicket = async (id: string) => {
+    try {
+      await StaffSupportAdminService.resolveTicket(id);
+      addToast('Staff ticket marked as RESOLVED', 'success');
+      loadStaffTickets();
+    } catch (e: any) {
+      addToast('Failed to resolve staff ticket: ' + (e.message || e.toString()), 'error');
+    }
+  };
+
+  const handleSendStaffReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffChatReply.trim() || !selectedStaffTicketId) return;
+
+    try {
+      await StaffSupportAdminService.sendReply(selectedStaffTicketId, staffChatReply);
+      setStaffChatReply('');
+      addToast('Response dispatched successfully', 'success');
+      const msgs = await StaffSupportAdminService.getTicketMessages(selectedStaffTicketId);
+      setStaffMessages(msgs);
+    } catch (e: any) {
+      addToast('Failed to send message: ' + e.message, 'error');
+    }
+  };
+
+  const selectedStaffTicket = staffTickets.find(t => t.id === selectedStaffTicketId);
 
   const handleApproveRefund = async () => {
     if (!selectedTicket || !refundDetails) return;
@@ -176,13 +229,37 @@ export const SupportSettings: React.FC = () => {
           {/* Header */}
       <div className="welcome-banner">
         <div>
-          <h2 className="title">Customer Support Ticket Desk</h2>
+          <h2 className="title">Support & CRM</h2>
           <p className="subtitle">Moderate support complaint tickets, trace delivery delays, and resolve wallet refund requests.</p>
         </div>
         <MessageSquare size={36} color="var(--primary)" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', marginTop: '16px' }}>
+      <div style={{ display: 'flex', gap: '16px', marginTop: '16px', borderBottom: '1px solid var(--border-light)', paddingBottom: '0' }}>
+        <button 
+          onClick={() => setSupportTab('customer')}
+          style={{ 
+            background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700,
+            padding: '8px 16px', borderBottom: supportTab === 'customer' ? '3px solid var(--primary)' : '3px solid transparent',
+            color: supportTab === 'customer' ? 'var(--primary)' : 'var(--text-secondary)'
+          }}
+        >
+          Customer Support
+        </button>
+        <button 
+          onClick={() => setSupportTab('staff')}
+          style={{ 
+            background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700,
+            padding: '8px 16px', borderBottom: supportTab === 'staff' ? '3px solid var(--primary)' : '3px solid transparent',
+            color: supportTab === 'staff' ? 'var(--primary)' : 'var(--text-secondary)'
+          }}
+        >
+          Staff Support
+        </button>
+      </div>
+
+      {supportTab === 'customer' && (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', marginTop: '24px' }}>
         {/* Ticket Workspace */}
         <div className="panel-card">
           <div className="panel-header">
@@ -346,6 +423,111 @@ export const SupportSettings: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {supportTab === 'staff' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', marginTop: '24px' }}>
+          <div className="panel-card">
+            <div className="panel-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HelpCircle size={18} color="var(--primary)" />
+                <h3 className="panel-title">Active Staff Roster</h3>
+              </div>
+              <span className="ticket-badge">{staffTickets.length} Open Tickets</span>
+            </div>
+
+            <div className="workspace-grid">
+              <div className="ticket-list">
+                {staffTickets.map(t => (
+                  <div 
+                    key={t.id} 
+                    onClick={() => setSelectedStaffTicketId(t.id)}
+                    style={ticketItemStyle(selectedStaffTicketId === t.id)}
+                  >
+                    <div className="ticket-item-header">
+                      <span style={ticketCatStyle(t.category)}>{t.category.toUpperCase()}</span>
+                      <span style={ticketPriorityStyle(t.priority)}>{t.priority}</span>
+                    </div>
+                    <h4 className="ticket-subject">{t.subject}</h4>
+                    <div className="ticket-meta-row">
+                      <span>Staff: {t.staff?.full_name} ({t.staff?.role})</span>
+                      <span style={statusTextLabel(t.status)}>{t.status.toUpperCase()}</span>
+                    </div>
+                  </div>
+                ))}
+                {staffTickets.length === 0 && (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    No active staff support tickets
+                  </div>
+                )}
+              </div>
+
+              <div className="chat-column">
+                {selectedStaffTicket ? (
+                  <div className="chat-box">
+                    <div className="chat-box-header">
+                      <div>
+                        <h4 className="chat-user-title">{selectedStaffTicket.staff?.full_name}</h4>
+                        <p className="chat-user-subtitle">Role: {selectedStaffTicket.staff?.role.toUpperCase()} {selectedStaffTicket.staff?.employee_id ? `| ID: ${selectedStaffTicket.staff.employee_id}` : ''}</p>
+                        <p className="chat-user-subtitle">Subject: {selectedStaffTicket.subject}</p>
+                      </div>
+
+                      {selectedStaffTicket.status !== 'resolved' && selectedStaffTicket.status !== 'closed' ? (
+                        <button 
+                          onClick={() => handleResolveStaffTicket(selectedStaffTicket.id)}
+                          className="resolve-btn"
+                        >
+                          <Check size={12} /> Resolve Ticket
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.62rem', color: '#10b981', fontWeight: 800 }}>✓ {selectedStaffTicket.status.toUpperCase()}</span>
+                      )}
+                    </div>
+
+                    <div className="message-stream">
+                      <div style={{ padding: '16px', backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border-light)', fontSize: '0.85rem' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>Original Request:</strong>
+                        <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>{selectedStaffTicket.description}</div>
+                      </div>
+                      
+                      {staffMessages.map((m, idx) => {
+                        const isAdmin = m.sender?.role === 'admin';
+                        return (
+                          <div key={idx} style={messageWrapperStyle(isAdmin)}>
+                            <div style={messageBubbleStyle(isAdmin)}>
+                              <div className="message-text">{m.message}</div>
+                              <div className="message-time">{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {selectedStaffTicket.status !== 'resolved' && selectedStaffTicket.status !== 'closed' ? (
+                      <form onSubmit={handleSendStaffReply} className="reply-form">
+                        <input 
+                          type="text" 
+                          value={staffChatReply} 
+                          placeholder="Type staff response..."
+                          onChange={(e) => setStaffChatReply(e.target.value)} 
+                          className="reply-input" 
+                        />
+                        <button type="submit" className="reply-btn">
+                          <Send size={14} />
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="chat-closed-banner">This ticket has been marked resolved. Log is read-only.</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="empty-state">Select a staff ticket to initiate live simulator</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* Fullscreen Image Modal */}

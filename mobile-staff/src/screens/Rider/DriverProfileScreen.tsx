@@ -260,13 +260,13 @@ export default function ProfileScreen() {
         {/* Support */}
         <Text style={styles.sectionHeader}>Support</Text>
         <View style={styles.sectionCard}>
-          <View style={styles.row}>
+          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('StaffSupportList')}>
             <View style={styles.rowLeft}>
-              <HelpCircle size={20} color="#94a3b8" />
-              <Text style={styles.rowTitle}>Help Centre</Text>
+              <HelpCircle size={20} color="#10b981" />
+              <Text style={styles.rowTitle}>Help & Support</Text>
             </View>
-            <Text style={styles.comingSoon}>Coming soon</Text>
-          </View>
+            <ChevronRight size={20} color="#cbd5e1" />
+          </TouchableOpacity>
         </View>
 
         {/* Logout */}

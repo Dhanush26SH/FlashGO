@@ -17,6 +17,7 @@ import ScannerScreen from '../screens/Scanner/ScannerScreen';
 import HandoverScreen from '../screens/Scanner/HandoverScreen';
 import NotificationScreen from '../screens/Picker/NotificationScreen';
 import TroubleshootScreen from '../screens/Picker/TroubleshootScreen';
+import WarehousePayrollScreen from '../screens/Warehouse/WarehousePayrollScreen';
 import SelectLanguageScreen from '../screens/Profile/SelectLanguageScreen';
 import PayoutsScreen from '../screens/Profile/PayoutsScreen';
 import BankDetailsScreen from '../screens/Profile/BankDetailsScreen';
@@ -45,6 +46,9 @@ import ReturnIntakeSummaryScreen from '../screens/Warehouse/ReturnIntakeSummaryS
 import ReturnItemScannerScreen from '../screens/Warehouse/ReturnItemScannerScreen';
 import DriverReturnHandoverScreen from '../screens/Rider/DriverReturnHandoverScreen';
 import OnboardingBankDetailsScreen from '../screens/Auth/OnboardingBankDetailsScreen';
+import StaffSupportListScreen from '../screens/Shared/StaffSupportListScreen';
+import StaffSupportCreateScreen from '../screens/Shared/StaffSupportCreateScreen';
+import StaffSupportChatScreen from '../screens/Shared/StaffSupportChatScreen';
 import { View, Text } from 'react-native';
 import SplashScreen from '../components/SplashScreen';
 
@@ -102,6 +106,9 @@ export default function AppNavigator() {
             <Stack.Screen name="VehicleType" component={require('../screens/DriverOnboarding/UpdateVehicleDetailsScreen').default} />
             <Stack.Screen name="DeliveryHistory" component={DeliveryHistoryScreen} />
             <Stack.Screen name="DriverDropZoneScanScreen" component={require('../screens/Rider/DriverDropZoneScanScreen').default} />
+            <Stack.Screen name="StaffSupportList" component={StaffSupportListScreen} />
+            <Stack.Screen name="StaffSupportCreate" component={StaffSupportCreateScreen} />
+            <Stack.Screen name="StaffSupportChat" component={StaffSupportChatScreen} />
           </>
         );
       case 'warehouse_staff':
@@ -114,6 +121,12 @@ export default function AppNavigator() {
             <Stack.Screen name="ReturnItemScannerScreen" component={ReturnItemScannerScreen} />
             <Stack.Screen name="Scanner" component={ScannerScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />
+            <Stack.Screen name="BankDetails" component={BankDetailsScreen} />
+            <Stack.Screen name="EditBankDetails" component={EditBankDetailsScreen} />
+            <Stack.Screen name="WarehousePayroll" component={WarehousePayrollScreen} />
+            <Stack.Screen name="StaffSupportList" component={StaffSupportListScreen} />
+            <Stack.Screen name="StaffSupportCreate" component={StaffSupportCreateScreen} />
+            <Stack.Screen name="StaffSupportChat" component={StaffSupportChatScreen} />
           </>
         );
       case 'picker':
@@ -139,6 +152,9 @@ export default function AppNavigator() {
             <Stack.Screen name="WeeklyItemTargetScreen" component={WeeklyItemTargetScreen} />
             <Stack.Screen name="PickerBonusOfferDetailScreen" component={PickerBonusOfferDetailScreen} />
             <Stack.Screen name="PickerDropZoneScanScreen" component={require('../screens/Picker/PickerDropZoneScanScreen').default} />
+            <Stack.Screen name="StaffSupportList" component={StaffSupportListScreen} />
+            <Stack.Screen name="StaffSupportCreate" component={StaffSupportCreateScreen} />
+            <Stack.Screen name="StaffSupportChat" component={StaffSupportChatScreen} />
           </>
         );
       default:
