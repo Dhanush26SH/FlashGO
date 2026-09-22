@@ -896,7 +896,7 @@ export const FinanceSettlements: React.FC = () => {
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>TOTAL PAYABLE</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
-                    ₹{selectedStaff.status === 'NOT GENERATED' ? '0.00' : Math.max(0, Number(selectedStaff.net_amount || 0)).toFixed(2)}
+                    ₹{selectedStaff.status === 'NOT GENERATED' ? dailyActivity.reduce((sum: number, d: any) => sum + d.dailyTotal, 0).toFixed(2) : Math.max(0, Number(selectedStaff.net_amount || 0)).toFixed(2)}
                   </span>
                 </div>
               </div>

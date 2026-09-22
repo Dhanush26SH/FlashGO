@@ -22,8 +22,8 @@ export class OrdersService {
     // Map data to match the UI expectations
     return (data || []).map((o: any) => ({
       ...o,
-      customer_name: o.customer?.full_name,
-      customer_phone: o.customer?.phone,
+      customer_name: (o.customer?.full_name?.trim()) ? o.customer.full_name.trim() : o.customer_snapshot_name?.trim(),
+      customer_phone: (o.customer?.phone?.trim()) ? o.customer.phone.trim() : o.customer_snapshot_phone?.trim(),
       picker_name: o.picker?.full_name,
       driver_name: o.driver?.full_name,
       cod_collection: Array.isArray(o.cod_collection) ? o.cod_collection[0] : o.cod_collection,

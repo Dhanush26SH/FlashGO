@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { User, Wallet, Package, MapPin, HeadphonesIcon, LogOut, ChevronRight, Bell, ArrowLeft, X, Info } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -11,7 +11,28 @@ export default function ProfileScreen() {
   const { sessionUser, walletBalance } = useMobileAppContext();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
+  const handleSaveProfile = async () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      Alert.alert('Invalid Name', 'Please enter a valid full name.');
+      return;
+    }
+    try {
+      setIsSaving(true);
+      const { error } = await supabase.from('profiles').update({ full_name: trimmedName }).eq('id', sessionUser!.id);
+      if (error) throw error;
+      setProfile({ ...profile, full_name: trimmedName });
+      setIsEditing(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update profile name');
+    } finally {
+      setIsSaving(false);
+    }
+  };
   useEffect(() => {
     loadData();
   }, []);
@@ -62,7 +83,32 @@ export default function ProfileScreen() {
             <Text style={styles.avatarInitials}>{profile.full_name?.substring(0, 2).toUpperCase() || 'CU'}</Text>
           </View>
           <View style={styles.headerInfo}>
-            <Text style={styles.name}>{profile.full_name}</Text>
+            {isEditing ? (
+              <View style={{ marginBottom: 8 }}>
+                <TextInput 
+                  style={{ backgroundColor: '#fff', padding: 8, borderRadius: 8, fontSize: 16, color: theme.colors.text, borderColor: theme.colors.border, borderWidth: 1 }}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Enter your full name"
+                  autoFocus
+                />
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity onPress={handleSaveProfile} disabled={isSaving} style={{ backgroundColor: theme.colors.primary, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>{isSaving ? 'Saving...' : 'Save'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setIsEditing(false)} disabled={isSaving} style={{ backgroundColor: '#e2e8f0', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 }}>
+                    <Text style={{ color: theme.colors.text, fontWeight: 'bold', fontSize: 12 }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Text style={styles.name}>{profile.full_name || 'Add Name'}</Text>
+                <TouchableOpacity onPress={() => { setEditName(profile.full_name || ''); setIsEditing(true); }}>
+                  <Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: 'bold' }}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {profile.phone_number ? <Text style={styles.contactInfo}>{profile.phone_number}</Text> : null}
             {profile.email ? <Text style={styles.contactInfo}>{profile.email}</Text> : null}
           </View>

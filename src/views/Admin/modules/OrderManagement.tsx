@@ -308,6 +308,19 @@ export const OrderManagement: React.FC = () => {
                 </button>
               </div>
 
+              {/* Delivery Recipient Snapshot */}
+              {(selectedOrder.customer_snapshot_name || selectedOrder.customer_snapshot_phone) && (
+                <div style={{ padding: '12px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase' }}>Delivery Recipient</div>
+                    <div style={{ fontWeight: 800, color: 'var(--text)' }}>{selectedOrder.customer_snapshot_name || 'Unknown'}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{selectedOrder.customer_snapshot_phone || 'No phone'}</div>
+                  </div>
+                </div>
+              )}
+
               {/* Order Timeline Visual Flow */}
               <div className="timeline-container">
                 <div className="timeline-header">Event Lifecycle Timeline</div>

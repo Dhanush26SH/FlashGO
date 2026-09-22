@@ -6,6 +6,20 @@ import type { WorkSlot } from '../../../services/api/WorkSlotService';
 import { Calendar, Plus, Users, Warehouse, Search, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { DriverDailyIncentiveManagement } from './DriverDailyIncentiveManagement';
 
+export const WAREHOUSE_STAFF_DUTIES = [
+  { value: 'inward_receiver', label: 'Inward / Receiving' },
+  { value: 'inward_damage', label: 'Inward + Damage (Legacy)' },
+  { value: 'putaway', label: 'Putter (Putaway)' },
+  { value: 'auditor', label: 'Auditor' },
+  { value: 'damage_expiry', label: 'Expiry' },
+  { value: 'fnv', label: 'F&V' },
+];
+
+export const getWarehouseDutyLabel = (dutyValue: string) => {
+  const duty = WAREHOUSE_STAFF_DUTIES.find(d => d.value === dutyValue);
+  return duty ? duty.label : 'Unknown Duty';
+};
+
 export const WorkSlotManagement: React.FC = () => {
   const { addToast } = useApp();
   const [slots, setSlots] = useState<WorkSlot[]>([]);
@@ -544,9 +558,9 @@ export const WorkSlotManagement: React.FC = () => {
                               style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                             >
                               <option value="" disabled>Select Duty</option>
-                              <option value="putaway">Putter (Putaway)</option>
-                              <option value="auditor">Auditor</option>
-                              <option value="inward_damage">Inward + Damage/Expiry</option>
+                              {WAREHOUSE_STAFF_DUTIES.map(d => (
+                                <option key={d.value} value={d.value}>{d.label}</option>
+                              ))}
                             </select>
                           </div>
                         )}
@@ -777,10 +791,7 @@ export const WorkSlotManagement: React.FC = () => {
                       {slotBookings.map(booking => {
                         let dutyLabel = '';
                         if (booking.current_duty) {
-                          const cd = booking.current_duty;
-                          if (cd === 'putaway') dutyLabel = 'Putter (Putaway)';
-                          else if (cd === 'auditor') dutyLabel = 'Auditor';
-                          else dutyLabel = 'Inward + Damage/Expiry'; // inward_damage, inward_receiver, damage_expiry, fnv
+                          dutyLabel = getWarehouseDutyLabel(booking.current_duty);
                         }
                         
                         return (
@@ -800,9 +811,9 @@ export const WorkSlotManagement: React.FC = () => {
                                       style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}
                                       disabled={assignDutyLoading}
                                     >
-                                      <option value="putaway">Putter (Putaway)</option>
-                                      <option value="auditor">Auditor</option>
-                                      <option value="inward_damage">Inward + Damage/Expiry</option>
+                                      {WAREHOUSE_STAFF_DUTIES.map(d => (
+                                        <option key={d.value} value={d.value}>{d.label}</option>
+                                      ))}
                                     </select>
                                     <button 
                                       onClick={() => handleAssignActiveDuty(booking.id)}

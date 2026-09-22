@@ -204,7 +204,7 @@ export const MobileAppProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         .eq('status', 'payment_pending')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
         
       if (!error && data) {
         setPendingOrder(data);

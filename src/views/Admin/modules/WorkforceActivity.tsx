@@ -7,7 +7,7 @@ import './WorkforceActivity.css';
 
 type TabType = 'Picker' | 'Driver' | 'Warehouse Staff';
 type DateFilter = 'Today' | '7Days' | '30Days' | 'Custom';
-type WarehouseDuty = 'All Duties' | 'Putaway' | 'Inward + Damage' | 'Auditor';
+type WarehouseDuty = 'All Duties' | 'Inward / Receiving' | 'Inward + Damage (Legacy)' | 'Putaway' | 'Auditor' | 'Expiry' | 'F&V';
 
 export const WorkforceActivity: React.FC = () => {
   const { currentUser } = useApp();
@@ -111,7 +111,10 @@ export const WorkforceActivity: React.FC = () => {
       else if (activeTab === 'Driver') rpcName = 'admin_get_driver_work_history';
       else if (activeTab === 'Warehouse Staff') {
         rpcName = 'admin_get_warehouse_staff_work_history';
-        params.p_duty = warehouseDuty;
+        // Map frontend canonical filter names to the historical RPC text literals
+        let rpcDuty = warehouseDuty as string;
+        if (warehouseDuty === 'Inward + Damage (Legacy)') rpcDuty = 'Inward + Damage';
+        params.p_duty = rpcDuty;
       }
 
       // If workerSearch is uuid-like, use it. But typically search is by name.
@@ -124,6 +127,18 @@ export const WorkforceActivity: React.FC = () => {
       if (rpcError) throw rpcError;
 
       let filteredDetails = result?.details || [];
+      
+      // Map legacy duty names from RPC to canonical display names
+      if (activeTab === 'Warehouse Staff') {
+        filteredDetails = filteredDetails.map((worker: any) => ({
+          ...worker,
+          events: (worker.events || []).map((ev: any) => ({
+            ...ev,
+            duty: ev.duty === 'Inward + Damage' ? 'Inward + Damage (Legacy)' : ev.duty
+          }))
+        }));
+      }
+
       if (workerSearch.trim() !== '') {
         const term = workerSearch.toLowerCase();
         filteredDetails = filteredDetails.filter((d: any) => d.worker_name?.toLowerCase().includes(term));
@@ -232,6 +247,14 @@ export const WorkforceActivity: React.FC = () => {
           <div className="summary-card">
             <span className="summary-card-title">Audits Completed</span>
             <span className="summary-card-value">{summary?.audits_completed || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">Expiry Units Removed</span>
+            <span className="summary-card-value">{summary?.expiry_units_removed || 0}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-card-title">F&V Units Removed</span>
+            <span className="summary-card-value">{summary?.fnv_units_removed || 0}</span>
           </div>
         </div>
       );
@@ -420,11 +443,23 @@ export const WorkforceActivity: React.FC = () => {
                   <div className="event-timeline">
                     {worker.events.map((event: any) => (
                       <div key={event.task_id} className="event-item">
-                        <div className={`event-dot ${event.duty === 'Putaway' ? 'putaway' : event.duty === 'Auditor' ? 'auditor' : 'inward'}`}></div>
+                        <div className={`event-dot ${
+                          event.duty === 'Putaway' ? 'putaway' : 
+                          event.duty === 'Auditor' ? 'auditor' : 
+                          event.duty === 'Expiry' ? 'expiry' : 
+                          event.duty === 'F&V' ? 'fnv' : 
+                          'inward'
+                        }`}></div>
                         <div className="event-content">
                           <div className="event-header">
                             <span className="event-title">
-                              <span className={`duty-badge ${event.duty === 'Putaway' ? 'putaway' : event.duty === 'Auditor' ? 'auditor' : 'inward'}`}>
+                              <span className={`duty-badge ${
+                                event.duty === 'Putaway' ? 'putaway' : 
+                                event.duty === 'Auditor' ? 'auditor' : 
+                                event.duty === 'Expiry' ? 'expiry' : 
+                                event.duty === 'F&V' ? 'fnv' : 
+                                'inward'
+                              }`}>
                                 {event.duty}
                               </span>
                             </span>
@@ -448,6 +483,27 @@ export const WorkforceActivity: React.FC = () => {
                               <div className="grid-cell">
                                 <span className="grid-header">Location</span>
                                 <span className="grid-value">{event.details.location || '-'}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {(event.duty === 'Expiry' || event.duty === 'F&V') && (
+                            <div className="event-body grid-putaway">
+                              <div className="grid-cell">
+                                <span className="grid-header">Product</span>
+                                <span className="grid-value">{event.details.product_name}</span>
+                              </div>
+                              <div className="grid-cell">
+                                <span className="grid-header">Batch</span>
+                                <span className="grid-value">{event.details.batch || '-'}</span>
+                              </div>
+                              <div className="grid-cell">
+                                <span className="grid-header">Removed</span>
+                                <span className="grid-value">{event.details.removed_qty}</span>
+                              </div>
+                              <div className="grid-cell">
+                                <span className="grid-header">Reason</span>
+                                <span className="grid-value">{event.details.reason}</span>
                               </div>
                             </div>
                           )}
@@ -479,7 +535,7 @@ export const WorkforceActivity: React.FC = () => {
                             </div>
                           )}
                           
-                          {event.duty === 'Inward + Damage' && (
+                          {event.duty === 'Inward + Damage (Legacy)' && (
                             <div className="event-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                 Receipt: <strong>{event.details.receipt_number || '-'}</strong>
@@ -641,9 +697,12 @@ export const WorkforceActivity: React.FC = () => {
             <label className="filter-label"><Filter size={12}/> Duty Filter</label>
             <select className="filter-select" value={warehouseDuty} onChange={(e) => setWarehouseDuty(e.target.value as WarehouseDuty)}>
               <option value="All Duties">All Duties</option>
+              <option value="Inward / Receiving">Inward / Receiving</option>
+              <option value="Inward + Damage (Legacy)">Inward + Damage (Legacy)</option>
               <option value="Putaway">Putaway</option>
-              <option value="Inward + Damage">Inward + Damage</option>
               <option value="Auditor">Auditor</option>
+              <option value="Expiry">Expiry</option>
+              <option value="F&V">F&V</option>
             </select>
           </div>
         </div>

@@ -8,11 +8,15 @@ import { supabase } from '../../lib/supabase';
 import PutterWorkflow from './PutterWorkflow';
 import AuditorWorkflow from './AuditorWorkflow';
 import InwardDamageWorkflow from './InwardDamageWorkflow';
+import ExpiryTaskWorkflow from './ExpiryTaskWorkflow';
+import FnvTaskWorkflow from './FnvTaskWorkflow';
 
 const DUTIES = [
+  { id: 'inward_receiver', title: 'Inward / Receiving', subtitle: 'Receive stock into staging.' },
   { id: 'putaway', title: 'Putter (Putaway)', subtitle: 'Place received stock into assigned rack/shelf locations.' },
   { id: 'auditor', title: 'Auditor', subtitle: 'Count and verify physical inventory against system stock.' },
-  { id: 'inward_damage', title: 'Inward + Damage/Expiry', subtitle: 'Receive stock and process damaged/expired items.' }
+  { id: 'damage_expiry', title: 'Expiry', subtitle: 'Remove expired stock from physical locations.' },
+  { id: 'fnv', title: 'F&V', subtitle: 'Quality check and process F&V products.' }
 ];
 
 export default function WarehouseTaskScreen() {
@@ -396,10 +400,7 @@ export default function WarehouseTaskScreen() {
 
   const getDutyObj = (dutyKey: string | null) => {
     if (!dutyKey) return null;
-    if (['inward_damage', 'inward_receiver', 'damage_expiry', 'fnv'].includes(dutyKey)) {
-      return DUTIES.find(d => d.id === 'inward_damage');
-    }
-    return DUTIES.find(d => d.id === dutyKey);
+    return DUTIES.find(d => d.id === dutyKey) || DUTIES.find(d => d.id === 'inward_receiver');
   };
   const selectedDutyObj = getDutyObj(currentDuty);
 
@@ -504,8 +505,12 @@ export default function WarehouseTaskScreen() {
               <PutterWorkflow onWorkflowComplete={handleReleaseDuty} />
             ) : currentDuty === 'auditor' && isOnline ? (
               <AuditorWorkflow onWorkflowComplete={handleReleaseDuty} />
-            ) : currentDuty === 'inward_damage' && isOnline ? (
+            ) : (currentDuty === 'inward_damage' || currentDuty === 'inward_receiver') && isOnline ? (
               <InwardDamageWorkflow onWorkflowComplete={handleReleaseDuty} />
+            ) : currentDuty === 'damage_expiry' && isOnline ? (
+              <ExpiryTaskWorkflow />
+            ) : currentDuty === 'fnv' && isOnline ? (
+              <FnvTaskWorkflow />
             ) : (
               <View style={styles.lowerWorkArea}>
                 <Clock size={48} color="#cbd5e1" style={{ marginBottom: 16 }} />
