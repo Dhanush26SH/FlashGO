@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../services/api/supabaseClient';
 import { useApp } from '../../../context/AppContext';
 import { AdminService } from '../../../services/api/AdminService';
-import { Calendar, Filter, ChevronDown, ChevronUp, Package, CheckCircle, Clock, Search, MapPin, IndianRupee, Truck } from 'lucide-react';
+import { Calendar, Filter, ChevronDown, ChevronUp, Package, CheckCircle, Clock, Search, MapPin, IndianRupee, Truck, Star, X } from 'lucide-react';
 import './WorkforceActivity.css';
 
 type TabType = 'Picker' | 'Driver' | 'Warehouse Staff';
 type DateFilter = 'Today' | '7Days' | '30Days' | 'Custom';
-type WarehouseDuty = 'All Duties' | 'Inward / Receiving' | 'Inward + Damage (Legacy)' | 'Putaway' | 'Auditor' | 'Expiry' | 'F&V';
+type WarehouseDuty = 'All Duties' | 'Inward / Receiving' | 'Putaway' | 'Auditor' | 'Expiry' | 'F&V';
 
 export const WorkforceActivity: React.FC = () => {
   const { currentUser } = useApp();
@@ -48,6 +48,67 @@ export const WorkforceActivity: React.FC = () => {
   const [loadingLive, setLoadingLive] = useState(false);
 
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+  const [ratingWorkerId, setRatingWorkerId] = useState('');
+  const [ratingWorkerName, setRatingWorkerName] = useState('');
+  const [ratingRole, setRatingRole] = useState<'picker' | 'driver' | 'warehouse_staff'>('picker');
+  const [ratingValue, setRatingValue] = useState(5);
+  const [ratingPerformance, setRatingPerformance] = useState<'Good'|'Average'|'Poor'>('Good');
+  const [ratingBehaviour, setRatingBehaviour] = useState<'Good'|'Average'|'Poor'>('Good');
+  const [ratingAttendance, setRatingAttendance] = useState<'Good'|'Average'|'Poor'>('Good');
+  const [ratingRemarks, setRatingRemarks] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingError, setRatingError] = useState('');
+  const [ratingSuccess, setRatingSuccess] = useState('');
+
+  const openRatingModal = (workerId: string, workerName: string, role: 'picker' | 'driver' | 'warehouse_staff') => {
+    setRatingWorkerId(workerId);
+    setRatingWorkerName(workerName);
+    setRatingRole(role);
+    setRatingValue(5);
+    setRatingPerformance('Good');
+    setRatingBehaviour('Good');
+    setRatingAttendance('Good');
+    setRatingRemarks('');
+    setRatingError('');
+    setRatingSuccess('');
+    setRatingModalVisible(true);
+  };
+
+  const handleSubmitRating = async () => {
+    if (submittingRating) return;
+    setSubmittingRating(true);
+    setRatingError('');
+    setRatingSuccess('');
+
+    try {
+      const { start, end } = getDates();
+      const periodStartStr = start.split('T')[0];
+      const periodEndStr = end.split('T')[0];
+
+      const { error: rpcError } = await supabase.rpc('admin_create_staff_performance_review', {
+        p_staff_id: ratingWorkerId,
+        p_warehouse_id: selectedWarehouseId,
+        p_period_start: periodStartStr,
+        p_period_end: periodEndStr,
+        p_star_rating: ratingValue,
+        p_performance: ratingPerformance,
+        p_work_behaviour: ratingBehaviour,
+        p_attendance: ratingAttendance,
+        p_remarks: ratingRemarks
+      });
+
+      if (rpcError) throw rpcError;
+      
+      setRatingSuccess('Review submitted successfully.');
+      setTimeout(() => setRatingModalVisible(false), 2000);
+    } catch (err: any) {
+      setRatingError(err.message || 'Failed to submit review.');
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -113,7 +174,7 @@ export const WorkforceActivity: React.FC = () => {
         rpcName = 'admin_get_warehouse_staff_work_history';
         // Map frontend canonical filter names to the historical RPC text literals
         let rpcDuty = warehouseDuty as string;
-        if (warehouseDuty === 'Inward + Damage (Legacy)') rpcDuty = 'Inward + Damage';
+        if (warehouseDuty === 'Inward / Receiving') rpcDuty = 'Inward + Damage';
         params.p_duty = rpcDuty;
       }
 
@@ -134,7 +195,7 @@ export const WorkforceActivity: React.FC = () => {
           ...worker,
           events: (worker.events || []).map((ev: any) => ({
             ...ev,
-            duty: ev.duty === 'Inward + Damage' ? 'Inward + Damage (Legacy)' : ev.duty
+            duty: ev.duty === 'Inward + Damage' ? 'Inward / Receiving' : ev.duty
           }))
         }));
       }
@@ -297,6 +358,14 @@ export const WorkforceActivity: React.FC = () => {
               
               {expandedItems[item.shift_id] && (
                 <div className="history-item-details">
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openRatingModal(item.worker_id, item.worker_name, 'picker'); }}
+                      style={{ padding: '6px 12px', background: 'var(--primary)', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Star size={14} /> Rate Staff
+                    </button>
+                  </div>
                   <div className="event-timeline">
                     {[...(item.orders_worked || [])].sort((a, b) => new Date(b.assigned_at || 0).getTime() - new Date(a.assigned_at || 0).getTime()).map((order: any) => (
                       <div key={order.order_id} className="event-item">
@@ -367,6 +436,14 @@ export const WorkforceActivity: React.FC = () => {
               
               {expandedItems[item.session_id] && (
                 <div className="history-item-details">
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openRatingModal(item.worker_id, item.worker_name, 'driver'); }}
+                      style={{ padding: '6px 12px', background: 'var(--primary)', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Star size={14} /> Rate Staff
+                    </button>
+                  </div>
                   <div className="event-timeline">
                     {[...(item.trips || [])].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).map((trip: any) => (
                       <div key={trip.trip_id} className="event-item">
@@ -440,6 +517,14 @@ export const WorkforceActivity: React.FC = () => {
               
               {expandedItems[worker.worker_id] && (
                 <div className="history-item-details">
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openRatingModal(worker.worker_id, worker.worker_name, 'warehouse_staff'); }}
+                      style={{ padding: '6px 12px', background: 'var(--primary)', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Star size={14} /> Rate Staff
+                    </button>
+                  </div>
                   <div className="event-timeline">
                     {worker.events.map((event: any) => (
                       <div key={event.task_id} className="event-item">
@@ -535,7 +620,7 @@ export const WorkforceActivity: React.FC = () => {
                             </div>
                           )}
                           
-                          {event.duty === 'Inward + Damage (Legacy)' && (
+                          {event.duty === 'Inward / Receiving' && (
                             <div className="event-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                 Receipt: <strong>{event.details.receipt_number || '-'}</strong>
@@ -698,7 +783,6 @@ export const WorkforceActivity: React.FC = () => {
             <select className="filter-select" value={warehouseDuty} onChange={(e) => setWarehouseDuty(e.target.value as WarehouseDuty)}>
               <option value="All Duties">All Duties</option>
               <option value="Inward / Receiving">Inward / Receiving</option>
-              <option value="Inward + Damage (Legacy)">Inward + Damage (Legacy)</option>
               <option value="Putaway">Putaway</option>
               <option value="Auditor">Auditor</option>
               <option value="Expiry">Expiry</option>
@@ -723,6 +807,109 @@ export const WorkforceActivity: React.FC = () => {
           {activeTab === 'Picker' && renderPickerTab()}
           {activeTab === 'Driver' && renderDriverTab()}
           {activeTab === 'Warehouse Staff' && renderWarehouseStaffTab()}
+        </div>
+      )}
+
+      {ratingModalVisible && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Rate Staff</h2>
+              <button onClick={() => setRatingModalVisible(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <X size={24} color="#64748b" />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px', background: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
+              <p style={{ margin: '0 0 4px 0', fontWeight: 'bold' }}>{ratingWorkerName}</p>
+              <p style={{ margin: '0 0 4px 0', fontSize: '0.85rem', color: '#64748b' }}>Role: {ratingRole.toUpperCase()}</p>
+              <p style={{ margin: '0', fontSize: '0.85rem', color: '#64748b' }}>
+                Period: {getDates().start.split('T')[0]} to {getDates().end.split('T')[0]}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.9rem' }}>Overall Rating (1-5)</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button 
+                    key={star} 
+                    onClick={() => setRatingValue(star)} 
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    <Star size={32} color={star <= ratingValue ? '#eab308' : '#e2e8f0'} fill={star <= ratingValue ? '#eab308' : 'transparent'} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.9rem' }}>Performance</label>
+              <select value={ratingPerformance} onChange={e => setRatingPerformance(e.target.value as any)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <option value="Good">Good</option>
+                <option value="Average">Average</option>
+                <option value="Poor">Poor</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.9rem' }}>Work Behaviour</label>
+              <select value={ratingBehaviour} onChange={e => setRatingBehaviour(e.target.value as any)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <option value="Good">Good</option>
+                <option value="Average">Average</option>
+                <option value="Poor">Poor</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.9rem' }}>Attendance</label>
+              <select value={ratingAttendance} onChange={e => setRatingAttendance(e.target.value as any)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <option value="Good">Good</option>
+                <option value="Average">Average</option>
+                <option value="Poor">Poor</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', fontSize: '0.9rem' }}>Remarks (Optional)</label>
+              <textarea 
+                value={ratingRemarks} 
+                onChange={e => setRatingRemarks(e.target.value)} 
+                rows={3} 
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', resize: 'vertical' }}
+                placeholder="Enter any additional remarks..."
+              />
+            </div>
+
+            {ratingError && (
+              <div style={{ padding: '12px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', color: '#dc2626', marginBottom: '16px', fontSize: '0.85rem' }}>
+                {ratingError}
+              </div>
+            )}
+            
+            {ratingSuccess && (
+              <div style={{ padding: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', color: '#16a34a', marginBottom: '16px', fontSize: '0.85rem' }}>
+                {ratingSuccess}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setRatingModalVisible(false)} 
+                disabled={submittingRating}
+                style={{ padding: '10px 16px', border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSubmitRating} 
+                disabled={submittingRating || !!ratingSuccess}
+                style={{ padding: '10px 24px', border: 'none', background: 'var(--primary)', color: '#fff', borderRadius: '6px', cursor: submittingRating ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: submittingRating ? 0.7 : 1 }}
+              >
+                {submittingRating ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

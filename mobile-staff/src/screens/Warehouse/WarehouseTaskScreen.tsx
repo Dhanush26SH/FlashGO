@@ -12,12 +12,15 @@ import ExpiryTaskWorkflow from './ExpiryTaskWorkflow';
 import FnvTaskWorkflow from './FnvTaskWorkflow';
 
 const DUTIES = [
-  { id: 'inward_receiver', title: 'Inward / Receiving', subtitle: 'Receive stock into staging.' },
+  { id: 'inward_damage', title: 'Inward / Receiving', subtitle: 'Receive stock into staging.' },
+  { id: 'inward_receiver', title: 'Inward / Receiving (Legacy)', subtitle: 'Receive stock into staging.' },
   { id: 'putaway', title: 'Putter (Putaway)', subtitle: 'Place received stock into assigned rack/shelf locations.' },
   { id: 'auditor', title: 'Auditor', subtitle: 'Count and verify physical inventory against system stock.' },
   { id: 'damage_expiry', title: 'Expiry', subtitle: 'Remove expired stock from physical locations.' },
   { id: 'fnv', title: 'F&V', subtitle: 'Quality check and process F&V products.' }
 ];
+
+const SELECTABLE_DUTIES = DUTIES.filter(d => d.id !== 'inward_receiver');
 
 export default function WarehouseTaskScreen() {
   const navigation = useNavigation<any>();
@@ -400,7 +403,7 @@ export default function WarehouseTaskScreen() {
 
   const getDutyObj = (dutyKey: string | null) => {
     if (!dutyKey) return null;
-    return DUTIES.find(d => d.id === dutyKey) || DUTIES.find(d => d.id === 'inward_receiver');
+    return DUTIES.find(d => d.id === dutyKey) || DUTIES.find(d => d.id === 'inward_damage');
   };
   const selectedDutyObj = getDutyObj(currentDuty);
 
@@ -543,7 +546,7 @@ export default function WarehouseTaskScreen() {
             </View>
             
             <ScrollView style={styles.dutyList}>
-              {DUTIES.map((duty) => {
+              {SELECTABLE_DUTIES.map((duty) => {
                 const isSelected = currentDuty === duty.id;
                 return (
                   <TouchableOpacity 

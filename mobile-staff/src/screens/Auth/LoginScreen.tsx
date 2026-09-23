@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import { Mail, KeyRound } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -59,8 +59,11 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.authContainer}>
-      <Text style={styles.logoText}>⚡ FLASH<Text style={{ color: '#10b981' }}>GO</Text> STAFF</Text>
-      <Text style={styles.authSubtitle}>Unified Employee Operations Terminal</Text>
+      <Image 
+        source={require('../../../assets/flashgo-logo.png')} 
+        style={styles.logoImage} 
+        resizeMode="contain" 
+      />
 
       <View style={styles.authCard}>
         <Text style={styles.authHeader}>{step === 'email' ? 'Staff Login' : 'Verify Identity'}</Text>
@@ -138,18 +141,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24
   },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 2,
-    marginBottom: 8
-  },
-  authSubtitle: {
-    color: '#94a3b8',
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 40
+  logoImage: {
+    width: 300,
+    height: 150,
+    marginBottom: 32,
   },
   authCard: {
     backgroundColor: '#0f172a',

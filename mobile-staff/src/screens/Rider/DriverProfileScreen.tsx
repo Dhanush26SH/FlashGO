@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Image } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { ChevronRight, Store, Settings, HelpCircle, LogOut, FileText, CheckCircle2, Clock, XCircle, MapPin, Map, PackageOpen, CreditCard, ShieldCheck } from 'lucide-react-native';
+import { ChevronRight, Store, Settings, HelpCircle, LogOut, FileText, CheckCircle2, Clock, XCircle, MapPin, Map, PackageOpen, CreditCard, ShieldCheck, Star } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 
 import { supabase } from '../../lib/supabase';
@@ -254,6 +254,18 @@ export default function ProfileScreen() {
         )}
 
 
+
+        {/* Performance */}
+        <Text style={styles.sectionHeader}>Performance</Text>
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('StaffRating')} disabled={false}>
+            <View style={styles.rowLeft}>
+              <Star size={20} color="#10b981" />
+              <Text style={styles.rowTitle}>Your Rating</Text>
+            </View>
+            <ChevronRight size={20} color="#cbd5e1" />
+          </TouchableOpacity>
+        </View>
 
         {/* Support */}
         <Text style={styles.sectionHeader}>Support</Text>

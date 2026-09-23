@@ -49,6 +49,7 @@ import OnboardingBankDetailsScreen from '../screens/Auth/OnboardingBankDetailsSc
 import StaffSupportListScreen from '../screens/Shared/StaffSupportListScreen';
 import StaffSupportCreateScreen from '../screens/Shared/StaffSupportCreateScreen';
 import StaffSupportChatScreen from '../screens/Shared/StaffSupportChatScreen';
+import StaffRatingScreen from '../screens/Profile/StaffRatingScreen';
 import { View, Text } from 'react-native';
 import SplashScreen from '../components/SplashScreen';
 
@@ -109,6 +110,7 @@ export default function AppNavigator() {
             <Stack.Screen name="StaffSupportList" component={StaffSupportListScreen} />
             <Stack.Screen name="StaffSupportCreate" component={StaffSupportCreateScreen} />
             <Stack.Screen name="StaffSupportChat" component={StaffSupportChatScreen} />
+            <Stack.Screen name="StaffRating" component={StaffRatingScreen} />
           </>
         );
       case 'warehouse_staff':
@@ -127,6 +129,7 @@ export default function AppNavigator() {
             <Stack.Screen name="StaffSupportList" component={StaffSupportListScreen} />
             <Stack.Screen name="StaffSupportCreate" component={StaffSupportCreateScreen} />
             <Stack.Screen name="StaffSupportChat" component={StaffSupportChatScreen} />
+            <Stack.Screen name="StaffRating" component={StaffRatingScreen} />
           </>
         );
       case 'picker':
@@ -155,6 +158,7 @@ export default function AppNavigator() {
             <Stack.Screen name="StaffSupportList" component={StaffSupportListScreen} />
             <Stack.Screen name="StaffSupportCreate" component={StaffSupportCreateScreen} />
             <Stack.Screen name="StaffSupportChat" component={StaffSupportChatScreen} />
+            <Stack.Screen name="StaffRating" component={StaffRatingScreen} />
           </>
         );
       default:

@@ -7,13 +7,15 @@ import { Calendar, Plus, Users, Warehouse, Search, ChevronLeft, ChevronRight, Se
 import { DriverDailyIncentiveManagement } from './DriverDailyIncentiveManagement';
 
 export const WAREHOUSE_STAFF_DUTIES = [
-  { value: 'inward_receiver', label: 'Inward / Receiving' },
-  { value: 'inward_damage', label: 'Inward + Damage (Legacy)' },
+  { value: 'inward_damage', label: 'Inward / Receiving' },
+  { value: 'inward_receiver', label: 'Inward / Receiving (Legacy)' },
   { value: 'putaway', label: 'Putter (Putaway)' },
   { value: 'auditor', label: 'Auditor' },
   { value: 'damage_expiry', label: 'Expiry' },
   { value: 'fnv', label: 'F&V' },
 ];
+
+export const ASSIGNABLE_DUTIES = WAREHOUSE_STAFF_DUTIES.filter(d => d.value !== 'inward_receiver');
 
 export const getWarehouseDutyLabel = (dutyValue: string) => {
   const duty = WAREHOUSE_STAFF_DUTIES.find(d => d.value === dutyValue);
@@ -558,7 +560,7 @@ export const WorkSlotManagement: React.FC = () => {
                               style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                             >
                               <option value="" disabled>Select Duty</option>
-                              {WAREHOUSE_STAFF_DUTIES.map(d => (
+                              {ASSIGNABLE_DUTIES.map(d => (
                                 <option key={d.value} value={d.value}>{d.label}</option>
                               ))}
                             </select>
@@ -811,7 +813,7 @@ export const WorkSlotManagement: React.FC = () => {
                                       style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}
                                       disabled={assignDutyLoading}
                                     >
-                                      {WAREHOUSE_STAFF_DUTIES.map(d => (
+                                      {ASSIGNABLE_DUTIES.map(d => (
                                         <option key={d.value} value={d.value}>{d.label}</option>
                                       ))}
                                     </select>

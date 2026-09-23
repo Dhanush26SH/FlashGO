@@ -99,7 +99,7 @@ export default function WarehouseProfileScreen() {
           <MenuItem 
             icon={<Star size={22} color="#10b981" />} 
             title="Your Rating" 
-            onPress={() => {}} 
+            onPress={() => navigation.navigate('StaffRating')} 
           />
           <View style={styles.divider} />
           <MenuItem 

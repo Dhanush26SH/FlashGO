@@ -20,7 +20,7 @@ export default function RequestAccessScreen() {
   React.useEffect(() => {
     let isMounted = true;
     const checkBankDetails = async () => {
-      if (!profile?.id || (requestedRole !== 'picker' && requestedRole !== 'driver')) return;
+      if (!profile?.id) return;
       try {
         const { data, error } = await supabase
           .from('staff_payout_details')
@@ -54,15 +54,13 @@ export default function RequestAccessScreen() {
       return;
     }
 
-    if (requestedRole === 'picker' || requestedRole === 'driver') {
-      if (!phone.trim()) {
-        Alert.alert('Required', 'Please enter your phone number.');
-        return;
-      }
-      if (!bankDetailsComplete) {
-        Alert.alert('Required', 'Please complete your Bank Details.');
-        return;
-      }
+    if (!phone.trim()) {
+      Alert.alert('Required', 'Please enter your phone number.');
+      return;
+    }
+    if (!bankDetailsComplete) {
+      Alert.alert('Required', 'Please complete your Bank Details.');
+      return;
     }
 
     setLoading(true);
@@ -70,7 +68,7 @@ export default function RequestAccessScreen() {
       const { error } = await supabase.rpc('request_staff_access', {
         p_full_name: fullName.trim(),
         p_requested_role: requestedRole,
-        p_phone: (requestedRole === 'picker' || requestedRole === 'driver') ? phone.trim() : null
+        p_phone: phone.trim()
       });
 
       if (error) throw error;
@@ -149,25 +147,22 @@ export default function RequestAccessScreen() {
           </View>
         )}
 
-        {(requestedRole === 'picker' || requestedRole === 'driver') && (
-          <View style={[styles.inputBox, { marginTop: 16 }]}>
-            <Text style={{ color: '#94a3b8', marginRight: 8 }}>📞</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Phone Number"
-              placeholderTextColor="#4b5563"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-            />
-          </View>
-        )}
+        <View style={[styles.inputBox, { marginTop: 16 }]}>
+          <Text style={{ color: '#94a3b8', marginRight: 8 }}>📞</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Phone Number"
+            placeholderTextColor="#4b5563"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+          />
+        </View>
 
-        {(requestedRole === 'picker' || requestedRole === 'driver') && (
-          <TouchableOpacity 
-            style={[styles.dropdownBtn, { marginTop: 16, justifyContent: 'space-between' }]}
-            onPress={() => navigation.navigate('OnboardingBankDetails')}
-          >
+        <TouchableOpacity 
+          style={[styles.dropdownBtn, { marginTop: 16, justifyContent: 'space-between' }]}
+          onPress={() => navigation.navigate('OnboardingBankDetails')}
+        >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={{ color: '#94a3b8', marginRight: 12 }}>🏦</Text>
               <Text style={styles.dropdownText}>
@@ -179,8 +174,7 @@ export default function RequestAccessScreen() {
               {!bankDetailsComplete && <Text style={{ color: '#94a3b8', marginRight: 8, fontSize: 12 }}>Add</Text>}
               <Text style={{ color: '#94a3b8' }}>→</Text>
             </View>
-          </TouchableOpacity>
-        )}
+        </TouchableOpacity>
 
         <TouchableOpacity 
           style={styles.submitBtn} 
