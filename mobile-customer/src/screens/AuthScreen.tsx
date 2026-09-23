@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, useWindowDimensions, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, useWindowDimensions, Alert, Image } from 'react-native';
 import { theme } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useMobileAppContext } from '../context/MobileAppContext';
@@ -71,12 +71,15 @@ export default function AuthScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.logoBox}>
-          <Text style={{ fontSize: 32 }}>⚡</Text>
+        <View style={styles.brandingGroup}>
+          <Image 
+            source={require('../../assets/flashgo-logo.png')} 
+            style={styles.logoImage} 
+            resizeMode="contain" 
+          />
+          <Text style={styles.title}>Welcome to FlashGO</Text>
+          <Text style={styles.subtitle}>Quick Commerce Delivered Fast</Text>
         </View>
-        
-        <Text style={styles.title}>Welcome to FlashGO</Text>
-        <Text style={styles.subtitle}>Quick Commerce Delivered Fast</Text>
 
         {isLoadingSession ? (
           <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 20 }} />
@@ -151,28 +154,29 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 24,
-    justifyContent: 'center',
+    paddingTop: '25%',
   },
-  logoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: theme.colors.primaryLight || '#E5F7ED',
-    justifyContent: 'center',
+  brandingGroup: {
     alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoImage: {
+    width: 245,
+    height: 130,
     marginBottom: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: '900',
-    color: theme.colors.text,
+    color: '#0f172a',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: theme.colors.textMuted,
-    marginBottom: 40,
     lineHeight: 24,
+    textAlign: 'center',
   },
   inputContainer: {
     flexDirection: 'row',

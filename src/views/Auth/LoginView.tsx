@@ -83,10 +83,11 @@ export const LoginView: React.FC = () => {
       <div className="login-bg-glow"></div>
       
       <div className="login-card glass-panel">
-        <div className="login-logo">
-          <Zap size={32} />
-          Flash<span>GO</span>
-        </div>
+        <img 
+          src="/flashgo-logo.png" 
+          alt="FlashGO Logo" 
+          style={{ width: '200px', objectFit: 'contain', margin: '0 auto 16px auto', display: 'block' }} 
+        />
         <p className="login-subtitle">Super Admin Access Portal</p>
         
         {error && (
