@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Image } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { ChevronRight, Store, Settings, HelpCircle, LogOut, FileText, CheckCircle2, Clock, XCircle, MapPin, Map, PackageOpen, Award, CreditCard, ShieldCheck } from 'lucide-react-native';
+import { ChevronRight, Store, Settings, HelpCircle, LogOut, FileText, CheckCircle2, Clock, XCircle, MapPin, Map, PackageOpen, CreditCard, ShieldCheck } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 
 import { supabase } from '../../lib/supabase';
@@ -177,23 +177,21 @@ export default function ProfileScreen() {
 
         {/* Quick Actions */}
         {profile?.role === 'driver' && (
-          <View style={styles.quickActions}>
-            <TouchableOpacity style={styles.actionItem} onPress={() => navigation.navigate('DriverPayouts')} activeOpacity={0.8}>
-              <View style={styles.actionIconBg}><CreditCard size={24} color="#64748b" /></View>
-              <Text style={styles.actionText}>Payouts</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
-              <View style={styles.actionIconBg}><Map size={24} color="#64748b" /></View>
-              <Text style={styles.actionText}>Trips History</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
-              <View style={styles.actionIconBg}><PackageOpen size={24} color="#64748b" /></View>
-              <Text style={styles.actionText}>Gigs History</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
-              <View style={styles.actionIconBg}><Award size={24} color="#64748b" /></View>
-              <Text style={styles.actionText}>Your Offers</Text>
-            </TouchableOpacity>
+          <View style={styles.quickActionsContainer}>
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity style={styles.actionItem} onPress={() => navigation.navigate('DriverPayouts')} activeOpacity={0.8}>
+                <View style={styles.actionIconBg}><CreditCard size={24} color="#64748b" /></View>
+                <Text style={styles.actionText}>Payouts</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionItem} onPress={() => navigation.navigate('DeliveryHistory')} activeOpacity={0.8}>
+                <View style={styles.actionIconBg}><Map size={24} color="#64748b" /></View>
+                <Text style={styles.actionText}>Trips History</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionItem} activeOpacity={0.8} disabled={true}>
+                <View style={styles.actionIconBg}><PackageOpen size={24} color="#64748b" /></View>
+                <Text style={styles.actionText}>Gigs History</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -373,14 +371,15 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     fontWeight: '700',
   },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  quickActionsContainer: {
     marginBottom: 24,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
   },
   actionItem: {
     alignItems: 'center',
-    width: '30%',
+    flex: 1,
   },
   actionIconBg: {
     width: 56,

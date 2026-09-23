@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Package, MapPin, CheckCircle, XCircle, Clock } from 'lucide-react-native';
+import { ChevronLeft, Package, MapPin, CheckCircle, XCircle, Clock, ChevronDown } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -12,14 +12,36 @@ export default function DeliveryHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [trips, setTrips] = useState<any[]>([]);
 
+  const generateDateOptions = () => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  };
+
+  const [dateOptions] = useState(generateDateOptions());
+  const [selectedDate, setSelectedDate] = useState(dateOptions[0]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   useEffect(() => {
     fetchHistory();
-  }, []);
+  }, [selectedDate]);
 
   const fetchHistory = async () => {
     if (!profile) return;
     try {
       setLoading(true);
+
+      const startUtc = new Date(`${selectedDate}T00:00:00Z`);
+      startUtc.setHours(startUtc.getHours() - 5.5);
+      
+      const nextDayStartUtc = new Date(`${selectedDate}T00:00:00Z`);
+      nextDayStartUtc.setUTCDate(nextDayStartUtc.getUTCDate() + 1);
+      nextDayStartUtc.setHours(nextDayStartUtc.getHours() - 5.5);
+
       // Fetch genuine logistics trips + orders with snapshot info + earning amount
       const { data, error } = await supabase
         .from('logistics_trips')
@@ -44,9 +66,10 @@ export default function DeliveryHistoryScreen() {
           )
         `)
         .eq('driver_id', profile.id)
-        .in('status', ['completed', 'cancelled', 'in_transit', 'accepted', 'pending'])
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .eq('status', 'completed')
+        .gte('delivered_at', startUtc.toISOString())
+        .lt('delivered_at', nextDayStartUtc.toISOString())
+        .order('delivered_at', { ascending: false });
 
       if (error) throw error;
       setTrips(data || []);
@@ -75,6 +98,20 @@ export default function DeliveryHistoryScreen() {
     return `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
+  const formatDateLabel = (isoDate: string) => {
+    const d = new Date(`${isoDate}T00:00:00Z`);
+    const today = new Date().toISOString().split('T')[0];
+    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (isoDate === today) return `Today · ${dateStr}`;
+    return dateStr;
+  };
+
+  const completedTrips = trips.length;
+  const totalEarnings = trips.reduce((sum, trip) => {
+    const earnings = trip.driver_financial_ledger?.find((l: any) => l.transaction_type === 'delivery_earning');
+    return sum + (earnings ? Number(earnings.amount) : 0);
+  }, 0);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -85,13 +122,49 @@ export default function DeliveryHistoryScreen() {
         <View style={{ width: 28 }} />
       </View>
 
+      <View style={styles.filterSection}>
+        <TouchableOpacity 
+          style={styles.dateSelector}
+          onPress={() => setIsDropdownOpen(true)}
+        >
+          <Text style={styles.dateSelectorText}>{formatDateLabel(selectedDate)}</Text>
+          <ChevronDown size={20} color="#cbd5e1" />
+        </TouchableOpacity>
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryDeliveries}>{completedTrips} Deliveries</Text>
+          <Text style={styles.summaryEarnings}>₹{totalEarnings.toFixed(2)} Earned</Text>
+        </View>
+      </View>
+
+      <Modal visible={isDropdownOpen} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setIsDropdownOpen(false)}>
+          <View style={styles.dropdown}>
+            {dateOptions.map(opt => (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.dropdownItem, selectedDate === opt && styles.dropdownItemActive]}
+                onPress={() => {
+                  setSelectedDate(opt);
+                  setIsDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.dropdownItemText, selectedDate === opt && styles.dropdownItemTextActive]}>
+                  {formatDateLabel(opt)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.content}>
         {loading ? (
           <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 40 }} />
         ) : trips.length === 0 ? (
           <View style={styles.emptyState}>
             <Package size={48} color="#334155" />
-            <Text style={styles.emptyText}>No deliveries found.</Text>
+            <Text style={styles.emptyText}>No deliveries on this day.</Text>
           </View>
         ) : (
           trips.map((trip) => {
@@ -118,9 +191,7 @@ export default function DeliveryHistoryScreen() {
                   <View style={styles.infoRow}>
                     <Clock size={14} color="#94a3b8" />
                     <Text style={styles.infoText}>
-                      {trip.status === 'completed' && trip.delivered_at 
-                        ? formatDate(trip.delivered_at) 
-                        : formatDate(trip.created_at)}
+                      {formatDate(trip.delivered_at)}
                     </Text>
                   </View>
                   
@@ -163,6 +234,26 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 8, marginLeft: -8 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: '#f8fafc' },
+  filterSection: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  dateSelector: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#1e293b', paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 8, marginBottom: 16
+  },
+  dateSelectorText: { color: '#f8fafc', fontSize: 16, fontWeight: '600' },
+  summaryCard: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#10b98115', padding: 16, borderRadius: 8,
+    borderWidth: 1, borderColor: '#10b98130'
+  },
+  summaryDeliveries: { color: '#f8fafc', fontSize: 16, fontWeight: '700' },
+  summaryEarnings: { color: '#10b981', fontSize: 16, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 16 },
+  dropdown: { backgroundColor: '#1e293b', borderRadius: 12, overflow: 'hidden' },
+  dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#334155' },
+  dropdownItemActive: { backgroundColor: '#334155' },
+  dropdownItemText: { color: '#cbd5e1', fontSize: 16 },
+  dropdownItemTextActive: { color: '#10b981', fontWeight: '700' },
   content: { padding: 16, paddingBottom: 40 },
   emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.7 },
   emptyText: { color: '#94a3b8', marginTop: 12, fontSize: 16 },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, Alert, Linking, AppState } from 'react-native';
-import { Bell, HelpCircle, AlertTriangle, ChevronRight, User, LogOut } from 'lucide-react-native';
+import { ChevronRight, User } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,7 +29,7 @@ export default function FeedScreen({ navigation }: any) {
       `)
       .eq('driver_id', profile.id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
 
     if (data && !error) {
       const shift = Array.isArray(data.staff_shifts) ? data.staff_shifts[0] : data.staff_shifts;
@@ -230,18 +230,6 @@ export default function FeedScreen({ navigation }: any) {
           />
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconCircle} onPress={async () => {
-            await supabase.auth.signOut();
-            setRole('auth');
-          }}>
-            <LogOut color="#ef4444" size={16} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconCircle}>
-            <AlertTriangle color="#f59e0b" size={16} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconCircle}>
-            <HelpCircle color="#9ca3af" size={16} />
-          </TouchableOpacity>
           <TouchableOpacity 
             style={styles.profileCircle} 
             onPress={() => navigation.navigate('Profile')}

@@ -87,6 +87,8 @@ export default function DriverPayoutsScreen() {
   const [tripsCompleted, setTripsCompleted] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [activeHours, setActiveHours] = useState('0h 00m');
+  const [totalIncentives, setTotalIncentives] = useState(0);
+  const [dailyDataMap, setDailyDataMap] = useState<Record<string, any>>({});
 
   const dailyOptions = dynamicDailyOptions;
   const weeklyOptions = dynamicWeeklyOptions;
@@ -118,62 +120,154 @@ export default function DriverPayoutsScreen() {
     const endIst = new Date(`${endDate}T23:59:59Z`);
     const endUtc = new Date(endIst.getTime() - (5.5 * 60 * 60 * 1000)).toISOString();
 
-    const { count, error } = await supabase
-      .from('logistics_trips')
-      .select('*', { count: 'exact', head: true })
-      .eq('driver_id', profile.id)
-      .eq('status', 'completed')
-      .gte('delivered_at', startUtc)
-      .lte('delivered_at', endUtc);
-
-    if (!error && count !== null) {
-      setTripsCompleted(count);
-    } else {
-      setTripsCompleted(0);
+    // Generate day boundaries for aggregation
+    const days: string[] = [];
+    let curr = new Date(startIst);
+    while (curr <= endIst) {
+      days.push(curr.toISOString().split('T')[0]);
+      curr.setUTCDate(curr.getUTCDate() + 1);
     }
     
-    // Earnings from ledger
+    const dailyData: Record<string, any> = {};
+    days.forEach(d => {
+      dailyData[d] = {
+        earnings: 0,
+        trips: 0,
+        incentives: 0,
+        activeMs: 0
+      };
+    });
+
+    // 1. Ledger (Earnings)
     const { data: earns } = await supabase
       .from('driver_financial_ledger')
-      .select('amount')
+      .select('amount, occurred_at')
       .eq('driver_id', profile.id)
       .eq('transaction_type', 'delivery_earning')
       .gte('occurred_at', startUtc)
       .lte('occurred_at', endUtc);
 
     if (earns) {
-      setTotalEarnings(earns.reduce((sum, e) => sum + Number(e.amount), 0));
-    } else {
-      setTotalEarnings(0);
-    }
-
-    // Active Hours from staff_shifts
-    const { data: shifts } = await supabase
-      .from('staff_shifts')
-      .select('started_at, completed_at, status, shift_end')
-      .eq('staff_id', profile.id)
-      .gte('started_at', startUtc)
-      .lte('started_at', endUtc);
-
-    if (shifts) {
-      let totalMs = 0;
-      shifts.forEach((s: any) => {
-        if (s.started_at) {
-          const start = new Date(s.started_at).getTime();
-          const end = s.completed_at 
-            ? new Date(s.completed_at).getTime() 
-            : Math.min(new Date().getTime(), new Date(s.shift_end).getTime());
-          if (end > start) {
-            totalMs += (end - start);
-          }
+      earns.forEach(e => {
+        const occurMs = new Date(e.occurred_at).getTime() + (5.5 * 3600000);
+        const dayStr = new Date(occurMs).toISOString().split('T')[0];
+        if (dailyData[dayStr]) {
+          dailyData[dayStr].earnings += Number(e.amount);
         }
       });
-      const hrs = Math.floor(totalMs / 3600000);
-      const mins = Math.floor((totalMs % 3600000) / 60000);
-      setActiveHours(`${hrs}h ${mins}m`);
-    } else {
-      setActiveHours('0h 00m');
     }
+
+    // 2. Trips
+    const { data: trips } = await supabase
+      .from('logistics_trips')
+      .select('delivered_at')
+      .eq('driver_id', profile.id)
+      .eq('status', 'completed')
+      .gte('delivered_at', startUtc)
+      .lte('delivered_at', endUtc);
+
+    if (trips) {
+      trips.forEach(t => {
+        const occurMs = new Date(t.delivered_at).getTime() + (5.5 * 3600000);
+        const dayStr = new Date(occurMs).toISOString().split('T')[0];
+        if (dailyData[dayStr]) {
+          dailyData[dayStr].trips += 1;
+        }
+      });
+    }
+
+    // 3. Incentives
+    const { data: payouts, error: payoutsError } = await supabase
+      .from('staff_shift_payouts')
+      .select('earning_date, incentive_amount')
+      .eq('staff_id', profile.id)
+      .gte('earning_date', startDate)
+      .lte('earning_date', endDate);
+
+    if (payoutsError) {
+      console.error('Failed to fetch payouts:', payoutsError);
+    }
+
+    if (payouts) {
+      payouts.forEach(p => {
+        if (dailyData[p.earning_date]) {
+          dailyData[p.earning_date].incentives += Number(p.incentive_amount || 0);
+        }
+      });
+    }
+
+    // 4. Active Hours (Sessions)
+    const sessionStartBound = new Date(new Date(startUtc).getTime() - 86400000).toISOString();
+
+    const { data: sessions } = await supabase
+      .from('driver_sessions')
+      .select('id, staff_shift_id, updated_at, status, staff_shifts(shift_end)')
+      .eq('driver_id', profile.id)
+      .gte('updated_at', sessionStartBound);
+
+    const { data: checkIns } = await supabase
+      .from('driver_check_in_records')
+      .select('staff_shift_id, check_in_time')
+      .eq('driver_id', profile.id)
+      .eq('status', 'SUCCESS')
+      .gte('check_in_time', sessionStartBound);
+
+    const checkInMap: Record<string, string> = {};
+    if (checkIns) {
+      checkIns.forEach(c => {
+        if (c.staff_shift_id) checkInMap[c.staff_shift_id] = c.check_in_time;
+      });
+    }
+
+    if (sessions) {
+      sessions.forEach((s: any) => {
+        const checkInTime = s.staff_shift_id ? checkInMap[s.staff_shift_id] : null;
+        if (!checkInTime) return;
+
+        const actualCheckInMs = new Date(checkInTime).getTime();
+        
+        let shiftEndMs = Infinity;
+        if (s.staff_shifts && s.staff_shifts.shift_end) {
+          shiftEndMs = new Date(s.staff_shifts.shift_end).getTime();
+        }
+
+        const actualSessionEndMs = s.status === 'completed' ? new Date(s.updated_at).getTime() : new Date().getTime();
+        const sessionEndMs = Math.min(actualSessionEndMs, shiftEndMs);
+
+        days.forEach(d => {
+          const dayStartMs = new Date(`${d}T00:00:00Z`).getTime() - (5.5 * 3600000);
+          const dayEndMs = new Date(`${d}T23:59:59Z`).getTime() - (5.5 * 3600000);
+
+          const effectiveStart = Math.max(actualCheckInMs, dayStartMs);
+          const effectiveEnd = Math.min(sessionEndMs, dayEndMs);
+
+          if (effectiveEnd > effectiveStart) {
+            dailyData[d].activeMs += (effectiveEnd - effectiveStart);
+          }
+        });
+      });
+    }
+
+    let totalEarns = 0;
+    let totalTrip = 0;
+    let totalIncent = 0;
+    let totalActiveMs = 0;
+    
+    Object.values(dailyData).forEach(day => {
+      totalEarns += day.earnings;
+      totalTrip += day.trips;
+      totalIncent += day.incentives;
+      totalActiveMs += day.activeMs;
+    });
+
+    setTotalEarnings(totalEarns);
+    setTripsCompleted(totalTrip);
+    setTotalIncentives(totalIncent);
+
+    const hrs = Math.floor(totalActiveMs / 3600000);
+    const mins = Math.floor((totalActiveMs % 3600000) / 60000);
+    setActiveHours(`${hrs}h ${mins}m`);
+    setDailyDataMap(dailyData);
 
     setLoading(false);
   };
@@ -210,28 +304,35 @@ export default function DriverPayoutsScreen() {
     return (
       <View style={styles.breakdownContainer}>
         <Text style={styles.sectionTitle}>Daily Breakdown</Text>
-        {days.map((day, idx) => (
-          <View key={idx} style={styles.dayCard}>
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayTitle}>{formatDateLabel(day)}</Text>
-              <Text style={styles.pendingEarningsLabelDay}>₹0.00</Text>
+        {days.map((day, idx) => {
+          const dayStr = day.toISOString().split('T')[0];
+          const metrics = dailyDataMap[dayStr] || { earnings: 0, trips: 0, incentives: 0, activeMs: 0 };
+          const hrs = Math.floor(metrics.activeMs / 3600000);
+          const mins = Math.floor((metrics.activeMs % 3600000) / 60000);
+
+          return (
+            <View key={idx} style={styles.dayCard}>
+              <View style={styles.dayHeader}>
+                <Text style={styles.dayTitle}>{formatDateLabel(day)}</Text>
+                <Text style={styles.pendingEarningsLabelDay}>₹{metrics.earnings.toFixed(2)}</Text>
+              </View>
+              <View style={styles.dayMetrics}>
+                <View style={styles.dayMetric}>
+                  <Text style={styles.dayMetricLabel}>Hours</Text>
+                  <Text style={styles.dayMetricValue}>{hrs}h {mins}m</Text>
+                </View>
+                <View style={styles.dayMetric}>
+                  <Text style={styles.dayMetricLabel}>Trips</Text>
+                  <Text style={styles.dayMetricValue}>{metrics.trips}</Text>
+                </View>
+                <View style={styles.dayMetric}>
+                  <Text style={styles.dayMetricLabel}>Incentive</Text>
+                  <Text style={styles.dayMetricValue}>₹{metrics.incentives.toFixed(2)}</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.dayMetrics}>
-              <View style={styles.dayMetric}>
-                <Text style={styles.dayMetricLabel}>Hours</Text>
-                <Text style={styles.dayMetricValue}>0h 00m</Text>
-              </View>
-              <View style={styles.dayMetric}>
-                <Text style={styles.dayMetricLabel}>Trips</Text>
-                <Text style={styles.dayMetricValue}>0</Text>
-              </View>
-              <View style={styles.dayMetric}>
-                <Text style={styles.dayMetricLabel}>Incentive</Text>
-                <Text style={styles.dayMetricValue}>₹0.00</Text>
-              </View>
-            </View>
-          </View>
-        ))}
+          );
+        })}
       </View>
     );
   };
@@ -309,7 +410,7 @@ export default function DriverPayoutsScreen() {
                 </View>
                 <View style={styles.metricItem}>
                   <Award size={18} color="#94a3b8" />
-                  <Text style={styles.metricValue}>₹0.00</Text>
+                  <Text style={styles.metricValue}>₹{totalIncentives.toFixed(2)}</Text>
                   <Text style={styles.metricLabel}>Incentives</Text>
                 </View>
               </View>

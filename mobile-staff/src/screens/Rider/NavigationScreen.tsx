@@ -59,7 +59,7 @@ export default function NavigationScreen() {
           setTesterFlags(data.flags);
         }
       });
-      supabase.from('driver_sessions').select('id').eq('driver_id', profile.id).single()
+      supabase.from('driver_sessions').select('id').eq('driver_id', profile.id).eq('status', 'active').maybeSingle()
         .then(({ data }) => { /* no-op since device_info doesn't exist */ });
     }
     return () => { isSubscribed = false; };

@@ -26,7 +26,10 @@ export default function GigsScreen({ navigation }: any) {
     }
     gigs.forEach(g => {
       const d = startOfDay(parseISO(g.start_time));
-      if (!dates.has(d.toISOString())) dates.set(d.toISOString(), d);
+      // Only include today and future dates in the booking strip
+      if (d.getTime() >= today.getTime()) {
+        if (!dates.has(d.toISOString())) dates.set(d.toISOString(), d);
+      }
     });
     return Array.from(dates.values()).sort((a, b) => a.getTime() - b.getTime());
   }, [gigs]);
