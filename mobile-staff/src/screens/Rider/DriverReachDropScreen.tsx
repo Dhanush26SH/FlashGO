@@ -90,18 +90,26 @@ export default function DriverReachDropScreen() {
     if (!delivery) return;
     setArriving(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-         Alert.alert('Permission needed', 'Location is required to mark arrival');
-         setArriving(false);
-         return;
+      let lat = 0;
+      let lng = 0;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+           lat = loc.coords.latitude;
+           lng = loc.coords.longitude;
+        } else {
+           console.log('Location permission denied, using fallback for demo mode.');
+        }
+      } catch (err) {
+        console.log('Failed to fetch location, using fallback for demo mode.', err);
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       
       const { data, error } = await supabase.rpc('driver_mark_arrived', {
         p_trip_id: delivery.trip_id,
-        p_driver_lat: loc.coords.latitude,
-        p_driver_lng: loc.coords.longitude,
+        p_driver_lat: lat,
+        p_driver_lng: lng,
         p_route_distance_meters: 2500 // In reality, this would be passed back from the Navigation map. We mock it for now.
       });
 

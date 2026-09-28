@@ -22,6 +22,7 @@ export default function NavigationScreen() {
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const [osrmDistance, setOsrmDistance] = useState<number>(0);
   const [distance, setDistance] = useState<string>('');
   const [eta, setEta] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -46,7 +47,6 @@ export default function NavigationScreen() {
 
   const tripId = route.params?.tripId;
 
-  const [testerFlags, setTesterFlags] = useState<any>(null);
   const [tripStatus, setTripStatus] = useState<string>('');
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationReached, setSimulationReached] = useState(false);
@@ -54,18 +54,13 @@ export default function NavigationScreen() {
   useEffect(() => {
     let isSubscribed = true;
     if (profile?.role === 'driver') {
-      supabase.rpc('get_my_dev_test_flags').then(({ data, error }) => {
-        if (isSubscribed && data?.success) {
-          setTesterFlags(data.flags);
-        }
-      });
       supabase.from('driver_sessions').select('id').eq('driver_id', profile.id).eq('status', 'active').maybeSingle()
         .then(({ data }) => { /* no-op since device_info doesn't exist */ });
     }
     return () => { isSubscribed = false; };
   }, [profile?.id, profile?.role]);
 
-  const isTesterAuthorized = testerFlags?.bypass_geofence === true && profile?.role === 'driver' && hasValidDestination && tripId;
+  const isTesterAuthorized = profile?.role === 'driver' && hasValidDestination && tripId;
 
   // Haversine distance in meters
   const getDistanceFromLatLonInM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -115,6 +110,7 @@ export default function NavigationScreen() {
 
         if (isMountedRef.current) {
           setDistance(distText);
+          setOsrmDistance(routeData.distance);
           setEta(durText);
           setRouteGeoJSON(routeData.geometry);
           lastCalcCoords.current = { lat: loc.coords.latitude, lng: loc.coords.longitude };
@@ -292,13 +288,14 @@ export default function NavigationScreen() {
           const newLoc = { coords: { latitude: finalCoord[1], longitude: finalCoord[0] } };
           setLocation(newLoc as any);
           
-          if (!profile?.id) return;
-          deviceInfoRef.current.mode = 'test_simulated';
-          await supabase.from('driver_sessions').update({
-            latest_lat: finalCoord[1],
-            latest_lng: finalCoord[0],
-            updated_at: new Date().toISOString()
-          }).eq('driver_id', profile.id);
+          // Update driver_sessions directly via authoritative RPC
+          await supabase.rpc('driver_set_demo_route_distance', {
+            p_trip_id: tripId,
+            p_distance_meters: osrmDistance,
+            p_final_lat: finalCoord[1],
+            p_final_lng: finalCoord[0]
+          });
+          
           return;
        }
        
@@ -462,7 +459,7 @@ export default function NavigationScreen() {
       )}
 
       {/* Map Area */}
-      {isTesterAuthorized && (
+      {isTesterAuthorized && isTestMode && (
         <View style={styles.testerContainer}>
           {simulationReached ? (
             <View style={styles.testerBadge}>

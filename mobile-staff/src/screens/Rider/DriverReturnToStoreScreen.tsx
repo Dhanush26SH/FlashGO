@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -23,6 +24,7 @@ export default function DriverReturnToStoreScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
   const [errorState, setErrorState] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -95,7 +97,8 @@ export default function DriverReturnToStoreScreen() {
       const { data: res, error } = await supabase.rpc('driver_complete_return_to_store', {
         p_qr_token: data,
         p_lat: loc.coords.latitude,
-        p_lng: loc.coords.longitude
+        p_lng: loc.coords.longitude,
+        p_is_demo: isDemoMode
       });
       
       if (error) throw error;
@@ -178,6 +181,15 @@ export default function DriverReturnToStoreScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Return to Store</Text>
+        <View style={styles.demoToggleWrapper}>
+          <Text style={styles.demoToggleLabel}>Demo</Text>
+          <Switch
+            value={isDemoMode}
+            onValueChange={setIsDemoMode}
+            trackColor={{ false: '#3f3f46', true: '#10b981' }}
+            thumbColor={isDemoMode ? '#fff' : '#a1a1aa'}
+          />
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -221,7 +233,8 @@ export default function DriverReturnToStoreScreen() {
                 const { data: res, error } = await supabase.rpc('driver_verify_warehouse_arrival', {
                   p_task_id: task.id,
                   p_lat: loc.coords.latitude,
-                  p_lng: loc.coords.longitude
+                  p_lng: loc.coords.longitude,
+                  p_is_demo: isDemoMode
                 });
                 
                 if (error) throw error;
@@ -295,5 +308,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10
   },
-  processingText: { color: '#fff', marginTop: 16, fontSize: 16, fontWeight: '600' }
+  processingText: { color: '#fff', marginTop: 16, fontSize: 16, fontWeight: '600' },
+  demoToggleWrapper: {
+    position: 'absolute',
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  demoToggleLabel: {
+    color: '#a1a1aa',
+    fontSize: 12,
+    fontWeight: '600'
+  }
 });

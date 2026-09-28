@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, Switch, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { useIsFocused } from '@react-navigation/native';
@@ -12,10 +12,18 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
   const { shift } = route.params;
   const { profile } = useAuth() as any;
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'PERMISSIONS' | 'QR' | 'SUBMITTING'>('PERMISSIONS');
   
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null);
+
+  const bothPermissionsGranted = cameraPermission?.granted && hasLocationPermission;
+
+  // DIAGNOSTIC STATE LOG
+  useEffect(() => {
+    console.log(`[DriverCheckInLayout] STATE: step=${step}, bothPermissionsGranted=${bothPermissionsGranted}, Continue Button Rendered=${bothPermissionsGranted}`);
+  }, [step, bothPermissionsGranted]);
   
   const cameraRef = useRef<any>(null);
     const [scannedQR, setScannedQR] = useState<string | null>(null);
@@ -157,13 +165,12 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
 
   if (!cameraPermission || hasLocationPermission === null) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 100 }} />
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const bothPermissionsGranted = cameraPermission.granted && hasLocationPermission;
   const isLate = new Date() > new Date(shift?.shift_start);
 
   const renderPermissionsStep = () => (
@@ -222,7 +229,14 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
       </View>
 
       {bothPermissionsGranted && (
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep('QR')}>
+        <TouchableOpacity 
+          style={[styles.primaryBtn, { borderWidth: 4, borderColor: 'red' }]} 
+          onPress={() => setStep('QR')}
+          onLayout={(e) => {
+            const { x, y, width, height } = e.nativeEvent.layout;
+            console.log(`[DriverCheckInLayout] BUTTON: x=${x}, y=${y}, width=${width}, height=${height}`);
+          }}
+        >
           <Text style={styles.primaryBtnText}>Continue Check-In</Text>
         </TouchableOpacity>
       )}
@@ -230,22 +244,37 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8 }}>
           <ArrowLeft color="#fff" size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Check In for Your Gig</Text>
-        <View style={{ width: 40 }} />
       </View>
-      
-      {step === 'PERMISSIONS' && (
-        <Text style={styles.subtitle}>
-          Complete the steps below to verify that you are at the assigned FlashGO store.
-        </Text>
-      )}
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          console.log(`[DriverCheckInLayout] VIEWPORT: width=${width}, height=${height}`);
+        }}
+        onContentSizeChange={(width, height) => {
+          console.log(`[DriverCheckInLayout] CONTENT_SIZE: width=${width}, height=${height}`);
+        }}
+        onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          console.log(`[DriverCheckInLayout] SCROLL: offset.y=${contentOffset.y}, contentHeight=${contentSize.height}, layoutHeight=${layoutMeasurement.height}`);
+        }}
+      >
+        {step === 'PERMISSIONS' && (
+          <Text style={styles.subtitle}>
+            Complete the steps below to verify that you are at the assigned FlashGO store.
+          </Text>
+        )}
 
-      <View style={styles.content}>
+        <View style={styles.content}>
         {isLate && (
           <View style={styles.lateWarningCard}>
             <View style={styles.lateWarningHeader}>
@@ -287,7 +316,8 @@ export default function DriverCheckInScreen({ route, navigation }: any) {
           </View>
         )}
       </View>
-    </SafeAreaView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -295,6 +325,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0A0A0A',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 80,
   },
   lateWarningCard: {
     backgroundColor: '#381616',
@@ -342,13 +378,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   content: {
-    flex: 1,
     padding: 24,
     alignItems: 'center',
   },
   permissionsContainer: {
     width: '100%',
-    flex: 1,
   },
   introText: {
     color: '#fff',
@@ -444,7 +478,6 @@ const styles = StyleSheet.create({
   },
   stepContainer: {
     width: '100%',
-    flex: 1,
     alignItems: 'center',
   },
   stepHeader: {

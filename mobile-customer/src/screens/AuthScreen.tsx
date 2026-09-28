@@ -59,11 +59,35 @@ export default function AuthScreen() {
       return;
     }
     setIsAuthenticating(true);
-    const { error } = await supabase.auth.verifyOtp({ 
+    let { error, data } = await supabase.auth.verifyOtp({ 
       email: email.trim(), 
       token: otpCode, 
       type: 'email'
     });
+
+    if (error) {
+      console.log('Email verify failed:', error.message);
+      // Fallback 1: magiclink
+      const fallback1 = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otpCode,
+        type: 'magiclink'
+      });
+      error = fallback1.error;
+      
+      if (error) {
+        console.log('Magiclink verify failed:', error.message);
+        // Fallback 2: signup
+        const fallback2 = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otpCode,
+          type: 'signup'
+        });
+        error = fallback2.error;
+        if (error) console.log('Signup verify failed:', error.message);
+      }
+    }
+
     setIsAuthenticating(false);
     if (error) { Alert.alert('Verification Failed', error.message); return; }
   };
