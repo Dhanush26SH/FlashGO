@@ -1,0 +1,28 @@
+flowchart TD
+    %% Define Nodes
+    WS["Warehouse Staff & Pickers"]
+    C["Customer"]
+    SYS(("FlashGO Real-Time<br/>Logistics System"))
+    D["Driver"]
+    A["Admin"]
+
+    %% Connect Customer (Left side conceptually)
+    C -- "Order Details & Payment" --> SYS
+    SYS -- "Live Tracking & Status Alerts" --> C
+
+    %% Connect Warehouse Staff (Top conceptually)
+    WS -- "Scanned Barcodes<br/>& Stock Audits" --> SYS
+    SYS -- "Digital Picking Lists<br/>& Low Stock Alerts" --> WS
+
+    %% Connect Driver (Right side conceptually)
+    D -- "Live GPS Telemetry<br/>& Proof of Delivery" --> SYS
+    SYS -- "Optimized Routes &<br/>Dispatch Assignments" --> D
+
+    %% Connect Admin (Bottom conceptually)
+    A -- "System Configurations<br/>& Approvals" --> SYS
+    SYS -- "Fleet Analytics<br/>& Revenue Reports" --> A
+
+    %% Styling to look professional
+    classDef default fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000,font-weight:bold;
+    classDef system fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000,font-weight:bold;
+    class SYS system;

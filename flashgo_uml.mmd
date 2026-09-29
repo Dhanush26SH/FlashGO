@@ -1,0 +1,47 @@
+classDiagram
+    direction TD
+
+    class Customer {
+        +uuid id
+        +string name
+        +string phone
+        +string address
+        +float wallet_balance
+        +login()
+        +placeOrder()
+        +trackOrder()
+        +addFunds()
+    }
+    
+    class Orders {
+        +uuid id
+        +string status
+        +float total
+        +date created_at
+        +float dropoff_lat
+        +float dropoff_lng
+        +cancelOrder()
+        +rateDelivery()
+    }
+    
+    class Payments {
+        +uuid id
+        +float amount
+        +string method
+        +string status
+        +date payment_date
+        +processPayment()
+        +issueRefund()
+    }
+    
+    class Wallet_History {
+        +uuid id
+        +float amount
+        +string tx_type
+        +date created_at
+        +string description
+    }
+    
+    Customer "1" --> "*" Orders : Places
+    Customer "1" --> "*" Payments : Makes
+    Customer "1" --> "*" Wallet_History : Has

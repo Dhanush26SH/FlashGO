@@ -43,23 +43,26 @@ FlashGO is a self-contained, cloud-based platform accessible via web browsers an
 
 ## 3.3 Specific Requirements
 
-### 3.3.1 External Interface Requirements
-#### 3.3.1.1 User Interface (UI)
-* The UI must be developed using a mobile-first approach, ensuring all actionable buttons for Drivers and Pickers are easily accessible.
-* The system must provide a clear, color-coded status indicator for orders (e.g., Yellow for Pending, Blue for Packing, Purple for Dispatched, Green for Delivered).
-* Error messages must be descriptive and non-technical, guiding the user on how to resolve the issue.
+### A. Hardware Requirements
+* **Server:** Cloud-hosted scalable infrastructure (e.g., Supabase / AWS).
+  * **Processor:** Intel Core i5/i7 equivalent or higher for handling concurrent WebSockets.
+  * **Memory (RAM):** Minimum 8 GB (16 GB recommended for high concurrent multi-stream loads).
+  * **Storage:** 50 GB Solid-State Drive (SSD) storage (for database, logs, and user data).
+* **Client / Mobile Terminal:**
+  * **Hardware:** Standard PC/laptop for Admin; modern smartphone (iOS/Android) for Pickers, Drivers, and Customers.
+  * **Input Devices:** Touch input (mobile), standard keyboard and mouse (Admin dashboard).
+  * **Peripherals:** Integrated smartphone camera (minimum 720p for barcode scanning and proof of delivery) and integrated GPS module (for routing).
 
-#### 3.3.1.2 Hardware Interface
-* **Servers:** Cloud-hosted database and application servers capable of handling high-frequency real-time WebSocket connections.
-* **Client Devices:** Standard smartphones (iOS/Android) with GPS and Camera access, and desktop computers for administrative access.
+### B. Software & Runtime Environment
+* **Operating System:** Windows 10/11, macOS, Ubuntu (for Admin); iOS 13+ or Android 8.0+ (for Mobile Clients).
+* **Programming Language:** TypeScript, JavaScript, SQL.
+* **Web Framework:** React 18+ (Admin Web) and React Native / Expo (Mobile Apps).
+* **Database Engine:** PostgreSQL (managed via Supabase).
+* **Real-time Core:** Supabase Realtime (WebSockets).
+* **Client Web Browser:** Google Chrome, Microsoft Edge, Mozilla Firefox, or Safari supporting HTML5 and WebSockets.
 
-#### 3.3.1.3 Software Interface
-* **Frontend:** React Native (for mobile applications) and React/TypeScript (for web dashboards).
-* **Backend:** Supabase (PostgreSQL) for database management, authentication, and real-time data broadcasting.
-* **Mapping:** Integration with mapping services (e.g., Leaflet or Google Maps API) for routing and live tracking.
-
-#### 3.3.1.4 Communication Interface
-* The system communicates primarily via HTTPS for secure API requests and WebSockets (via Supabase Realtime) for live state synchronization.
+### C. Network Infrastructure
+* **Network Standard:** 4G/5G Cellular Network or stable Wi-Fi (802.11 b/g/n/ac) for continuous client-server communication and live GPS telemetry. External internet connectivity is strictly required for real-time operations.
 
 ## 3.4 Functional Requirements
 

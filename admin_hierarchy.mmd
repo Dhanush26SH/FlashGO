@@ -1,0 +1,38 @@
+%%{init: {"flowchart": {"curve": "stepBefore"}}}%%
+graph LR
+    %% Root
+    Admin[Admin]
+    
+    %% Level 1
+    Admin --- UM[User Management]
+    Admin --- FM[Fleet Management]
+    Admin --- WO[Warehouse Ops]
+    Admin --- OO[Order Oversight]
+    Admin --- AR[Analytics & Reports]
+    
+    %% Level 2 - User Management
+    UM --- UM1[Customers]
+    UM --- UM2[Pickers & Staff]
+    UM --- UM3[Drivers]
+    
+    %% Level 2 - Fleet Management
+    FM --- FM1[Live Telemetry Map]
+    FM --- FM2[Driver Statuses]
+    FM --- FM3[Dispatch Override]
+    
+    %% Level 2 - Warehouse Ops
+    WO --- WO1[Delivery Zones]
+    WO --- WO2[Procurement]
+    WO --- WO3[Stock Alerts]
+    
+    %% Level 2 - Order Oversight
+    OO --- OO1[Track Live Orders]
+    OO --- OO2[Resolve Disputes]
+    
+    %% Level 2 - Analytics & Reports
+    AR --- AR1[Revenue Dashboard]
+    AR --- AR2[Sales Data]
+    AR --- AR3[Export CSV Data]
+    
+    %% Styling to match the simple box look
+    classDef default fill:#ffffff,stroke:#000000,stroke-width:1.5px,color:#000000,shape:rect;

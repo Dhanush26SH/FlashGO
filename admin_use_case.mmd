@@ -1,0 +1,70 @@
+graph LR
+    %% Actor
+    Admin(("Admin"))
+    
+    %% Main Use Cases
+    Auth(["Authentication"])
+    UM(["User Management"])
+    FL(["Fleet & Logistics"])
+    WI(["Warehouse & Inventory"])
+    OD(["Order & Disputes"])
+    FA(["Finance & Analytics"])
+    
+    %% Connect Actor to Main Use Cases
+    Admin --- Auth
+    Admin --- UM
+    Admin --- FL
+    Admin --- WI
+    Admin --- OD
+    Admin --- FA
+    
+    %% Authentication
+    Auth1(["Secure Login"])
+    Auth2(["Two-Factor Auth"])
+    Auth --- Auth1
+    Auth --- Auth2
+
+    %% User Management
+    UM1(["Manage Customers"])
+    UM2(["Manage Warehouse Staff"])
+    UM3(["Manage Drivers"])
+    UM --- UM1
+    UM --- UM2
+    UM --- UM3
+    
+    %% Fleet & Logistics
+    FL1(["View Live Telemetry Map"])
+    FL2(["Override Driver Dispatch"])
+    FL3(["Monitor Driver Status"])
+    FL --- FL1
+    FL --- FL2
+    FL --- FL3
+    
+    %% Warehouse & Inventory
+    WI1(["Define Delivery Zones"])
+    WI2(["Monitor Global Stock Alerts"])
+    WI3(["Approve Procurement Drafts"])
+    WI --- WI1
+    WI --- WI2
+    WI --- WI3
+
+    %% Order & Disputes
+    OD1(["Track Live Orders"])
+    OD2(["Process Order Refunds"])
+    OD3(["Resolve Customer Complaints"])
+    OD --- OD1
+    OD --- OD2
+    OD --- OD3
+    
+    %% Finance & Analytics
+    FA1(["View Revenue Dashboard"])
+    FA2(["Generate Sales Reports"])
+    FA3(["Export System Data (CSV)"])
+    FA --- FA1
+    FA --- FA2
+    FA --- FA3
+    
+    %% Styling
+    classDef default fill:#ffffff,stroke:#000000,stroke-width:1.5px,color:#000000;
+    classDef actor fill:#ffffff,stroke:#000000,stroke-width:1.5px,color:#000000;
+    class Admin actor;
