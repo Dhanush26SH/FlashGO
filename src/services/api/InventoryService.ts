@@ -292,13 +292,28 @@ export class InventoryService {
   }
 
   // --- RETURNS & UNPACK QUEUE API ---
-  static async getUnpackQueue(warehouseId: string): Promise<any[]> {
+  static async getUnpackQueue(warehouseId: string, filterDate?: Date, filterStatus?: string): Promise<any[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase
+    let query = supabase
       .from('order_unpack_queue')
       .select('*, order:orders(*)')
       .eq('warehouse_id', warehouseId)
       .order('created_at', { ascending: false });
+
+    if (filterDate) {
+      const year = filterDate.getFullYear();
+      const month = filterDate.getMonth();
+      const date = filterDate.getDate();
+      const startOfDayIST = new Date(Date.UTC(year, month, date) - (5.5 * 60 * 60 * 1000));
+      const nextDayIST = new Date(startOfDayIST.getTime() + 24 * 60 * 60 * 1000);
+      query = query.gte('created_at', startOfDayIST.toISOString()).lt('created_at', nextDayIST.toISOString());
+    }
+
+    if (filterStatus && filterStatus !== 'all') {
+      query = query.eq('status', filterStatus);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }

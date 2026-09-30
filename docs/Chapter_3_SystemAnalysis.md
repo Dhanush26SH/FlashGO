@@ -64,57 +64,36 @@ FlashGO is a self-contained, cloud-based platform accessible via web browsers an
 ### C. Network Infrastructure
 * **Network Standard:** 4G/5G Cellular Network or stable Wi-Fi (802.11 b/g/n/ac) for continuous client-server communication and live GPS telemetry. External internet connectivity is strictly required for real-time operations.
 
-## 3.4 Functional Requirements
+## 3.4 Functional Requirements (FR)
+• **FR-01: Multi-Role Authentication & Access Control:** The system must enforce secure, role-based login for Customer, Picker, Warehouse Staff, Driver, and Admin personas, guaranteeing that each role accesses only authorized interfaces and REST/WebSocket endpoints.
+• **FR-02: Customer Profile & Order Management:** Authorized customers must be able to register, edit metadata (name, phone, delivery address), browse the product catalog, and seamlessly place delivery orders.
+• **FR-03: Real-Time Order Routing & Task Assignment:** The backend engine must automatically process incoming orders and intelligently route them to the nearest warehouse based on geographic proximity, instantly appending the task to the local Picker's queue.
+• **FR-04: Digital Picking & Inventory Verification:** Pickers must utilize a mobile-optimized interface to view digital checklists, scan barcodes or manually verify items, and seamlessly toggle order statuses to 'Packed'.
+• **FR-05: Real-Time Fleet Geolocation:** The application must capture GPS coordinates from the assigned Driver's mobile device and transmit them to the server-side database via WebSockets, allowing live tracking without page reloads.
+• **FR-06: Atomic Order State Transitions:** A strict database constraint and transactional check must ensure that an order transitions linearly through states (Pending -> Packed -> Dispatched -> Delivered) to prevent duplicate processing or overlapping assignments.
+• **FR-07: Warehouse Procurement & Restocking:** Warehouse Staff must possess privileges to generate procurement drafts, track low-stock alerts, and manually adjust inventory counts in exceptional scenarios (e.g., damaged goods).
+• **FR-08: Analytical Dashboards & Performance Alerts:** The platform must calculate real-time logistical metrics per warehouse and display intuitive status indicators for pending orders, active drivers, and average delivery times.
+• **FR-09: One-Click Report Export:** Administrators must have the ability to instantly generate and download consolidated order histories and delivery performance summaries in PDF/CSV format for operational audits.
 
-### 3.4.1 Customer Module
-* **Registration/Login:** Secure account creation and authentication.
-* **Order History:** View past and current orders.
-* **Live Tracking:** An interactive map interface displaying the real-time location of the assigned driver.
-* **Status Updates:** View timestamped updates (e.g., "Order Received," "Packed," "On the Way").
+## 3.5 Performance Requirements (PR)
+• **PR-01: Low-Latency Synchronization:** Database state changes (e.g., status updates) must be synchronized across all connected client devices in under 200 milliseconds via Supabase WebSockets, enabling fluid, real-time feedback on web and mobile clients.
+• **PR-02: High Concurrency Throughput:** The backend infrastructure must maintain an operational uptime of 99.9% and gracefully handle thousands of concurrent read/write operations during peak ordering hours without degradation in database response times.
 
-### 3.4.2 Picker Module
-* **Task Queue:** View a prioritized list of orders assigned to their specific warehouse.
-* **Digital Checklist:** View the items in an order sorted by aisle/shelf location to optimize the walking route.
-* **Item Verification:** Ability to scan item barcodes or manually tick off items to confirm collection.
-* **Status Toggling:** Ability to mark an order as "Packed and Ready for Dispatch."
+## 3.6 Design Constraints (DC)
+• **DC-01: Commodity Mobile Hardware Operation:** The Picker and Driver mobile applications must run efficiently on low-cost, commodity smartphones without requiring high-end processors or excessive battery drainage.
+• **DC-02: Web Standard API Dependency:** Client-side operations rely strictly on standardized HTML5 and WebSockets, constraining client execution to modern, updated web browsers without external plugins.
+• **DC-03: API-Driven E-Commerce Integration:** The platform's scope is strictly constrained to logistics management, operating under the assumption that customer orders are securely ingested via a standardized external API connection.
 
-### 3.4.3 Warehouse Staff Module
-* **Inventory Management:** View low-stock alerts and restock inventory directly from the warehouse floor.
-* **Vendor Management:** Maintain records of vendors and suppliers.
-* **Procurement:** Create and manage procurement drafts for stock replenishment.
+## 3.7 Other Non-Functional Requirements (OR)
+• **OR-01: Usability & Responsiveness:** The graphical user interface must be modern, intuitive, and fully responsive across desktops, laptops, and mobile screens, requiring zero specialized technical training for warehouse staff or drivers.
+• **OR-02: Software Portability:** The system must run natively within standard browser environments across Windows, Linux, or macOS for administrative tasks, while mobile apps must cross-compile reliably for both iOS and Android platforms via React Native/Expo.
 
-### 3.4.4 Driver Module
-* **Dispatch Queue:** View available or assigned delivery routes.
-* **Navigation Integration:** Direct links to turn-by-turn navigation apps based on the customer's address.
-* **Status Updates:** One-tap buttons to update status to "Picked Up," "Arriving," and "Delivered."
-* **Proof of Delivery:** Interface to capture and upload a photo of the delivered package at the doorstep.
+## 3.8 Safety Requirements (SR)
+• **SR-01: Driver Distraction Mitigation:** To promote road safety, the Driver module interface must utilize large, high-contrast UI elements and prompt drivers not to interact with complex application flows while actively operating a vehicle.
+• **SR-02: Emergency Communication Protocol:** The system should provide an integrated distress or trouble-reporting mechanism within the Driver module to quickly alert administrators if a driver encounters an accident or unsafe condition on their route.
 
-### 3.4.5 Admin Module
-* **Dashboard Overview:** A centralized view showing total active orders, active drivers, and system health.
-* **User Management:** Create, edit, and suspend accounts for Pickers, Warehouse Staff, and Drivers.
-* **Order Oversight:** View detailed logs of any specific order, including timestamps and the personnel involved.
-* **Warehouse Management:** Define and manage geographic delivery zones and warehouse inventories.
-
-## 3.5 Performance Requirements
-* **Response Time:** The system should reflect status changes (e.g., from "Packed" to "Dispatched") across all connected client devices within 2 seconds using real-time WebSockets.
-* **Availability:** The core backend infrastructure should aim for 99.9% uptime to support continuous logistics operations.
-* **Capacity:** The database and real-time engine must support thousands of concurrent connections during peak ordering hours without degradation in performance.
-
-## 3.6 Design Constraints
-* **Mobile Battery Consumption:** The Driver application must optimize GPS polling to prevent excessive battery drain during long shifts.
-* **UI Clutter:** The Picker application must avoid complex menus, keeping the interface strictly focused on the checklist and scanning functions to maximize picking speed.
-
-## 3.7 Other Requirements
-* **Reliability:** Form validation must be strictly enforced on the frontend and backend to prevent malformed data (e.g., invalid GPS coordinates) from corrupting the delivery workflow.
-* **Portability:** The web applications must render correctly on modern browsers (Chrome, Safari, Edge, Firefox), and the mobile app should support recent versions of iOS and Android.
-* **Timeliness:** Data synchronization must happen instantaneously; stale data in a quick-commerce environment directly leads to failed deliveries.
-
-## 3.8 Safety Requirements
-* The system should provide an "Emergency / Trouble" button in the Driver module to quickly alert administrators if a driver encounters an accident or unsafe condition on their route.
-* Drivers should be prompted not to interact with the application while actively driving, promoting road safety.
-
-## 3.9 Security Requirements
-* **Data Encryption:** All data transmitted between the client and server must be encrypted using TLS/SSL protocols.
-* **Authentication:** Strong password policies and secure token-based authentication (JWT) managed via Supabase Auth.
-* **Authorization:** Strict Role-Based Access Control (RBAC) to ensure that a user can only access data relevant to their role (e.g., Pickers cannot view administrative financial reports).
-* **Privacy:** Customer addresses and contact information must be obfuscated or hidden from drivers once a delivery is completed to protect consumer privacy.
+## 3.9 Security Requirements (SEC)
+• **SEC-01: Cryptographic Credential Protection:** User credentials must never be stored in plaintext; passwords must be salted, hashed, and managed securely using robust encryption algorithms via the Supabase Auth provider.
+• **SEC-02: Transport Layer Security:** All data transmitted between the client and server must be strictly encrypted using TLS/SSL protocols to prevent man-in-the-middle attacks and data interception.
+• **SEC-03: Consumer Data Privacy:** Customer addresses and personal contact information must be obfuscated or hidden from drivers immediately once a delivery is marked as completed, strictly enforcing consumer privacy.
+• **SEC-04: Authorization Integrity:** Server-side Row Level Security (RLS) policies and middleware route guards must strictly validate user session permissions to ensure customers or staff cannot access administrative endpoints or manipulate unauthorized records.

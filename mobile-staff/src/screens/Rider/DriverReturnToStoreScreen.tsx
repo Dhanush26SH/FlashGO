@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -24,7 +23,6 @@ export default function DriverReturnToStoreScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [processing, setProcessing] = useState(false);
   const [errorState, setErrorState] = useState<string | null>(null);
-  const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -42,6 +40,7 @@ export default function DriverReturnToStoreScreen() {
         .select(`
           id, 
           warehouse_id, 
+          return_type,
           warehouses ( name, address, lat, lng )
         `)
         .eq('driver_id', user.id)
@@ -98,7 +97,7 @@ export default function DriverReturnToStoreScreen() {
         p_qr_token: data,
         p_lat: loc.coords.latitude,
         p_lng: loc.coords.longitude,
-        p_is_demo: isDemoMode
+        p_is_demo: false
       });
       
       if (error) throw error;
@@ -181,15 +180,6 @@ export default function DriverReturnToStoreScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Return to Store</Text>
-        <View style={styles.demoToggleWrapper}>
-          <Text style={styles.demoToggleLabel}>Demo</Text>
-          <Switch
-            value={isDemoMode}
-            onValueChange={setIsDemoMode}
-            trackColor={{ false: '#3f3f46', true: '#10b981' }}
-            thumbColor={isDemoMode ? '#fff' : '#a1a1aa'}
-          />
-        </View>
       </View>
 
       <View style={styles.content}>
@@ -234,7 +224,7 @@ export default function DriverReturnToStoreScreen() {
                   p_task_id: task.id,
                   p_lat: loc.coords.latitude,
                   p_lng: loc.coords.longitude,
-                  p_is_demo: isDemoMode
+                  p_is_demo: false
                 });
                 
                 if (error) throw error;

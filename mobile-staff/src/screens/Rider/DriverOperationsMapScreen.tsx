@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Swi
 import Svg, { Circle } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import { MapPin, Navigation, ExternalLink, ChevronLeft, AlertTriangle, HelpCircle, User, LogOut } from 'lucide-react-native';
+import { MapPin, Navigation, ExternalLink, ChevronLeft, AlertTriangle, User } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -474,48 +474,6 @@ export default function DriverOperationsMapScreen() {
     }
   };
 
-  const handleEndShift = () => {
-    Alert.alert(
-      'End Shift',
-      'Are you sure you want to end your current shift and go offline?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'End Shift', 
-          style: 'destructive',
-          onPress: async () => {
-            setUpdatingStatus(true);
-            try {
-              if (!location) throw new Error("Location required to end shift");
-              
-              const { data, error } = await supabase.rpc('end_driver_shift', {
-                p_lat: location.coords.latitude,
-                p_lng: location.coords.longitude
-              });
-
-              if (error) throw error;
-              if (!data.success) {
-                throw new Error(data.code || 'Failed to end shift');
-              }
-              
-              navigation.reset({ index: 0, routes: [{ name: 'DriverMainTabs' }] });
-            } catch (error) {
-              const err = error as any;
-              console.error('End Shift Error:', err);
-              if (err.message?.includes('ACTIVE_DELIVERY_IN_PROGRESS')) {
-                Alert.alert('Cannot end shift', 'You have an active delivery in progress.');
-              } else {
-                Alert.alert('Error', err.message);
-              }
-            } finally {
-              setUpdatingStatus(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
   const generateMapHTML = () => {
     if (!location) return '';
 
@@ -608,15 +566,6 @@ export default function DriverOperationsMapScreen() {
           />
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconCircle} onPress={handleEndShift} disabled={updatingStatus}>
-            <LogOut color="#ef4444" size={16} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconCircle}>
-            <AlertTriangle color="#f59e0b" size={16} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconCircle}>
-            <HelpCircle color="#9ca3af" size={16} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.profileCircle} onPress={() => navigation.navigate('Profile')}>
             <User color="#fff" size={18} />
           </TouchableOpacity>
@@ -940,16 +889,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(24, 24, 27, 0.9)',
-    borderWidth: 1,
-    borderColor: '#3f3f46',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   profileCircle: {
     width: 40,

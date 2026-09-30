@@ -404,13 +404,15 @@ export const ReturnsDispositionModule: React.FC = () => {
   const [currentRestockId, setCurrentRestockId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [processing, setProcessing] = useState(false);
+  const [selectedQueueDate, setSelectedQueueDate] = useState<Date>(new Date());
+  const [selectedQueueStatus, setSelectedQueueStatus] = useState<string>('all');
 
   const fetchQueue = async () => {
     try {
       if (!selectedWarehouseId) return;
       setLoading(true);
       setErrorState(null);
-      const data = await InventoryService.getUnpackQueue(selectedWarehouseId);
+      const data = await InventoryService.getUnpackQueue(selectedWarehouseId, selectedQueueDate, selectedQueueStatus);
       setQueue(data || []);
     } catch (e: any) {
       addToast(e.message, 'error');
@@ -434,7 +436,7 @@ export const ReturnsDispositionModule: React.FC = () => {
       fetchQueue();
       InventoryService.getActiveLocations(selectedWarehouseId).then(setLocations).catch(console.error);
     }
-  }, [selectedWarehouseId]);
+  }, [selectedWarehouseId, selectedQueueDate, selectedQueueStatus]);
 
   useEffect(() => {
     if (!supabase || !selectedWarehouseId) return;
@@ -495,6 +497,42 @@ export const ReturnsDispositionModule: React.FC = () => {
           <AlertTriangle color="var(--primary)" /> Returns & Disposition Queue
         </h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '4px', backgroundColor: 'var(--bg-base)' }}>
+            <button
+              onClick={() => {
+                const prev = new Date(selectedQueueDate);
+                prev.setDate(prev.getDate() - 1);
+                setSelectedQueueDate(prev);
+              }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 8px' }}
+            >
+              &lt;
+            </button>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, minWidth: '90px', textAlign: 'center' }}>
+              {selectedQueueDate.toLocaleDateString()}
+            </span>
+            <button
+              onClick={() => {
+                const next = new Date(selectedQueueDate);
+                next.setDate(next.getDate() + 1);
+                setSelectedQueueDate(next);
+              }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 8px' }}
+            >
+              &gt;
+            </button>
+          </div>
+          <select
+            value={selectedQueueStatus}
+            onChange={e => setSelectedQueueStatus(e.target.value)}
+            style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="restocked">Restocked</option>
+            <option value="damaged">Damaged</option>
+            <option value="quarantine">Quarantine</option>
+          </select>
           <select 
             value={selectedWarehouseId} 
             onChange={e => setSelectedWarehouseId(e.target.value)}
@@ -522,13 +560,14 @@ export const ReturnsDispositionModule: React.FC = () => {
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Return ID</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Order ID</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Status</th>
+              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Processed At</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Action</th>
             </tr>
           </thead>
           <tbody>
             {errorState ? (
               <tr>
-                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
+                <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                     <AlertTriangle size={32} opacity={0.5} />
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Failed to load queue: {errorState}</span>
@@ -546,6 +585,9 @@ export const ReturnsDispositionModule: React.FC = () => {
                     <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: q.status === 'pending' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: q.status === 'pending' ? '#f59e0b' : '#10b981' }}>
                       {q.status.toUpperCase()}
                     </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {q.processed_at ? new Date(q.processed_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     {q.status === 'pending' && (
