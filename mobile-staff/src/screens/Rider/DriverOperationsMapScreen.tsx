@@ -23,6 +23,12 @@ export default function DriverOperationsMapScreen() {
   const [pendingTrip, setPendingTrip] = useState<any>(null);
   const [returnTask, setReturnTask] = useState<any>(null);
   
+  const [pendingCustomerReturn, setPendingCustomerReturn] = useState<any>(null);
+  const [isAcceptingCustomerReturn, setIsAcceptingCustomerReturn] = useState(false);
+  const [isDecliningCustomerReturn, setIsDecliningCustomerReturn] = useState(false);
+  const customerReturnSlideAnim = useState(new Animated.Value(300))[0];
+  const returnsChannelRef = useRef<any>(null);
+
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -171,6 +177,37 @@ export default function DriverOperationsMapScreen() {
       setLoading(false);
     }
   }, [profile?.id, navigation, performShiftExpiry, scheduleExpiryTimer]);
+
+  const fetchCustomerReturns = useCallback(async () => {
+    if (!profile?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('customer_return_tasks')
+        .select('*, orders(id), customer_return_items(expected_quantity, order_items(product_name_snapshot, product_image_snapshot))')
+        .eq('assigned_driver_id', profile.id)
+        .in('status', ['offered', 'accepted', 'at_customer', 'picked_up'])
+        .maybeSingle();
+        
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching customer returns:', error);
+      }
+      
+      if (data) {
+        setPendingCustomerReturn(data);
+        if (data.status === 'offered') {
+           Animated.timing(customerReturnSlideAnim, { toValue: 0, duration: 400, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }).start();
+        } else {
+           Animated.timing(customerReturnSlideAnim, { toValue: 300, duration: 300, useNativeDriver: true }).start();
+        }
+      } else {
+        Animated.timing(customerReturnSlideAnim, { toValue: 300, duration: 300, useNativeDriver: true }).start(() => {
+          setPendingCustomerReturn(null);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [profile?.id, customerReturnSlideAnim]);
 
   const fetchLocation = async () => {
     try {
@@ -372,11 +409,41 @@ export default function DriverOperationsMapScreen() {
     }
   }, [profile?.id]);
 
+  useEffect(() => {
+    if (!isFocused) return;
+    fetchCustomerReturns();
+    if (profile?.id) {
+      if (returnsChannelRef.current) {
+        supabase.removeChannel(returnsChannelRef.current);
+        returnsChannelRef.current = null;
+      }
+
+      const uniqueName = `driver_returns_feed_${profile.id}_${Date.now()}_${Math.random()}`;
+      const channel = supabase.channel(uniqueName)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'customer_return_tasks', filter: `assigned_driver_id=eq.${profile.id}` },
+          () => fetchCustomerReturns()
+        );
+        
+      channel.subscribe();
+      returnsChannelRef.current = channel;
+
+      return () => { 
+        if (returnsChannelRef.current) {
+          supabase.removeChannel(returnsChannelRef.current);
+          returnsChannelRef.current = null;
+        }
+      };
+    }
+  }, [profile?.id, fetchCustomerReturns, isFocused]);
+
   // Focus-based refresh and cleanup
   useEffect(() => {
     if (isFocused) {
       fetchActiveSession();
       fetchTrips();
+      fetchCustomerReturns();
     } else {
       // Clear timers when losing focus
       if (expiryTimerRef.current) {
@@ -393,6 +460,7 @@ export default function DriverOperationsMapScreen() {
         // Authoritative refresh on resume
         fetchActiveSession();
         fetchTrips();
+        fetchCustomerReturns();
       }
     });
     return () => subscription.remove();
@@ -471,6 +539,44 @@ export default function DriverOperationsMapScreen() {
       }
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleAcceptCustomerReturn = async () => {
+    if (isAcceptingCustomerReturn || !pendingCustomerReturn) return;
+    setIsAcceptingCustomerReturn(true);
+    try {
+      const { error } = await supabase.rpc('driver_accept_customer_return', {
+        p_task_id: pendingCustomerReturn.id
+      });
+      if (error) throw error;
+      await fetchCustomerReturns();
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert('Failed to accept Return Order', err.message);
+      await fetchCustomerReturns();
+    } finally {
+      setIsAcceptingCustomerReturn(false);
+    }
+  };
+
+  const handleDeclineCustomerReturn = async () => {
+    if (isDecliningCustomerReturn || !pendingCustomerReturn) return;
+    setIsDecliningCustomerReturn(true);
+    try {
+      const { error } = await supabase.rpc('driver_decline_customer_return', {
+        p_task_id: pendingCustomerReturn.id
+      });
+      if (error) throw error;
+      Animated.timing(customerReturnSlideAnim, { toValue: 300, duration: 300, useNativeDriver: true }).start(() => {
+        setPendingCustomerReturn(null);
+      });
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert('Failed to decline Return Order', err.message);
+      await fetchCustomerReturns();
+    } finally {
+      setIsDecliningCustomerReturn(false);
     }
   };
 
@@ -730,6 +836,82 @@ export default function DriverOperationsMapScreen() {
                 <Text style={styles.acceptBtnText}>Accept order →</Text>
               )}
             </TouchableOpacity>
+          </Animated.View>
+        ) : null}
+
+        {/* Customer Return Layer */}
+        {pendingCustomerReturn && ['accepted', 'at_customer', 'picked_up'].includes(pendingCustomerReturn.status) ? (
+          <TouchableOpacity 
+            style={[styles.tripBanner, { backgroundColor: '#8b5cf6', marginTop: 12 }]}
+            onPress={() => navigation.navigate('CustomerReturnPickupScreen', { taskId: pendingCustomerReturn.id })}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={styles.tripIconBg}>
+                 <Text style={{fontSize: 16}}>↩️</Text>
+              </View>
+              <View>
+                <Text style={styles.tripTitle}>
+                  {pendingCustomerReturn.status === 'picked_up' ? 'Return Order Collected' : 'Return Order Accepted'}
+                </Text>
+                <Text style={styles.tripStore}>
+                  {pendingCustomerReturn.status === 'picked_up' ? 'Ready for store handover' : 'Customer pickup ready'}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        ) : pendingCustomerReturn && pendingCustomerReturn.status === 'offered' ? (
+          <Animated.View style={[styles.offerSheet, { transform: [{ translateY: customerReturnSlideAnim }], marginTop: 12, borderColor: '#8b5cf6', borderWidth: 1 }]}>
+            <View style={styles.offerHeader}>
+              <Text style={[styles.offerNewText, { color: '#8b5cf6' }]}>RETURN ORDER</Text>
+              <Text style={styles.offerOrderId}>ORDER ID</Text>
+              <Text style={styles.offerOrderIdValue}>{pendingCustomerReturn.orders?.id?.slice(0,8).toUpperCase()}</Text>
+            </View>
+            
+            <View style={styles.offerDetails}>
+              <View style={styles.offerDetailRow}>
+                 <AlertTriangle color="#f59e0b" size={16} style={{marginRight: 12}} />
+                 <View>
+                   <Text style={styles.offerDetailLabel}>Reason</Text>
+                   <Text style={[styles.offerDetailValue, { color: '#f59e0b' }]}>{pendingCustomerReturn.reason}</Text>
+                 </View>
+              </View>
+              
+              <View style={{ marginTop: 8, padding: 12, backgroundColor: '#27272a', borderRadius: 8 }}>
+                <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 8 }}>ITEMS TO PICKUP</Text>
+                {pendingCustomerReturn.customer_return_items?.map((item: any, i: number) => (
+                  <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: '#fff', fontSize: 14 }}>{item.order_items?.product_name_snapshot}</Text>
+                    <Text style={{ color: '#10b981', fontSize: 14, fontWeight: 'bold' }}>×{item.expected_quantity}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <TouchableOpacity 
+                style={[styles.acceptBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#52525b' }, isDecliningCustomerReturn && {opacity: 0.7}]} 
+                onPress={handleDeclineCustomerReturn}
+                disabled={isDecliningCustomerReturn || isAcceptingCustomerReturn}
+              >
+                {isDecliningCustomerReturn ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={[styles.acceptBtnText, { color: '#a1a1aa' }]}>Decline</Text>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.acceptBtn, { flex: 2, backgroundColor: '#8b5cf6' }, isAcceptingCustomerReturn && {opacity: 0.7}]} 
+                onPress={handleAcceptCustomerReturn}
+                disabled={isDecliningCustomerReturn || isAcceptingCustomerReturn}
+              >
+                {isAcceptingCustomerReturn ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.acceptBtnText}>Accept Return</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         ) : null}
       </View>

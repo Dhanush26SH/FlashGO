@@ -9,8 +9,12 @@ type TabType = 'Picker' | 'Driver' | 'Warehouse Staff';
 type DateFilter = 'Today' | '7Days' | '30Days' | 'Custom';
 type WarehouseDuty = 'All Duties' | 'Inward / Receiving' | 'Putaway' | 'Auditor' | 'Expiry' | 'F&V';
 
-export const WorkforceActivity: React.FC = () => {
-  const { currentUser } = useApp();
+interface WorkforceActivityProps {
+  pendingCustomerReturnTaskId?: string;
+}
+
+export const WorkforceActivity: React.FC<WorkforceActivityProps> = ({ pendingCustomerReturnTaskId }) => {
+  const { currentUser, addToast } = useApp();
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
   
@@ -46,6 +50,10 @@ export const WorkforceActivity: React.FC = () => {
   
   const [liveStaff, setLiveStaff] = useState<any[]>([]);
   const [loadingLive, setLoadingLive] = useState(false);
+  const [pendingReturnTaskContext, setPendingReturnTaskContext] = useState<any>(null);
+  const [isAssigningReturn, setIsAssigningReturn] = useState(false);
+  const [discoveredPendingReturns, setDiscoveredPendingReturns] = useState<any[]>([]);
+  const [showPendingReturnSelector, setShowPendingReturnSelector] = useState(false);
 
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
@@ -110,6 +118,39 @@ export const WorkforceActivity: React.FC = () => {
     }
   };
 
+  const [confirmAssignDriver, setConfirmAssignDriver] = useState<any>(null);
+
+  const handleAssignReturn = (staff: any) => {
+    setConfirmAssignDriver(staff);
+  };
+
+  const commitAssignReturn = async () => {
+    if (!confirmAssignDriver || !pendingReturnTaskContext) return;
+    setIsAssigningReturn(true);
+    try {
+      const { error } = await supabase.rpc('admin_assign_customer_return_driver', {
+        p_task_id: pendingReturnTaskContext.id,
+        p_driver_id: confirmAssignDriver.id
+      });
+      if (error) throw error;
+      
+      addToast('Driver assigned successfully.', 'success');
+      setPendingReturnTaskContext(prev => ({
+        ...prev,
+        status: 'offered',
+        assigned_driver_id: confirmAssignDriver.id
+      }));
+      setConfirmAssignDriver(null);
+    } catch (e: any) {
+      console.error(e);
+      addToast(e.message || 'Driver is no longer available. Choose another online Driver.', 'error');
+      fetchLiveStaff(); // Refresh live status on race condition
+      setConfirmAssignDriver(null);
+    } finally {
+      setIsAssigningReturn(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, [activeTab, dateFilter, customStart, customEnd, workerSearch, warehouseDuty, selectedWarehouseId]);
@@ -132,8 +173,64 @@ export const WorkforceActivity: React.FC = () => {
   };
 
   const toggleExpand = (id: string) => {
-    setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
+    setExpandedItems((prev: any) => ({ ...prev, [id]: !prev[id] }));
   };
+
+  useEffect(() => {
+    if (pendingCustomerReturnTaskId) {
+      setActiveTab('Driver'); // Switch to Driver tab automatically
+      const loadPendingReturn = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('customer_return_tasks')
+            .select('*, orders(id, customer_name_snapshot), customer_return_items(expected_quantity, order_items(product_name_snapshot))')
+            .eq('id', pendingCustomerReturnTaskId)
+            .single();
+          if (error) throw error;
+          setPendingReturnTaskContext(data);
+          setDiscoveredPendingReturns([]);
+          setShowPendingReturnSelector(false);
+        } catch (e: any) {
+          console.error('Failed to load pending return task', e);
+          addToast('Failed to load pending return task context.', 'error');
+        }
+      };
+      loadPendingReturn();
+    } else if (activeTab === 'Driver' && selectedWarehouseId) {
+      const loadPendingReturnsForWarehouse = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('customer_return_tasks')
+            .select('*, orders(id, customer_name_snapshot), customer_return_items(expected_quantity, order_items(product_name_snapshot))')
+            .eq('warehouse_id', selectedWarehouseId)
+            .eq('status', 'awaiting_assignment');
+          if (error) throw error;
+          
+          if (data && data.length === 1) {
+            setPendingReturnTaskContext(data[0]);
+            setDiscoveredPendingReturns([]);
+            setShowPendingReturnSelector(false);
+          } else if (data && data.length > 1) {
+            setPendingReturnTaskContext(null);
+            setDiscoveredPendingReturns(data);
+            setShowPendingReturnSelector(true);
+          } else {
+            setPendingReturnTaskContext(null);
+            setDiscoveredPendingReturns([]);
+            setShowPendingReturnSelector(false);
+          }
+        } catch (e: any) {
+          console.error('Failed to load pending returns for warehouse', e);
+        }
+      };
+      loadPendingReturnsForWarehouse();
+    } else {
+      setPendingReturnTaskContext(null);
+      setDiscoveredPendingReturns([]);
+      setShowPendingReturnSelector(false);
+    }
+  }, [pendingCustomerReturnTaskId, activeTab, selectedWarehouseId, addToast]);
+
 
   const getDates = () => {
     const end = new Date();
@@ -732,6 +829,50 @@ export const WorkforceActivity: React.FC = () => {
           </div>
         </div>
         
+        {showPendingReturnSelector && activeTab === 'Driver' && !pendingReturnTaskContext && discoveredPendingReturns.length > 1 && (
+          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+            <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Package size={16} /> PENDING RETURN ORDERS ({discoveredPendingReturns.length})
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {discoveredPendingReturns.map(task => (
+                <div key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--border-light)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>Order #{task.orders?.id.toUpperCase().slice(-6)}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{task.reason}</div>
+                  </div>
+                  <button 
+                    onClick={() => { setPendingReturnTaskContext(task); setShowPendingReturnSelector(false); }}
+                    style={{ padding: '6px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                  >
+                    Select for Assignment
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {pendingReturnTaskContext && activeTab === 'Driver' && (
+          <div style={{ backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+            <h4 style={{ margin: '0 0 8px 0', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Package size={16} /> RETURN ORDER ASSIGNMENT
+            </h4>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              <strong>Order #{pendingReturnTaskContext.orders?.id.toUpperCase().slice(-6)}</strong> — {pendingReturnTaskContext.reason}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+              {pendingReturnTaskContext.customer_return_items?.map((item: any, i: number) => (
+                <div key={i}>{item.order_items?.product_name_snapshot} ×{item.expected_quantity}</div>
+              ))}
+            </div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+              Status: <span style={{ color: pendingReturnTaskContext.status === 'awaiting_assignment' ? '#f59e0b' : '#10b981' }}>{pendingReturnTaskContext.status.replace('_', ' ').toUpperCase()}</span>
+              {pendingReturnTaskContext.assigned_driver_id && <span> (Assigned Driver ID: {pendingReturnTaskContext.assigned_driver_id.slice(-6)})</span>}
+            </div>
+          </div>
+        )}
+
         {loadingLive ? (
           <div className="live-staff-loading"><Clock size={16} className="spin"/> Loading live status...</div>
         ) : validLiveStaff.length === 0 ? (
@@ -741,9 +882,12 @@ export const WorkforceActivity: React.FC = () => {
             <table className="live-staff-table">
               <thead>
                 <tr>
-                  <th style={{ width: '60%' }}>STAFF</th>
+                  <th style={{ width: '40%' }}>STAFF</th>
                   <th style={{ width: '20%' }}>EMPLOYEE ID</th>
                   <th style={{ width: '20%', textAlign: 'right' }}>STATUS</th>
+                  {activeTab === 'Driver' && pendingReturnTaskContext && pendingReturnTaskContext.status === 'awaiting_assignment' && (
+                    <th style={{ width: '20%', textAlign: 'right' }}>ACTION</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -768,6 +912,23 @@ export const WorkforceActivity: React.FC = () => {
                         {staff.is_online ? 'ONLINE' : 'OFFLINE'}
                       </div>
                     </td>
+                    {activeTab === 'Driver' && pendingReturnTaskContext && pendingReturnTaskContext.status === 'awaiting_assignment' && (
+                      <td style={{ textAlign: 'right' }}>
+                        <button 
+                          onClick={() => handleAssignReturn(staff)}
+                          disabled={!staff.is_online || isAssigningReturn}
+                          style={{
+                            padding: '6px 12px', borderRadius: '4px', border: 'none',
+                            backgroundColor: staff.is_online ? 'var(--primary)' : 'var(--border-light)',
+                            color: staff.is_online ? 'white' : 'var(--text-muted)',
+                            cursor: (staff.is_online && !isAssigningReturn) ? 'pointer' : 'not-allowed',
+                            fontSize: '0.75rem', fontWeight: 600
+                          }}
+                        >
+                          {isAssigningReturn ? '...' : 'Return Order'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -912,6 +1073,48 @@ export const WorkforceActivity: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Return Assignment Confirmation Modal */}
+      {confirmAssignDriver && pendingReturnTaskContext && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'var(--bg-base)', borderRadius: '12px', width: '400px', padding: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-primary)' }}>Assign Return Order</h3>
+            
+            <div style={{ backgroundColor: 'var(--bg-surface)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem' }}>
+              <div style={{ fontWeight: 600 }}>Order #{pendingReturnTaskContext.orders?.id.toUpperCase().slice(-6)}</div>
+              <div style={{ color: 'var(--text-secondary)' }}>{pendingReturnTaskContext.reason}</div>
+              <div style={{ marginTop: '8px', fontSize: '0.8rem' }}>
+                {pendingReturnTaskContext.customer_return_items?.map((item: any, i: number) => (
+                  <div key={i}>{item.order_items?.product_name_snapshot} ×{item.expected_quantity}</div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px', fontSize: '0.9rem' }}>
+              Assign to driver:<br/>
+              <strong>{confirmAssignDriver.full_name}</strong>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => setConfirmAssignDriver(null)}
+                disabled={isAssigningReturn}
+                style={{ padding: '8px 16px', borderRadius: '6px', background: 'transparent', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={commitAssignReturn}
+                disabled={isAssigningReturn}
+                style={{ padding: '8px 16px', borderRadius: '6px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: 600, cursor: isAssigningReturn ? 'not-allowed' : 'pointer' }}
+              >
+                {isAssigningReturn ? 'Assigning...' : 'Assign Return Order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 };

@@ -39,11 +39,13 @@ import DriverReachDropScreen from '../screens/Rider/DriverReachDropScreen';
 import DriverDropOrderScreen from '../screens/Rider/DriverDropOrderScreen';
 import DriverDeliveryCompleteScreen from '../screens/Rider/DriverDeliveryCompleteScreen';
 import DriverReturnToStoreScreen from '../screens/Rider/DriverReturnToStoreScreen';
+import CustomerReturnPickupScreen from '../screens/Rider/CustomerReturnPickupScreen';
 import DeliveryHistoryScreen from '../screens/Rider/DeliveryHistoryScreen';
 import WarehouseStaffQRScreen from '../screens/Warehouse/WarehouseStaffQRScreen';
 import WarehouseReturnQRScannerScreen from '../screens/Warehouse/WarehouseReturnQRScannerScreen';
 import ReturnIntakeSummaryScreen from '../screens/Warehouse/ReturnIntakeSummaryScreen';
 import ReturnItemScannerScreen from '../screens/Warehouse/ReturnItemScannerScreen';
+import CustomerReturnIntakePreviewScreen from '../screens/Warehouse/CustomerReturnIntakePreviewScreen';
 import DriverReturnHandoverScreen from '../screens/Rider/DriverReturnHandoverScreen';
 import OnboardingBankDetailsScreen from '../screens/Auth/OnboardingBankDetailsScreen';
 import StaffSupportListScreen from '../screens/Shared/StaffSupportListScreen';
@@ -102,6 +104,7 @@ export default function AppNavigator() {
             <Stack.Screen name="DriverDropOrderScreen" component={DriverDropOrderScreen} />
             <Stack.Screen name="DriverDeliveryCompleteScreen" component={DriverDeliveryCompleteScreen} />
             <Stack.Screen name="DriverReturnToStoreScreen" component={DriverReturnToStoreScreen} />
+            <Stack.Screen name="CustomerReturnPickupScreen" component={CustomerReturnPickupScreen} />
             <Stack.Screen name="DriverReturnHandoverScreen" component={DriverReturnHandoverScreen} />
             <Stack.Screen name="NavigationScreen" component={NavigationScreen} />
             <Stack.Screen name="VehicleType" component={require('../screens/DriverOnboarding/UpdateVehicleDetailsScreen').default} />
@@ -120,6 +123,7 @@ export default function AppNavigator() {
             <Stack.Screen name="WarehouseStaffQRScreen" component={WarehouseStaffQRScreen} />
             <Stack.Screen name="WarehouseReturnQRScannerScreen" component={WarehouseReturnQRScannerScreen} />
             <Stack.Screen name="ReturnIntakeSummaryScreen" component={ReturnIntakeSummaryScreen} />
+            <Stack.Screen name="CustomerReturnIntakePreviewScreen" component={CustomerReturnIntakePreviewScreen} />
             <Stack.Screen name="ReturnItemScannerScreen" component={ReturnItemScannerScreen} />
             <Stack.Screen name="Scanner" component={ScannerScreen} />
             <Stack.Screen name="Troubleshoot" component={TroubleshootScreen} />

@@ -13,6 +13,9 @@ export default function ActiveOrderBanner() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     if (!sessionUser?.id) {
       setLoading(false);
       return;
@@ -20,21 +23,43 @@ export default function ActiveOrderBanner() {
     
     fetchActiveOrder();
 
-    // Subscribe to changes in active orders
-    const sub = supabase
-      .channel('public:orders')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'orders',
-        filter: `customer_id=eq.${sessionUser.id}`
-      }, () => {
-        fetchActiveOrder();
-      })
-      .subscribe();
+    const setupChannel = async () => {
+      try {
+        const channelName = `active-order-banner:${sessionUser.id}`;
+        
+        // Defensively wait for any lingering channel from a fast unmount to clear
+        const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+        if (existing) {
+          await supabase.removeChannel(existing);
+        }
+        
+        if (!isMounted) return;
+
+        channel = supabase
+          .channel(channelName)
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'orders',
+            filter: `customer_id=eq.${sessionUser.id}`
+          }, () => {
+            fetchActiveOrder();
+          })
+          .subscribe();
+      } catch (err) {
+        console.error('ActiveOrderBanner channel setup error:', err);
+      }
+    };
+
+    setupChannel();
 
     return () => {
-      sub.unsubscribe();
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel).catch(err => {
+          console.error('ActiveOrderBanner channel cleanup error:', err);
+        });
+      }
     };
   }, [sessionUser?.id]);
 

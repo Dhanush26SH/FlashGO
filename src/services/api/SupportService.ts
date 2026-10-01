@@ -6,6 +6,8 @@ export interface SupportTicketMessage {
   sender_id: string;
   message: string;
   created_at: string;
+  media_path?: string | null;
+  media_type?: string | null;
 }
 
 export interface SupportTicket {

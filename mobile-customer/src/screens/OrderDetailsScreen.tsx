@@ -1,12 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ArrowLeft, Package, RotateCcw, FileText, AlertCircle, RefreshCw } from 'lucide-react-native';
 import { theme } from '../theme';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useMobileAppContext } from '../context/MobileAppContext';
-import { cancelOrder } from '../services/api';
+import { cancelOrder, createSupportTicket } from '../services/api';
+import { supabase } from '../lib/supabase';
 
 type OrderDetailsRouteProp = RouteProp<RootStackParamList, 'OrderDetails'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -15,7 +16,48 @@ export default function OrderDetailsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<OrderDetailsRouteProp>();
   const { order } = route.params;
-  const { updateCart } = useMobileAppContext();
+  const { updateCart, sessionUser } = useMobileAppContext();
+  const [showIssueModal, React_useState] = React.useState(false);
+  const [creatingTicket, setCreatingTicket] = React.useState(false);
+  const issueSubmitRef = React.useRef(false);
+
+  const ISSUE_OPTIONS = [
+    { label: 'Damaged item', category: 'Damaged Item' },
+    { label: 'Wrong item', category: 'Wrong Item' },
+    { label: 'Missing item', category: 'Missing Item' },
+    { label: 'Quality issue', category: 'Quality Issue' },
+    { label: 'Other', category: 'Other' }
+  ];
+
+  const handleSubmitIssue = async (category: string) => {
+    if (issueSubmitRef.current) return;
+    
+    if (!sessionUser?.id) {
+      Alert.alert('Error', 'You must be logged in to report an issue.');
+      return;
+    }
+
+    issueSubmitRef.current = true;
+    try {
+      setCreatingTicket(true);
+      const t = await createSupportTicket({
+        customer_id: sessionUser.id,
+        related_order_id: order.id,
+        subject: `Order #${order.id.split('-')[0].toUpperCase()} - ${category}`,
+        description: `Customer reported: ${category}`,
+        category: category,
+        priority: 'high',
+        status: 'open',
+      });
+      React_useState(false); // hide modal
+      navigation.navigate('SupportStack' as any, { activeTicketId: t.id });
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setCreatingTicket(false);
+      issueSubmitRef.current = false;
+    }
+  };
 
   const handleReorder = () => {
     order.order_items.forEach((item: any) => {
@@ -49,8 +91,7 @@ export default function OrderDetailsScreen() {
   };
 
   const handleReportIssue = () => {
-    Alert.alert('Report Issue', 'Please contact support with order ID: ' + order.id);
-    navigation.navigate('MainTabs', { screen: 'Support' } as any);
+    React_useState(true);
   };
 
   return (
@@ -62,6 +103,37 @@ export default function OrderDetailsScreen() {
         <Text style={styles.headerTitle}>Order Details</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      <Modal visible={showIssueModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: theme.colors.background, padding: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: theme.colors.text }}>Report an Issue</Text>
+            
+            {ISSUE_OPTIONS.map(opt => (
+              <TouchableOpacity 
+                key={opt.category} 
+                style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}
+                onPress={() => handleSubmitIssue(opt.category)}
+                disabled={creatingTicket}
+              >
+                <Text style={{ fontSize: 16, color: theme.colors.text }}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            <TouchableOpacity 
+              style={{ padding: 16, marginTop: 8, alignItems: 'center' }}
+              onPress={() => React_useState(false)}
+              disabled={creatingTicket}
+            >
+              {creatingTicket ? (
+                <ActivityIndicator color={theme.colors.primary} />
+              ) : (
+                <Text style={{ fontSize: 16, color: theme.colors.danger, fontWeight: '600' }}>Cancel</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView style={styles.content}>
         <View style={styles.section}>

@@ -9,13 +9,26 @@ import { supabase } from '../../../services/api/supabaseClient';
 import type { Profile } from '../../../types';
 import { Search, Filter, User, Truck, XCircle, RefreshCw, FileText, CheckCircle, MapPin, ShieldAlert, ChevronDown } from 'lucide-react';
 import { DataTable } from '../../../components/Admin/DataTable';
+interface OrderManagementProps {
+  pendingOrderId?: string;
+  pendingSupportTicketId?: string;
+  onOrderOpened?: () => void;
+}
 
-export const OrderManagement: React.FC = () => {
+export const OrderManagement: React.FC<OrderManagementProps> = ({ pendingOrderId, pendingSupportTicketId, onOrderOpened }) => {
   const { orders, refreshData, addToast, isLoadingData, dataLoadError, profiles, substitutions, logisticsTrips } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  
+  // Return Modal State
+  const [returnOrderMode, setReturnOrderMode] = useState<Order | null>(null);
+  const [returnItems, setReturnItems] = useState<Record<string, number>>({});
+  const [returnReason, setReturnReason] = useState<string>('');
+  const [isCreatingReturn, setIsCreatingReturn] = useState(false);
+  const [returnQuantitiesCache, setReturnQuantitiesCache] = useState<Record<string, number>>({});
+  const [activeSupportTicketId, setActiveSupportTicketId] = useState<string | undefined>();
   
   // COD Settlement State
   const [codSettleOrder, setCodSettleOrder] = useState<Order | null>(null);
@@ -37,6 +50,17 @@ export const OrderManagement: React.FC = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [refreshData]);
+
+  // Handle deterministic targeted navigation
+  useEffect(() => {
+    if (pendingOrderId && orders.length > 0) {
+      setSearchQuery('');
+      setStatusFilter('all');
+      setSelectedOrderId(pendingOrderId);
+      if (pendingSupportTicketId) setActiveSupportTicketId(pendingSupportTicketId);
+      if (onOrderOpened) onOrderOpened();
+    }
+  }, [pendingOrderId, pendingSupportTicketId, orders, onOrderOpened]);
 
   // Invoice generation display state
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
@@ -121,6 +145,61 @@ export const OrderManagement: React.FC = () => {
         console.error(e);
         addToast(e.message || 'Error processing cancellation and refund', 'error');
       }
+    }
+  };
+
+  const openReturnModal = async (order: Order) => {
+    setReturnOrderMode(order);
+    setReturnItems({});
+    setReturnReason(activeSupportTicketId ? 'Damaged Item (Support)' : 'Damaged Item');
+    setReturnQuantitiesCache({});
+    try {
+      const qtys = await OrdersService.getReturnableQuantities(order.id);
+      setReturnQuantitiesCache(qtys);
+    } catch (e: any) {
+      addToast('Failed to load returnable quantities', 'error');
+    }
+  };
+
+  const handleCreateCustomerReturn = async () => {
+    if (!returnOrderMode || isCreatingReturn) return;
+    
+    const itemsPayload = Object.entries(returnItems)
+      .filter(([id, qty]) => qty > 0)
+      .map(([id, qty]) => ({ order_item_id: id, quantity: qty }));
+
+    if (itemsPayload.length === 0) {
+      addToast('Please select at least one item to return.', 'error');
+      return;
+    }
+
+    setIsCreatingReturn(true);
+    try {
+      const taskId = await OrdersService.adminCreateCustomerReturn(
+        returnOrderMode.id,
+        returnReason,
+        activeSupportTicketId || null,
+        itemsPayload
+      );
+      addToast('Customer Return task created successfully.', 'success');
+      setReturnOrderMode(null);
+      refreshData();
+      
+      // Navigate to Workforce Activity -> Driver tab for assignment
+      window.dispatchEvent(
+        new CustomEvent('NAVIGATE_ADMIN_TAB', { 
+          detail: { tab: 'workforce_history', customerReturnTaskId: taskId } 
+        })
+      );
+    } catch (e: any) {
+      addToast(e.message || 'Failed to create return', 'error');
+      // Refresh quantities in case of race condition
+      try {
+        const qtys = await OrdersService.getReturnableQuantities(returnOrderMode.id);
+        setReturnQuantitiesCache(qtys);
+      } catch (err) {}
+    } finally {
+      setIsCreatingReturn(false);
     }
   };
 
@@ -408,8 +487,13 @@ export const OrderManagement: React.FC = () => {
               )}
 
               {/* Cancel dispute buttons row */}
-              <div className="footer-btn-row">
-                <button onClick={() => handleCancelAndRefund(selectedOrder.id)} className="cancel-order-btn">
+              <div className="footer-btn-row" style={{ display: 'flex', gap: '8px' }}>
+                {selectedOrder.status === 'delivered' && (
+                  <button onClick={() => openReturnModal(selectedOrder)} className="cancel-order-btn" style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', flex: 1 }}>
+                    <RefreshCw size={14} /> Create Return Order
+                  </button>
+                )}
+                <button onClick={() => handleCancelAndRefund(selectedOrder.id)} className="cancel-order-btn" style={{ flex: 1 }}>
                   <XCircle size={14} /> Cancel & Refund Wallet
                 </button>
               </div>
@@ -538,10 +622,105 @@ export const OrderManagement: React.FC = () => {
         </div>
       )}
 
+      {/* Customer Return Order Modal */}
+      {returnOrderMode && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'var(--bg-base)', borderRadius: '12px', width: '500px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <RefreshCw size={18} color="var(--primary)" />
+                Create Return Order
+              </h3>
+              <button onClick={() => setReturnOrderMode(null)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>✕</button>
+            </div>
+            
+            <div style={{ padding: '20px', overflowY: 'auto' }}>
+              <div style={{ marginBottom: '16px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                <strong>Order:</strong> #{returnOrderMode.id.toUpperCase().slice(-6)}
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-secondary)' }}>Return Reason / Context</label>
+                <input 
+                  value={returnReason} 
+                  onChange={e => setReturnReason(e.target.value)} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+                />
+                {activeSupportTicketId && (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--primary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <ShieldAlert size={12} /> Linked to active support ticket
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Select Items to Return</div>
+              
+              {returnOrderMode.items?.map((item) => {
+                const maxQty = returnQuantitiesCache[item.id] || 0;
+                const isSelectable = maxQty > 0;
+                const selectedQty = returnItems[item.id] || 0;
+                
+                return (
+                  <div key={item.id} style={{ 
+                    display: 'flex', alignItems: 'center', padding: '12px', 
+                    border: '1px solid var(--border-light)', borderRadius: '8px', marginBottom: '8px',
+                    opacity: isSelectable ? 1 : 0.5, backgroundColor: selectedQty > 0 ? 'var(--primary-glow)' : 'transparent'
+                  }}>
+                    {item.product_image_snapshot && (
+                      <img src={item.product_image_snapshot} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', marginRight: '12px' }} />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{item.product_name_snapshot || item.product?.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Delivered: {item.quantity} | Returnable: {maxQty}
+                      </div>
+                    </div>
+                    
+                    {isSelectable ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button 
+                          onClick={() => setReturnItems(prev => ({ ...prev, [item.id]: Math.max(0, (prev[item.id] || 0) - 1) }))}
+                          style={{ width: 28, height: 28, borderRadius: 14, border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        >-</button>
+                        <span style={{ fontWeight: 'bold', width: '20px', textAlign: 'center' }}>{selectedQty}</span>
+                        <button 
+                          onClick={() => setReturnItems(prev => ({ ...prev, [item.id]: Math.min(maxQty, (prev[item.id] || 0) + 1) }))}
+                          style={{ width: 28, height: 28, borderRadius: 14, border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        >+</button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--accent-red)', fontWeight: 600 }}>Already Returned</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }}>
+              <button 
+                onClick={() => setReturnOrderMode(null)} 
+                disabled={isCreatingReturn}
+                style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: 'transparent', border: '1px solid var(--border-light)', color: 'var(--text-secondary)', cursor: isCreatingReturn ? 'not-allowed' : 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleCreateCustomerReturn} 
+                disabled={isCreatingReturn || Object.values(returnItems).every(q => q === 0)}
+                style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#f59e0b', color: 'white', border: 'none', fontWeight: 'bold', cursor: isCreatingReturn || Object.values(returnItems).every(q => q === 0) ? 'not-allowed' : 'pointer', opacity: (isCreatingReturn || Object.values(returnItems).every(q => q === 0)) ? 0.7 : 1 }}
+              >
+                {isCreatingReturn ? 'Creating...' : 'Create Return'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
     </div>
   );
 };
+
 
 // --- STYLING SPECIFICATIONS ---
 

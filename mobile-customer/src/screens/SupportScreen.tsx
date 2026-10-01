@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TextInput, FlatList, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { HeadphonesIcon, Plus, Send, ChevronLeft, MessageSquare, Clock, CheckCircle } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, TextInput, FlatList, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Modal } from 'react-native';
+import { HeadphonesIcon, Plus, Send, ChevronLeft, MessageSquare, Clock, CheckCircle, Paperclip, X } from 'lucide-react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { getSupportTickets, createSupportTicket, getSupportMessages, sendSupportMessage } from '../services/api';
 import { supabase } from '../lib/supabase';
 import { theme } from '../theme';
@@ -9,6 +10,8 @@ import { useMobileAppContext } from '../context/MobileAppContext';
 
 export default function SupportScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const activeTicketIdParam = route.params?.activeTicketId;
   const { sessionUser } = useMobileAppContext();
   const [tickets, setTickets] = useState<any[]>([]);
   const [activeTicket, setActiveTicket] = useState<any>(null);
@@ -16,8 +19,72 @@ export default function SupportScreen() {
   const [newMsg, setNewMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
+
+  const validateImage = async (uri: string) => {
+    try {
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      if (blob.size > 2097152) {
+        Alert.alert('File too large', 'The selected image exceeds the 2 MB limit. Please try another image.');
+        return false;
+      }
+    } catch (e) {
+      console.error('Validation error:', e);
+    }
+    return true;
+  };
+
+  const launchCamera = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') return Alert.alert('Permission denied', 'Camera access is required.');
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.5,
+    });
+    if (!result.canceled) {
+       const valid = await validateImage(result.assets[0].uri);
+       if (valid) setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  const launchGallery = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return Alert.alert('Permission denied', 'Gallery access is required.');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.5,
+    });
+    if (!result.canceled) {
+       const valid = await validateImage(result.assets[0].uri);
+       if (valid) setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  const handlePickImage = () => {
+    setShowAttachmentMenu(true);
+  };
+
+  useEffect(() => {
+    messages.forEach(async (m) => {
+      if (m.media_path && !signedUrls[m.media_path]) {
+        try {
+          const { data, error } = await supabase.storage.from('support_evidence').createSignedUrl(m.media_path, 3600);
+          if (data?.signedUrl) {
+            setSignedUrls(prev => ({ ...prev, [m.media_path]: data.signedUrl }));
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    });
+  }, [messages]);
 
   useEffect(() => {
     loadTickets();
@@ -46,6 +113,13 @@ export default function SupportScreen() {
       setLoading(true);
       const data = await getSupportTickets();
       setTickets(data);
+      if (activeTicketIdParam) {
+        const found = data.find((t: any) => t.id === activeTicketIdParam);
+        if (found) {
+          setActiveTicket(found);
+          navigation.setParams({ activeTicketId: undefined });
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -67,11 +141,33 @@ export default function SupportScreen() {
   };
 
   const handleSend = async () => {
-    if (!newMsg.trim() || !activeTicket) return;
+    if ((!newMsg.trim() && !selectedImage) || !activeTicket) return;
     try {
       setSending(true);
-      await sendSupportMessage({ ticket_id: activeTicket.id, message: newMsg, sender_id: sessionUser?.id });
+      let mediaPath = undefined;
+      
+      if (selectedImage) {
+        const ext = selectedImage.split('.').pop() || 'jpg';
+        const filename = `${sessionUser?.id}/${activeTicket.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        
+        const resp = await fetch(selectedImage);
+        const blob = await resp.blob();
+        const { data, error: uploadErr } = await supabase.storage.from('support_evidence').upload(filename, blob);
+        
+        if (uploadErr) throw new Error('Failed to upload image: ' + uploadErr.message);
+        mediaPath = filename;
+      }
+      
+      await sendSupportMessage({ 
+        ticket_id: activeTicket.id, 
+        message: newMsg.trim() || '', 
+        sender_id: sessionUser?.id,
+        media_path: mediaPath,
+        media_type: mediaPath ? 'image' : undefined
+      });
+      
       setNewMsg('');
+      setSelectedImage(null);
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
@@ -120,6 +216,24 @@ export default function SupportScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
+        <Modal visible={showAttachmentMenu} transparent animationType="fade">
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowAttachmentMenu(false)} activeOpacity={1}>
+            <View style={{ width: '80%', backgroundColor: theme.colors.surface, borderRadius: 12, overflow: 'hidden' }}>
+              <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
+                <Text style={{ fontSize: 18, fontWeight: '600', color: theme.colors.text }}>Attach Evidence</Text>
+              </View>
+              <TouchableOpacity style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border }} onPress={launchCamera}>
+                <Text style={{ fontSize: 16, color: theme.colors.primary }}>Take Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border }} onPress={launchGallery}>
+                <Text style={{ fontSize: 16, color: theme.colors.primary }}>Choose from Gallery</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ padding: 16 }} onPress={() => setShowAttachmentMenu(false)}>
+                <Text style={{ fontSize: 16, color: theme.colors.danger, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backIconBtn} onPress={() => setActiveTicket(null)}>
             <ChevronLeft size={24} color={theme.colors.text} />
@@ -130,6 +244,17 @@ export default function SupportScreen() {
           </View>
           <View style={{ width: 24 }} />
         </View>
+
+        {activeTicket.related_order_id && (
+          <View style={{ padding: 12, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.colors.text }}>
+              Order #{activeTicket.related_order_id.split('-')[0].toUpperCase()}
+            </Text>
+            <Text style={{ fontSize: 12, color: theme.colors.textMuted }}>
+              Related to this support ticket
+            </Text>
+          </View>
+        )}
 
         {loading ? (
           <View style={styles.centerBox}>
@@ -150,7 +275,15 @@ export default function SupportScreen() {
                     <Text style={{ fontSize: 10, color: theme.colors.textMuted, marginBottom: 4, fontWeight: '600' }}>FlashGO Support</Text>
                   )}
                   <View style={[styles.msgBubble, isCustomer ? styles.msgCustomer : styles.msgAdmin]}>
-                    <Text style={[styles.msgText, isCustomer && { color: theme.colors.surface }]}>{item.message}</Text>
+                    {item.media_path && signedUrls[item.media_path] && (
+                      <Image 
+                        source={{ uri: signedUrls[item.media_path] }} 
+                        style={{ width: 200, height: 200, borderRadius: 8, marginBottom: item.message ? 8 : 0 }} 
+                      />
+                    )}
+                    {item.message ? (
+                      <Text style={[styles.msgText, isCustomer && { color: theme.colors.surface }]}>{item.message}</Text>
+                    ) : null}
                   </View>
                   <Text style={styles.msgTime}>
                     {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -168,7 +301,20 @@ export default function SupportScreen() {
           />
         )}
 
+        {selectedImage && activeTicket.status !== 'resolved' && (
+          <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface, flexDirection: 'row', alignItems: 'center' }}>
+            <Image source={{ uri: selectedImage }} style={{ width: 60, height: 60, borderRadius: 8 }} />
+            <TouchableOpacity onPress={() => setSelectedImage(null)} style={{ marginLeft: 12, backgroundColor: theme.colors.border, padding: 4, borderRadius: 16 }}>
+              <X size={16} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.inputArea}>
+          {activeTicket.status !== 'resolved' && (
+            <TouchableOpacity onPress={handlePickImage} style={{ marginRight: 8, padding: 8 }} disabled={sending}>
+              <Paperclip size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
+          )}
           <TextInput 
             style={styles.chatInput} 
             value={newMsg} 
@@ -178,9 +324,9 @@ export default function SupportScreen() {
             multiline
           />
           <TouchableOpacity 
-            style={[styles.sendBtn, (!newMsg.trim() || sending) && styles.sendBtnDisabled]} 
+            style={[styles.sendBtn, ((!newMsg.trim() && !selectedImage) || sending) && styles.sendBtnDisabled]} 
             onPress={handleSend}
-            disabled={!newMsg.trim() || sending}
+            disabled={(!newMsg.trim() && !selectedImage) || sending}
           >
             {sending ? (
               <ActivityIndicator size="small" color={theme.colors.surface} />

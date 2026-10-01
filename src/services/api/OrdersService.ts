@@ -221,4 +221,44 @@ export class OrdersService {
     if (rpcErr) throw rpcErr;
     return success;
   }
+
+  static async getReturnableQuantities(orderId: string): Promise<Record<string, number>> {
+    const { data: items, error: itemsErr } = await supabase.from('order_items').select('id, quantity').eq('order_id', orderId);
+    if (itemsErr) throw itemsErr;
+    
+    // Check inner join approach with customer_return_tasks to find active returns
+    const { data: activeTasks } = await supabase.from('customer_return_tasks').select('id').eq('order_id', orderId).not('status', 'in', '("declined","cancelled")');
+    const taskIds = activeTasks ? activeTasks.map(t => t.id) : [];
+    
+    let committed: any[] = [];
+    if (taskIds.length > 0) {
+      const { data: c } = await supabase.from('customer_return_items').select('order_item_id, expected_quantity').in('customer_return_task_id', taskIds);
+      if (c) committed = c;
+    }
+
+    const qtys: Record<string, number> = {};
+    for (const item of (items || [])) qtys[item.id] = item.quantity;
+
+    for (const c of committed) {
+      qtys[c.order_item_id] = (qtys[c.order_item_id] || 0) - c.expected_quantity;
+    }
+
+    return qtys;
+  }
+
+  static async adminCreateCustomerReturn(
+    orderId: string, 
+    reason: string, 
+    supportTicketId: string | null, 
+    items: { order_item_id: string, quantity: number }[]
+  ): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_create_customer_return', {
+      p_order_id: orderId,
+      p_reason: reason,
+      p_support_ticket_id: supportTicketId,
+      p_items: items
+    });
+    if (error) throw error;
+    return data;
+  }
 }

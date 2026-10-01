@@ -39,6 +39,27 @@ export const SupportSettings: React.FC = () => {
   const [refundDetails, setRefundDetails] = useState<any>(null);
   const [refundAmountInput, setRefundAmountInput] = useState('');
   const [refundQtyInput, setRefundQtyInput] = useState('');
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    messages.forEach(async (m) => {
+      if (m.media_type === 'image' && m.media_path && !signedUrls[m.media_path]) {
+        try {
+          const { supabase } = await import('../../../services/api/supabaseClient');
+          const { data, error } = await supabase.storage.from('support_evidence').createSignedUrl(m.media_path, 3600);
+          if (data?.signedUrl) {
+            setSignedUrls(prev => ({ ...prev, [m.media_path]: data.signedUrl }));
+          }
+        } catch (e) {
+          console.error('Failed to load signed URL', e);
+        }
+      }
+    });
+  }, [messages]);
+
+  useEffect(() => {
+    setSignedUrls({});
+  }, [selectedTicketId]);
 
   // Staff Support State
   const [staffTickets, setStaffTickets] = useState<StaffSupportTicket[]>([]);
@@ -219,7 +240,7 @@ export const SupportSettings: React.FC = () => {
 
   const handleViewOrder = (orderId: string) => {
     // Dispatch event to switch to orders tab in AdminView
-    window.dispatchEvent(new CustomEvent('NAVIGATE_ADMIN_TAB', { detail: 'orders' }));
+    window.dispatchEvent(new CustomEvent('NAVIGATE_ADMIN_TAB', { detail: { tab: 'orders', orderId } }));
   };
 
 
@@ -314,6 +335,11 @@ export const SupportSettings: React.FC = () => {
                     <div>
                       <h4 className="chat-user-title">{selectedTicket.customer_name}</h4>
                       <p className="chat-user-subtitle">Subject: {selectedTicket.subject}</p>
+                      {selectedTicket.related_order_id && (
+                        <p className="chat-user-subtitle" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                          Related Order: Order Desk #{selectedTicket.related_order_id.slice(-6).toUpperCase()}
+                        </p>
+                      )}
                     </div>
 
                     {selectedTicket.status !== 'resolved' ? (
@@ -391,7 +417,23 @@ export const SupportSettings: React.FC = () => {
                     {messages.map((m, idx) => (
                       <div key={idx} style={messageWrapperStyle(m.sender_id !== selectedTicket.customer_id)}>
                         <div style={messageBubbleStyle(m.sender_id !== selectedTicket.customer_id)}>
-                          <div className="message-text">{m.message}</div>
+                          {m.media_type === 'image' && m.media_path && (
+                            <div style={{ marginBottom: m.message ? '8px' : '0' }}>
+                              {signedUrls[m.media_path] ? (
+                                <img 
+                                  src={signedUrls[m.media_path]} 
+                                  alt="Customer Evidence" 
+                                  style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'zoom-in', objectFit: 'contain' }}
+                                  onClick={() => setFullscreenImage(signedUrls[m.media_path]!)}
+                                />
+                              ) : (
+                                <div style={{ padding: '20px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                  Loading evidence...
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {m.message ? <div className="message-text">{m.message}</div> : null}
                           <div className="message-time">{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       </div>

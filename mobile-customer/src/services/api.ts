@@ -394,7 +394,7 @@ export const getSupportMessages = async (ticketId: string) => {
   return data;
 };
 
-export const sendSupportMessage = async (payload: { ticket_id: string; sender_id: string; message: string; }) => {
+export const sendSupportMessage = async (payload: { ticket_id: string; sender_id: string; message: string; media_path?: string; media_type?: string; }) => {
   const { data, error } = await supabase
     .from('support_ticket_messages')
     .insert(payload)

@@ -54,6 +54,9 @@ export const AdminView: React.FC = () => {
   const { theme, toggleTheme, currentUser, logout } = useApp();
   
   const [showStoreQR, setShowStoreQR] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | undefined>();
+  const [pendingSupportTicketId, setPendingSupportTicketId] = useState<string | undefined>();
+  const [pendingCustomerReturnTaskId, setPendingCustomerReturnTaskId] = useState<string | undefined>();
   
   const [activeTab, setActiveTab] = useState<
     'overview' | 'orders' | 'catalog' | 'inventory' | 'drop_zones' | 'warehouse_tasks' | 'driver_approvals' | 'delivery' | 'profile' | 'procurement' | 'customers' | 'finance' | 'revenue_reports' | 'marketing' | 'settings' | 'analytics' | 'notifications' | 'fleet' | 'work_slots' | 'picker_offers' | 'workforce_history'
@@ -62,7 +65,14 @@ export const AdminView: React.FC = () => {
   React.useEffect(() => {
     const handleNav = (e: Event) => {
       const target = (e as CustomEvent).detail;
-      if (target) setActiveTab(target);
+      if (typeof target === 'string') {
+        setActiveTab(target as any);
+      } else if (target && typeof target === 'object') {
+        if (target.tab) setActiveTab(target.tab);
+        if (target.orderId) setPendingOrderId(target.orderId);
+        if (target.supportTicketId) setPendingSupportTicketId(target.supportTicketId);
+        if (target.customerReturnTaskId) setPendingCustomerReturnTaskId(target.customerReturnTaskId);
+      }
     };
     window.addEventListener('NAVIGATE_ADMIN_TAB', handleNav);
     return () => window.removeEventListener('NAVIGATE_ADMIN_TAB', handleNav);
@@ -135,7 +145,7 @@ export const AdminView: React.FC = () => {
       case 'overview':
         return <OverviewDashboard />;
       case 'orders':
-        return <OrderManagement />;
+        return <OrderManagement pendingOrderId={pendingOrderId} pendingSupportTicketId={pendingSupportTicketId} onOrderOpened={() => { setPendingOrderId(undefined); setPendingSupportTicketId(undefined); }} />;
       case 'delivery':
         return <DeliveryOperations />;
       case 'catalog':
@@ -148,7 +158,7 @@ export const AdminView: React.FC = () => {
         return <WarehouseTasks />;
 
       case 'workforce_history':
-        return <WorkforceActivity />;
+        return <WorkforceActivity pendingCustomerReturnTaskId={pendingCustomerReturnTaskId} />;
       case 'picker_offers':
         return <PickerOffersManagement />;
       case 'driver_approvals':

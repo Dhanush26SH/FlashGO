@@ -25,18 +25,30 @@ export default function WarehouseReturnQRScannerScreen() {
     setProcessing(true);
 
     try {
-      const { data: intakeId, error } = await supabase.rpc('staff_start_return_intake', {
-        p_raw_token: data
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (intakeId) {
-        navigation.replace('ReturnIntakeSummaryScreen', { intakeId });
+      if (data.startsWith('CUSTOMER_RETURN_HANDOVER:')) {
+        const { data: taskId, error } = await supabase.rpc('warehouse_staff_preview_customer_return_handover', {
+          p_payload: data
+        });
+        if (error) throw error;
+        if (taskId) {
+          navigation.replace('CustomerReturnIntakePreviewScreen', { taskId, rawToken: data });
+        } else {
+          throw new Error('Did not receive a valid task ID for preview');
+        }
       } else {
-         throw new Error("Did not receive a valid intake ID");
+        const { data: intakeId, error } = await supabase.rpc('staff_start_return_intake', {
+          p_raw_token: data
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (intakeId) {
+          navigation.replace('ReturnIntakeSummaryScreen', { intakeId });
+        } else {
+           throw new Error("Did not receive a valid intake ID");
+        }
       }
     } catch (err: any) {
       let friendlyError = err.message;
