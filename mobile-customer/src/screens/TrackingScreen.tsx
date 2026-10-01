@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
-import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert, CreditCard, XCircle, Banknote, Box, Package } from 'lucide-react-native';
+import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert, XCircle, Box, Package } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../lib/supabase';
@@ -19,7 +19,6 @@ export default function TrackingScreen() {
   const [customerLocation, setCustomerLocation] = useState<{lat: number, lng: number} | null>(null);
   const [deliveryOtp, setDeliveryOtp] = useState<string | null>(null);
 
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
   const driverChannelRef = useRef<any>(null);
@@ -202,14 +201,7 @@ export default function TrackingScreen() {
     });
   };
 
-  const handlePayOnline = async () => {
-    // Navigate to Razorpay Checkout component with order details
-    navigation.navigate('RazorpayCheckout', { 
-      orderId: order.id, 
-      amount: order.total_amount,
-      isConversion: true 
-    });
-  };
+
 
   const handleCancelOrder = () => {
     Alert.alert(
@@ -349,7 +341,7 @@ export default function TrackingScreen() {
     </html>
   `;
 
-  const isCODUnpaid = order.payment_method === 'cod' && order.payment_status === 'pending';
+
   const showOTP = order.total_amount > 1000 && order.status === 'out_for_delivery';
   const canCancel = ['placed'].includes(order.status);
 
@@ -469,23 +461,6 @@ export default function TrackingScreen() {
             </View>
           </View>
 
-          {/* COD Payment Card */}
-          {isCODUnpaid && order.status !== 'cancelled' && (
-            <View style={styles.codCard}>
-              <View style={styles.codHeader}>
-                <Banknote size={24} color={theme.colors.primary} />
-                <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.codTitle}>Pay ₹{order.total_amount.toFixed(2)} before or on delivery</Text>
-                  <Text style={styles.codSub}>Please keep exact change available or avoid the hassle by paying online.</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.payOnlineBtn} onPress={handlePayOnline}>
-                <CreditCard size={18} color="#fff" style={{ marginRight: 8 }}/>
-                <Text style={styles.payOnlineBtnText}>Pay online</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* OTP Card */}
           {showOTP && (
             <View style={styles.otpCard}>
@@ -575,20 +550,7 @@ const styles = StyleSheet.create({
   timelineLabel: { fontSize: 15, fontWeight: '500', color: theme.colors.text },
   timelineLabelActive: { fontWeight: 'bold', color: theme.colors.primary },
   timelineLabelPending: { color: theme.colors.textMuted },
-  
-  codCard: {
-    backgroundColor: '#fffbeb', padding: 16, borderRadius: theme.radius.md,
-    marginBottom: theme.spacing.md, borderWidth: 1, borderColor: '#fde68a',
-  },
-  codHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12, paddingRight: 32 },
-  codTitle: { fontSize: 16, fontWeight: '700', color: '#92400e', marginBottom: 4 },
-  codSub: { fontSize: 13, color: '#92400e', opacity: 0.8 },
-  payOnlineBtn: {
-    backgroundColor: theme.colors.primary, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', padding: 12, borderRadius: 8,
-  },
-  payOnlineBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  
+
   otpCard: {
     backgroundColor: '#eff6ff', padding: 16, borderRadius: theme.radius.md,
     marginBottom: theme.spacing.md, borderWidth: 1, borderColor: '#bfdbfe',

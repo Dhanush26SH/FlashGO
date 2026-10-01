@@ -24,6 +24,13 @@ export default function PickerDropZoneScanScreen() {
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned || submitting) return;
+
+    // Cheap local validation to ignore non-DropZone QR codes
+    // Prevents stray scans (e.g. products) from triggering the loading state
+    if (!data.startsWith('DROPZONE:')) {
+      return;
+    }
+
     setScanned(true);
     setSubmitting(true);
     try {
@@ -43,17 +50,10 @@ export default function PickerDropZoneScanScreen() {
       if (error) throw error;
       if (!res.success) throw new Error(res.code || 'Scan failed');
       
-      Alert.alert('Success', `Order placed in Drop Zone ${zoneCode}`, [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'MainTabs' }],
-            });
-          }
-        }
-      ]);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
     } catch (err: any) {
       Alert.alert('Scan Failed', err.message, [
         { text: 'Try Again', onPress: () => { setScanned(false); setSubmitting(false); } }
