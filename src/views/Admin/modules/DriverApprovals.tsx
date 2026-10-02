@@ -174,22 +174,40 @@ export const DriverApprovals: React.FC = () => {
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStaffTab, setActiveStaffTab] = useState<'active' | 'retired'>('active');
+  const [dateFilter, setDateFilter] = useState<'all' | '7days' | '30days'>('all');
 
   // Driver rejection modal state
   const [rejectModalDriver, setRejectModalDriver] = useState<{ id: string; name: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
 
-  // Get active staff and filter by search query
+  // Helper to filter by date
+  const applyDateFilter = (dateString: string | undefined) => {
+    if (dateFilter === 'all') return true;
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return false;
+    const now = new Date();
+    const diffDays = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+    if (dateFilter === '7days') return diffDays <= 7;
+    if (dateFilter === '30days') return diffDays <= 30;
+    return true;
+  };
+
+  // Get active staff and filter by search query & date
   const staffMembers = profiles
     .filter(p => !excludedEmails.has(p.email))
     .filter(p => p.role !== 'customer' && !(p as any).is_pending_staff && !(p as any).is_retired && p.full_name && p.full_name.trim() !== '')
-    .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(p => applyDateFilter(p.created_at))
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   const retiredStaffMembers = profiles
     .filter(p => !excludedEmails.has(p.email))
     .filter(p => p.role !== 'customer' && (p as any).is_retired)
-    .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(p => (p.full_name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(p => applyDateFilter((p as any).retired_at))
+    .sort((a, b) => new Date((b as any).retired_at || 0).getTime() - new Date((a as any).retired_at || 0).getTime());
 
   const [pendingWarehouseAssignments, setPendingWarehouseAssignments] = useState<Record<string, string>>({});
   const [pendingRoleAssignments, setPendingRoleAssignments] = useState<Record<string, string>>({});
@@ -355,15 +373,26 @@ export const DriverApprovals: React.FC = () => {
               <p className="panel-desc">Oversee system access, suspend bad actors, and monitor individual productivity</p>
             </div>
             
-            <div style={{ position: 'relative', width: '300px' }}>
-              <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
-                type="text" 
-                placeholder="Search staff by name..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', fontSize: '0.9rem', outline: 'none' }}
-              />
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <select 
+                value={dateFilter} 
+                onChange={(e) => setDateFilter(e.target.value as any)}
+                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', cursor: 'pointer' }}
+              >
+                <option value="all">All Time</option>
+                <option value="7days">Last 7 Days</option>
+                <option value="30days">Last 30 Days</option>
+              </select>
+              <div style={{ position: 'relative', width: '300px' }}>
+                <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input 
+                  type="text" 
+                  placeholder="Search staff by name..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-surface)', fontSize: '0.9rem', outline: 'none' }}
+                />
+              </div>
             </div>
           </div>
 
