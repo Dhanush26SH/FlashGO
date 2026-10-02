@@ -7,7 +7,7 @@ import { ProductsService } from '../../../services/api/ProductsService';
 import ReactBarcode from 'react-barcode';
 import {
   Plus, Check, Tag, AlertCircle, Edit2, Search,
-  RefreshCw, ShieldAlert, X, FileSpreadsheet, Barcode,
+  RefreshCw, ShieldAlert, X, Barcode,
   Trash2, ChevronDown, Eye, EyeOff, ToggleLeft, ToggleRight, Info
 } from 'lucide-react';
 
@@ -153,7 +153,6 @@ export const ProductCatalog: React.FC = () => {
   } | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDraggingCSV, setIsDraggingCSV] = useState(false);
 
   // ── Derived filtered products ────────────────────────────────────────────
   const filteredProducts = products.filter(p => {
@@ -351,104 +350,6 @@ export const ProductCatalog: React.FC = () => {
     }
   };
 
-  const handleFileSelect = (e: any) => {
-    e.preventDefault();
-    setIsDraggingCSV(false);
-    
-    const file = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
-    if (!file) return;
-    
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      addToast('Please upload a valid .csv file', 'error');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
-      
-      const rows = text.split('\n').filter(r => r.trim());
-      if (rows.length <= 1) {
-        addToast('CSV is empty or only contains headers', 'error');
-        return;
-      }
-      
-      const dataRows = rows.slice(1);
-      let imported = 0;
-      let skipped = 0;
-      setIsSubmitting(true);
-      
-      const existingSkus = new Set(products.map(p => p.sku).filter(Boolean));
-      
-      try {
-        for (const row of dataRows) {
-           // Safely split by comma, ignoring commas inside double quotes
-           const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''));
-           
-           // Expected: name,description,category_name,brand,sku,barcode,unit_size,mrp,selling_price,image_url,is_active
-           if (cols.length < 11) continue;
-           
-           const name = cols[0];
-           const description = cols[1];
-           const categoryName = cols[2];
-           const brand = cols[3];
-           const sku = cols[4];
-           const barcode = cols[5];
-           const unit_size = cols[6];
-           const mrp = cols[7];
-           const selling_price = cols[8];
-           const image_url = cols[9];
-           const is_active = cols[10].toLowerCase() === 'true';
-
-           if (sku && existingSkus.has(sku)) {
-             skipped++;
-             continue; // Skip duplicate SKUs (both existing in DB and internal to this CSV)
-           }
-
-           const category = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-           if (!category) {
-             console.warn(`Category ${categoryName} not found for product ${name}`);
-           }
-           
-           let basePrice = parseFloat(mrp);
-           let sellPrice = parseFloat(selling_price);
-           
-           if (isNaN(basePrice) || basePrice === 0) {
-             basePrice = sellPrice || 0;
-           }
-           
-           let finalDiscount: number | null = null;
-           if (!isNaN(sellPrice) && sellPrice < basePrice) {
-             finalDiscount = sellPrice;
-           }
-           
-           await ProductsService.createProduct({
-              category_id: category?.id || categories[0]?.id || '',
-              name,
-              description,
-              price: basePrice,
-              discount_price: finalDiscount,
-              sku: sku || undefined,
-              barcode: barcode || undefined,
-              image_url: image_url || undefined,
-              is_active
-           });
-           
-           if (sku) existingSkus.add(sku); // Prevent duplicate internal inserts
-           imported++;
-        }
-        await refreshData();
-        addToast(`Imported ${imported} products! ${skipped > 0 ? `(Skipped ${skipped} duplicates)` : ''}`, 'success');
-      } catch (err: any) {
-         addToast(`Error importing: ${err.message}`, 'error');
-      } finally {
-         setIsSubmitting(false);
-         if (e.target && e.target.value) e.target.value = ''; // Reset input
-      }
-    };
-    reader.readAsText(file);
-  };
 
   // Category hide/show — wires to admin_set_category_active RPC (persisted in DB)
   const handleCategoryToggle = async (cat: Category) => {
@@ -663,18 +564,6 @@ export const ProductCatalog: React.FC = () => {
                   <Plus size={14} /> Add Product
                 </button>
               </div>
-            </div>
-
-            <div
-              onDragOver={e => { e.preventDefault(); setIsDraggingCSV(true); }}
-              onDragLeave={() => setIsDraggingCSV(false)}
-              onDrop={handleFileSelect}
-              onClick={() => document.getElementById('csv-upload')?.click()}
-              style={csvDropZoneStyle(isDraggingCSV)}
-            >
-              <FileSpreadsheet size={18} color="var(--primary)" />
-              <span>Drag &amp; drop a CSV file here or click to browse</span>
-              <input type="file" id="csv-upload" accept=".csv" style={{ display: 'none' }} onChange={handleFileSelect} />
             </div>
 
             {/* Product table */}
@@ -1146,21 +1035,4 @@ const catalogTabBtnStyle = (active: boolean): React.CSSProperties => ({
   borderRadius: '8px',
   cursor: 'pointer',
   transition: 'all var(--transition-fast)',
-});
-
-const csvDropZoneStyle = (isDragging: boolean): React.CSSProperties => ({
-  border: `2px dashed ${isDragging ? 'var(--primary)' : 'var(--border-light)'}`,
-  borderRadius: '8px',
-  padding: '14px',
-  textAlign: 'center',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '6px',
-  fontSize: '0.72rem',
-  color: 'var(--text-secondary)',
-  marginBottom: '14px',
-  backgroundColor: isDragging ? 'var(--primary-glow)' : 'var(--bg-base)',
-  cursor: 'pointer',
-  transition: 'all 0.2s ease',
 });

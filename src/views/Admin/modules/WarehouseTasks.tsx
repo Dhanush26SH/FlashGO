@@ -4,7 +4,7 @@ import { supabase } from '../../../services/api/supabaseClient';
 import { AdminService } from '../../../services/api/AdminService';
 import { InventoryService } from '../../../services/api/InventoryService';
 import { Warehouse, Check, X } from 'lucide-react';
-import { PutawayModule, ReturnsDispositionModule } from './WarehouseOperations';
+import { PutawayModule, ReturnsDispositionModule, InwardReceiptsModule } from './WarehouseOperations';
 
 const InventoryAuditsModule: React.FC = () => {
   const { addToast, currentUser } = useApp();
@@ -265,7 +265,7 @@ const InventoryAuditsModule: React.FC = () => {
 };
 
 export const WarehouseTasks: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'putaway' | 'audits' | 'returns'>('putaway');
+  const [activeTab, setActiveTab] = useState<'putaway' | 'inward' | 'audits' | 'returns'>('putaway');
 
   const activeTabStyle = { padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' };
   const inactiveTabStyle = { padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' };
@@ -274,11 +274,13 @@ export const WarehouseTasks: React.FC = () => {
     <div className="container">
       <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-light)', marginBottom: '24px', overflowX: 'auto' }}>
         <button style={activeTab === 'putaway' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('putaway')}>Putaway Tasks</button>
+        <button style={activeTab === 'inward' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('inward')}>Inward Receipts</button>
         <button style={activeTab === 'audits' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('audits')}>Inventory Audits</button>
         <button style={activeTab === 'returns' ? activeTabStyle : inactiveTabStyle} onClick={() => setActiveTab('returns')}>Returns</button>
       </div>
 
       {activeTab === 'putaway' && <PutawayModule />}
+      {activeTab === 'inward' && <InwardReceiptsModule />}
       {activeTab === 'audits' && <InventoryAuditsModule />}
       {activeTab === 'returns' && <ReturnsDispositionModule />}
     </div>

@@ -221,6 +221,41 @@ export class InventoryService {
     if (error) throw error;
   }
 
+  // --- INWARD RECEIPTS API ---
+  static async getInwardReceiptsPaginated(warehouseId: string, page: number = 1, limit: number = 25, filters?: any): Promise<any> {
+    if (!supabase) return { data: [], count: 0 };
+    
+    let query = supabase
+      .from('goods_receipts')
+      .select(`
+        *,
+        procurement_order:procurement_orders(id),
+        vendor:vendors(name),
+        receiver:profiles(full_name),
+        items:goods_receipt_items(id, quantity_received)
+      `, { count: 'exact' })
+      .eq('warehouse_id', warehouseId);
+
+    if (filters?.startDate && filters?.endDate) {
+      query = query.gte('created_at', filters.startDate).lte('created_at', filters.endDate);
+    }
+    
+    // Sort descending by default to prioritize today's completed
+    query = query.order('created_at', { ascending: false });
+
+    // Pagination
+    const from = (page - 1) * limit;
+    query = query.range(from, from + limit - 1);
+
+    const { data, count, error } = await query;
+    if (error) throw error;
+
+    return {
+      data: data || [],
+      count: count || 0
+    };
+  }
+
   // --- CYCLE COUNTS API ---
   static async getCycleCounts(warehouseId: string): Promise<any[]> {
     if (!supabase) return [];

@@ -656,3 +656,183 @@ export const ReturnsDispositionModule: React.FC = () => {
     </div>
   );
 };
+
+export const InwardReceiptsModule: React.FC = () => {
+  const { currentUser, addToast } = useApp();
+  
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
+  
+  // Pagination
+  const [page, setPage] = useState(1);
+  const limit = 25;
+
+  // Filters
+  const [dateRange, setDateRange] = useState('today'); // default to today per requirements
+
+  const getDatesForRange = (range: string) => {
+    const end = new Date();
+    const start = new Date();
+    if (range === 'today') {
+      start.setHours(0, 0, 0, 0);
+    } else if (range === '7days') {
+      start.setDate(end.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+    } else if (range === '30days') {
+      start.setDate(end.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+    }
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  };
+
+  const fetchReceipts = async () => {
+    try {
+      if (!selectedWarehouseId) return;
+      setLoading(true);
+      
+      const { startDate, endDate } = getDatesForRange(dateRange);
+      const res = await InventoryService.getInwardReceiptsPaginated(
+        selectedWarehouseId,
+        page,
+        limit,
+        { startDate, endDate }
+      );
+      
+      setReceipts(res.data || []);
+      setTotalCount(res.count || 0);
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    InventoryService.getWarehouses().then(data => {
+      setWarehouses(data);
+      if (data.length > 0 && !selectedWarehouseId) {
+        setSelectedWarehouseId(currentUser?.warehouse_id || data[0].id);
+      }
+    }).catch(console.error);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (selectedWarehouseId) fetchReceipts();
+  }, [selectedWarehouseId, page, dateRange]);
+
+  const totalPages = Math.ceil(totalCount / limit) || 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <CheckCircle color="var(--primary)" /> Completed Inward Receipts
+        </h2>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <select 
+            value={selectedWarehouseId} 
+            onChange={e => setSelectedWarehouseId(e.target.value)}
+            disabled={!!currentUser?.warehouse_id}
+            style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', opacity: currentUser?.warehouse_id ? 0.7 : 1 }}
+          >
+            {warehouses.map(w => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+          <button onClick={fetchReceipts} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-base)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', backgroundColor: 'var(--bg-surface)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+        <select 
+          value={dateRange} 
+          onChange={e => setDateRange(e.target.value)}
+          style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', minWidth: '150px' }}
+        >
+          <option value="today">Today</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="30days">Last 30 Days</option>
+        </select>
+      </div>
+
+      <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '12px', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+            <thead>
+              <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Date / Time</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>GRN</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>PO</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Supplier</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>Items</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-secondary)' }}>Received Qty</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Completed By</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading receipts...</td>
+                </tr>
+              ) : receipts.length === 0 ? (
+                <EmptyState message="No inward receipts completed for the selected period." icon={<CheckCircle size={32} opacity={0.5} />} />
+              ) : (
+                receipts.map(r => {
+                  const itemCount = Array.isArray(r.items) ? r.items.length : 0;
+                  const totalQty = Array.isArray(r.items) ? r.items.reduce((sum: number, item: any) => sum + (item.quantity_received || 0), 0) : 0;
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: '12px 16px' }}>{new Date(r.created_at).toLocaleString()}</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 600 }}>{r.receipt_number || '-'}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--primary)', fontFamily: 'monospace', fontWeight: 700 }}>{r.procurement_order?.id ? '#' + r.procurement_order.id.slice(-6).toUpperCase() : '-'}</td>
+                      <td style={{ padding: '12px 16px' }}>{r.vendor?.name || '-'}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>{itemCount}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>{totalQty}</td>
+                      <td style={{ padding: '12px 16px' }}>{r.receiver?.full_name || '-'}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                          Completed
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {totalPages > 1 && (
+          <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Page {page} of {totalPages}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-surface)', cursor: page === 1 ? 'not-allowed' : 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <ChevronLeft size={16} /> Prev
+              </button>
+              <button 
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-surface)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
