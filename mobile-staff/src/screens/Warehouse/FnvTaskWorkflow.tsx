@@ -20,6 +20,17 @@ export default function FnvTaskWorkflow() {
   const [issueReason, setIssueReason] = useState<'good' | 'spoiled' | 'damaged' | 'quality_issue' | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const getIstDateString = () => {
+    const now = new Date();
+    const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+    const formatter = new Intl.DateTimeFormat('en-US', options);
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value;
+    const month = parts.find(p => p.type === 'month')?.value;
+    const day = parts.find(p => p.type === 'day')?.value;
+    return `${year}-${month}-${day}`;
+  };
+
   useEffect(() => {
     fetchFnvInventory();
   }, []);
@@ -55,6 +66,15 @@ export default function FnvTaskWorkflow() {
 
       if (batchErr) throw batchErr;
 
+      const todayString = getIstDateString();
+      const { data: completions } = await supabase
+        .from('fnv_inspections')
+        .select('batch_id, location_id')
+        .eq('warehouse_id', profile.warehouse_id)
+        .eq('inspection_date', todayString);
+        
+      const completionSet = new Set((completions || []).map(c => `${c.batch_id}_${c.location_id}`));
+
       const enrichedTasks: any[] = [];
       for (const batch of (fnvBatches || [])) {
         const { data: placements } = await supabase
@@ -84,7 +104,8 @@ export default function FnvTaskWorkflow() {
               locationId: p.location_id,
               locationCode: (p.warehouse_locations as any)?.location_code,
               locationQR: (p.warehouse_locations as any)?.barcode,
-              locationQty: p.quantity
+              locationQty: p.quantity,
+              isCompletedToday: completionSet.has(`${batch.id}_${p.location_id}`)
             });
           });
         }
@@ -135,42 +156,48 @@ export default function FnvTaskWorkflow() {
   };
 
   const submitRemoval = async () => {
-    if (issueReason === 'good') {
-      Alert.alert('Success', 'Item marked as good. No inventory changed.');
-      setActiveTask(null);
-      return;
-    }
-
     if (!issueReason) {
       Alert.alert('Error', 'Please select a quality issue reason.');
       return;
     }
 
     const qty = parseInt(removedQty, 10);
-    if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid positive number.');
-      return;
-    }
-    if (qty > activeTask.expectedQty || qty > activeTask.locationQty) {
-      Alert.alert('Quantity Exceeded', `Cannot remove more than available in batch (${activeTask.expectedQty}) or location (${activeTask.locationQty}).`);
-      return;
+    if (issueReason !== 'good') {
+      if (isNaN(qty) || qty <= 0) {
+        Alert.alert('Invalid Quantity', 'Please enter a valid positive number.');
+        return;
+      }
+      if (qty > activeTask.expectedQty || qty > activeTask.locationQty) {
+        Alert.alert('Quantity Exceeded', `Cannot remove more than available in batch (${activeTask.expectedQty}) or location (${activeTask.locationQty}).`);
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase.rpc('remove_fnv_batch_inventory', {
-        p_location_id: activeTask.locationId,
-        p_batch_id: activeTask.batchId,
-        p_removed_qty: qty,
-        p_scanned_barcode: activeTask.productInternalBarcode, // Primary internal barcode for validation
-        p_reason: issueReason,
-        p_user_id: user?.id
-      });
-
-      if (error) throw error;
       
-      Alert.alert('Success', `Removed ${qty} units of F&V stock for reason: ${issueReason}.`);
+      if (issueReason === 'good') {
+        const { error } = await supabase.rpc('record_fnv_inspection_good', {
+          p_location_id: activeTask.locationId,
+          p_batch_id: activeTask.batchId
+        });
+        if (error) throw error;
+        Alert.alert('Success', 'Item marked as good. No inventory changed.');
+      } else {
+        const { data, error } = await supabase.rpc('remove_fnv_batch_inventory', {
+          p_location_id: activeTask.locationId,
+          p_batch_id: activeTask.batchId,
+          p_removed_qty: qty,
+          p_scanned_barcode: activeTask.productInternalBarcode, // Primary internal barcode for validation
+          p_reason: issueReason,
+          p_user_id: user?.id
+        });
+
+        if (error) throw error;
+        Alert.alert('Success', `Removed ${qty} units of F&V stock for reason: ${issueReason}.`);
+      }
+      
       setActiveTask(null);
       fetchFnvInventory(); // Refresh
     } catch (err: any) {
@@ -321,7 +348,12 @@ export default function FnvTaskWorkflow() {
       ) : (
         <View style={styles.cardList}>
           {tasks.map((t, idx) => (
-            <TouchableOpacity key={idx} style={styles.taskCard} onPress={() => startTask(t)}>
+            <TouchableOpacity 
+              key={idx} 
+              style={[styles.taskCard, t.isCompletedToday && { opacity: 0.6 }]} 
+              onPress={() => !t.isCompletedToday && startTask(t)}
+              activeOpacity={t.isCompletedToday ? 1 : 0.2}
+            >
               <View style={styles.cardTop}>
                 <Text style={styles.cardProductName} numberOfLines={1}>{t.productName}</Text>
                 <View style={styles.badgeWarning}>
@@ -336,7 +368,14 @@ export default function FnvTaskWorkflow() {
                   <MapPin size={14} color="#475569" style={{ marginRight: 4 }} />
                   <Text style={styles.locText}>{t.locationCode}</Text>
                 </View>
-                <Text style={styles.cardQty}>{Math.min(t.expectedQty, t.locationQty)} units avail.</Text>
+                {t.isCompletedToday ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Check size={16} color="#10b981" style={{ marginRight: 4 }} />
+                    <Text style={{ fontSize: 14, color: '#10b981', fontWeight: '600' }}>Checked Today</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.cardQty}>{Math.min(t.expectedQty, t.locationQty)} units avail.</Text>
+                )}
               </View>
             </TouchableOpacity>
           ))}
