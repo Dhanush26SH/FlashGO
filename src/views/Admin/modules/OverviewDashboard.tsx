@@ -97,7 +97,7 @@ export const OverviewDashboard: React.FC = () => {
       )}
 
       {/* Header Context Controls */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Activity size={24} color="var(--primary)" /> 
           Operational Overview
@@ -129,7 +129,7 @@ export const OverviewDashboard: React.FC = () => {
       </div>
 
       {/* KPIs Row */}
-      <div className="od-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: '24px' }}>
+      <div className="od-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '16px' }}>
         {[
           { label: 'ONLINE PICKERS', val: stats?.online_pickers || 0, desc: 'Active picker shifts', icon: <Users size={20} color="var(--primary)" />, color: 'var(--primary-glow)' },
           { label: 'ONLINE DRIVERS', val: stats?.online_drivers || 0, desc: 'Active driver shifts', icon: <Truck size={20} color="var(--primary)" />, color: 'var(--primary-glow)' },
@@ -152,7 +152,7 @@ export const OverviewDashboard: React.FC = () => {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '16px', marginBottom: '16px' }}>
         
         {/* Inventory Alerts (Replaces Live Status & Quick Actions) */}
         <div className="glass-panel" style={{ padding: '20px', gridColumn: 'span 2' }}>

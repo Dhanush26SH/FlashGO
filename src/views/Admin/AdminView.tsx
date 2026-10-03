@@ -341,7 +341,8 @@ export const AdminView: React.FC = () => {
 // --- SIDEBAR SHELL STYLES ---
 const rootContainerStyle: React.CSSProperties = {
   display: 'flex',
-  minHeight: '100vh',
+  height: '100%',
+  overflow: 'hidden',
   backgroundColor: 'var(--bg-base)',
   color: 'var(--text-primary)',
   fontFamily: "'Outfit', 'Inter', sans-serif"
@@ -349,9 +350,8 @@ const rootContainerStyle: React.CSSProperties = {
 
 const sidebarStyle: React.CSSProperties = {
   width: '260px',
-  height: '100vh',
-  position: 'sticky',
-  top: 0,
+  height: '100%',
+  flexShrink: 0,
   background: 'var(--bg-glass)',
   backdropFilter: 'blur(24px)',
   WebkitBackdropFilter: 'blur(24px)',
@@ -452,11 +452,11 @@ const mainWorkspaceStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
-  overflowY: 'auto'
+  overflow: 'hidden'
 };
 
 const headerStyle: React.CSSProperties = {
-  padding: '18px 32px',
+  padding: '14px 24px',
   background: 'var(--bg-glass)',
   backdropFilter: 'blur(16px)',
   WebkitBackdropFilter: 'blur(16px)',
@@ -483,8 +483,10 @@ const headerSubtitleStyle: React.CSSProperties = {
 
 
 const workspaceContentStyle: React.CSSProperties = {
-  padding: '32px',
-  flex: 1
+  padding: '24px',
+  flex: 1,
+  overflowY: 'auto',
+  minHeight: 0
 };
 
 const restrictedContainerStyle: React.CSSProperties = {

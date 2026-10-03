@@ -88,7 +88,8 @@ export default function App() {
 
 // --- GLOBAL WORKSPACE STYLES ---
 const containerStyle: React.CSSProperties = {
-  minHeight: '100vh',
+  height: '100vh',
+  overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',
   backgroundColor: 'var(--bg-base)',
@@ -100,14 +101,15 @@ const telemetryBannerStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '8px 24px',
-  margin: '12px 24px 0 24px',
-  borderRadius: '24px',
+  padding: '6px 24px',
+  margin: 0,
+  borderRadius: 0,
   fontSize: '0.68rem',
   fontWeight: 700,
   color: 'var(--text-secondary)',
   backgroundColor: 'var(--bg-glass)',
-  border: '1px solid var(--border-light)',
+  border: 'none',
+  borderBottom: '1px solid var(--border-light)',
   boxShadow: 'var(--shadow-sm)'
 };
 
@@ -127,14 +129,11 @@ const telemetryBannerRightStyle: React.CSSProperties = {
 };
 
 const workspaceMainStyle: React.CSSProperties = {
-  flexGrow: 1,
-  padding: '24px',
-  maxWidth: '1400px',
-  width: '100%',
-  margin: '0 auto',
+  flex: 1,
+  minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-  gap: '24px'
+  overflow: 'hidden'
 };
 
 const ToastContainer: React.FC = () => {

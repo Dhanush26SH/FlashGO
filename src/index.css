@@ -1,6 +1,15 @@
 @import './styles/theme.css';
 @import './styles/AdminStyles.css';
 
+/* Global reset — prevent page-level scroll competing with app containers */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+
 /* Custom utilities */
 .container {
   max-width: 1400px;
