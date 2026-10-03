@@ -58,6 +58,8 @@ export interface Product {
   image_url: string;
   is_active?: boolean;
   stock_quantity: number;
+  pack_quantity?: number | null;
+  pack_unit?: string | null;
   manufacturer_barcode?: string | null;
   manufacturer_barcode_verified?: boolean;
   warehouse_location: string;
@@ -84,6 +86,12 @@ export interface OrderItem {
   price: number;
   picked_quantity: number;
   status: 'pending' | 'picked' | 'out_of_stock';
+  product_name_snapshot?: string | null;
+  product_image_snapshot?: string | null;
+  sku_snapshot?: string | null;
+  manufacturer_barcode_snapshot?: string | null;
+  cancelled_quantity?: number;
+  substituted_quantity?: number;
   // Extra joined product info for UI
   product?: Product;
 }
@@ -139,6 +147,12 @@ export interface Order {
   is_cold_chain?: boolean;
   payment_method?: 'wallet' | 'cod' | 'upi' | 'card';
   cod_collected?: boolean;
+  cod_collection?: {
+    id: string;
+    status: 'pending' | 'collected' | 'settled';
+    amount: number;
+    collected_at?: string;
+  };
   // Extra joined items
   items?: OrderItem[];
   customer_name?: string;

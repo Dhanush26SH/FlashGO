@@ -22,7 +22,7 @@ serve(async (req) => {
       throw new Error("Missing Authorization header");
     }
 
-    const token = authHeader.replace(/^Bearer\\s+/i, '');
+    const token = authHeader.replace(/^Bearer\s+/i, '');
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',

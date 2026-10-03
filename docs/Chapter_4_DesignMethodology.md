@@ -121,72 +121,170 @@ Database design is the process of producing a detailed data model of the databas
 
 #### 4.3.1.1 Users Table
 The central table managing all identities across the system, implementing role-based access.
-* **id** (UUID, Primary Key): Unique identifier generated upon registration.
-* **name** (Varchar): Full name of the user.
-* **phone** (Varchar, Unique): Contact number, often used for login or driver-customer contact.
-* **email** (Varchar, Unique): Email address for receipts and notifications.
-* **role** (Enum): Defines access level (e.g., 'customer', 'picker', 'warehouse_staff', 'driver', 'admin').
-* **created_at** (Timestamp): Record creation time.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Unique identifier generated upon registration |
+| name | VARCHAR | Not Null | Full name of the user |
+| phone | VARCHAR | Unique, Not Null | Contact number, often used for login or driver-customer contact |
+| email | VARCHAR | Unique, Not Null | Email address for receipts and notifications |
+| role | ENUM | Not Null | Defines access level (e.g., 'customer', 'picker', 'driver', 'admin') |
+| created_at | TIMESTAMP | Not Null | Record creation time |
 
 #### 4.3.1.2 Warehouses Table
 Stores physical locations of fulfillment centers.
-* **id** (UUID, Primary Key): Unique warehouse identifier.
-* **name** (Varchar): Human-readable name of the facility.
-* **latitude** (Decimal): Geographic latitude for proximity routing.
-* **longitude** (Decimal): Geographic longitude.
-* **service_radius_km** (Integer): Maximum distance this warehouse serves.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Unique warehouse identifier |
+| name | VARCHAR | Not Null | Human-readable name of the facility |
+| latitude | DECIMAL | Not Null | Geographic latitude for proximity routing |
+| longitude | DECIMAL | Not Null | Geographic longitude |
+| service_radius_km | INTEGER | Not Null | Maximum distance this warehouse serves |
 
 #### 4.3.1.3 Products Table
 Maintains the catalog and overarching inventory details.
-* **id** (UUID, Primary Key): Product identifier.
-* **sku** (Varchar, Unique): Stock Keeping Unit for barcode scanning.
-* **name** (Varchar): Name of the item.
-* **price** (Decimal): Current selling price.
-* **category** (Varchar): Organizational category (e.g., 'Produce', 'Dairy').
-* **image_url** (Varchar): Path to the product image for the customer app.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Product identifier |
+| sku | VARCHAR | Unique, Not Null | Stock Keeping Unit for barcode scanning |
+| name | VARCHAR | Not Null | Name of the item |
+| price | DECIMAL(10,2) | Not Null, > 0 | Current selling price |
+| category | VARCHAR | Not Null | Organizational category (e.g., 'Produce', 'Dairy') |
+| image_url | VARCHAR | Nullable | Path to the product image for the customer app |
 
 #### 4.3.1.4 Warehouse_Inventory Table
 A junction table resolving the many-to-many relationship between Warehouses and Products, enabling location-specific stock tracking.
-* **id** (UUID, Primary Key): Record ID.
-* **warehouse_id** (UUID, Foreign Key -> Warehouses.id): The specific fulfillment center.
-* **product_id** (UUID, Foreign Key -> Products.id): The specific product.
-* **stock_quantity** (Integer): Current units available at this location.
-* **aisle_location** (Varchar): Physical shelf/aisle code (e.g., 'A12-B') used to optimize picker routes.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Record ID |
+| warehouse_id | UUID | Foreign Key | The specific fulfillment center |
+| product_id | UUID | Foreign Key | The specific product |
+| stock_quantity | INTEGER | Not Null, >= 0 | Current units available at this location |
+| aisle_location | VARCHAR | Nullable | Physical shelf/aisle code (e.g., 'A12-B') used to optimize picker routes |
 
 #### 4.3.1.5 Orders Table
 The core transactional table tracking the lifecycle of a purchase.
-* **id** (UUID, Primary Key): Unique order identifier.
-* **customer_id** (UUID, Foreign Key -> Users.id): The user who placed the order.
-* **warehouse_id** (UUID, Foreign Key -> Warehouses.id): The fulfillment center assigned.
-* **driver_id** (UUID, Foreign Key -> Users.id, Nullable): The delivery partner assigned.
-* **status** (Enum): Current state ('placed', 'packing', 'packed', 'dispatched', 'delivered', 'cancelled').
-* **total_amount** (Decimal): Final cost.
-* **delivery_lat** (Decimal): Customer's delivery latitude.
-* **delivery_lng** (Decimal): Customer's delivery longitude.
-* **created_at** (Timestamp): When the order was placed.
-* **delivered_at** (Timestamp, Nullable): When the drop-off was confirmed.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Unique order identifier |
+| customer_id | UUID | Foreign Key | The user who placed the order |
+| warehouse_id | UUID | Foreign Key | The fulfillment center assigned |
+| driver_id | UUID | Foreign Key, Nullable | The delivery partner assigned |
+| status | ENUM | Not Null | Current state ('placed', 'packed', 'dispatched', 'delivered') |
+| total_amount | DECIMAL(10,2) | Not Null | Final cost |
+| delivery_lat | DECIMAL | Not Null | Customer's delivery latitude |
+| delivery_lng | DECIMAL | Not Null | Customer's delivery longitude |
+| created_at | TIMESTAMP | Not Null | When the order was placed |
+| delivered_at | TIMESTAMP | Nullable | When the drop-off was confirmed |
 
 #### 4.3.1.6 Order_Items Table
 Details the specific products within an order.
-* **id** (UUID, Primary Key): Record ID.
-* **order_id** (UUID, Foreign Key -> Orders.id): The parent order.
-* **product_id** (UUID, Foreign Key -> Products.id): The purchased item.
-* **quantity** (Integer): Number of units ordered.
-* **picked** (Boolean): Toggled by the Picker app when the item is physically collected.
-* **price_at_time** (Decimal): Historical price record.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Record ID |
+| order_id | UUID | Foreign Key | The parent order |
+| product_id | UUID | Foreign Key | The purchased item |
+| quantity | INTEGER | Not Null, > 0 | Number of units ordered |
+| picked | BOOLEAN | Default FALSE | Toggled by the Picker app when the item is physically collected |
+| price_at_time | DECIMAL(10,2) | Not Null | Historical price record |
 
 #### 4.3.1.7 Driver_Telemetry Table (Volatile Data)
 Used for live tracking; this table experiences high-frequency updates and leverages Supabase's Realtime capabilities.
-* **driver_id** (UUID, Primary Key -> Users.id): The active driver.
-* **current_lat** (Decimal): Latest reported latitude.
-* **current_lng** (Decimal): Latest reported longitude.
-* **heading** (Decimal): Direction of travel for smooth map animation.
-* **last_updated** (Timestamp): Time of the last ping.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| driver_id | UUID | Primary Key | The active driver |
+| current_lat | DECIMAL | Not Null | Latest reported latitude |
+| current_lng | DECIMAL | Not Null | Latest reported longitude |
+| heading | DECIMAL | Nullable | Direction of travel for smooth map animation |
+| last_updated | TIMESTAMP | Not Null | Time of the last ping |
 
 #### 4.3.1.8 Procurement Table
 Used by the Warehouse Staff module for restocking.
-* **id** (UUID, Primary Key): Draft identifier.
-* **warehouse_id** (UUID, Foreign Key -> Warehouses.id): Requesting location.
-* **vendor_id** (UUID): Supplier identifier.
-* **status** (Enum): State of the order ('draft', 'submitted', 'received').
-* **expected_delivery** (Date): ETA for the stock arrival.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Draft identifier |
+| warehouse_id | UUID | Foreign Key | Requesting location |
+| vendor_id | UUID | Foreign Key | Supplier identifier |
+| status | ENUM | Not Null | State of the order ('draft', 'submitted', 'received') |
+| expected_delivery| DATE | Nullable | ETA for the stock arrival |
+
+#### 4.3.1.9 Payments Table
+Records all financial transactions related to customer orders.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Transaction identifier |
+| order_id | UUID | Foreign Key | The associated order |
+| customer_id | UUID | Foreign Key | The user paying |
+| amount | DECIMAL(10,2) | Not Null | The transaction total |
+| payment_method | ENUM | Not Null | 'Credit Card', 'UPI', 'Wallet', 'Cash' |
+| status | ENUM | Not Null | 'Pending', 'Completed', 'Failed', 'Refunded' |
+| gateway_transaction_id | VARCHAR | Nullable | External reference ID from the payment provider |
+
+#### 4.3.1.10 Wallets Table
+Manages the internal digital wallets for customers (for refunds/cashback) and drivers (for payouts/earnings).
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Wallet identifier |
+| user_id | UUID | Foreign Key, Unique| The owner of the wallet |
+| balance | DECIMAL(10,2) | Not Null | Current available funds |
+| currency | VARCHAR | Default 'INR' | Currency identifier (e.g., 'INR', 'USD') |
+| last_updated | TIMESTAMP | Not Null | Last time the balance was modified |
+
+#### 4.3.1.11 Shift_Slots Table
+Manages the scheduling and availability of Drivers and Pickers in the logistics network.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Slot identifier |
+| warehouse_id | UUID | Foreign Key | The facility requiring staff |
+| user_id | UUID | Foreign Key | The assigned staff member |
+| start_time | TIMESTAMP | Not Null | Beginning of the shift |
+| end_time | TIMESTAMP | Not Null | End of the shift |
+| role | ENUM | Not Null | 'Driver' or 'Picker' |
+| status | ENUM | Not Null | 'Scheduled', 'Checked-In', 'Completed', 'Missed' |
+
+#### 4.3.1.12 Support_Tickets Table
+Centralizes customer complaints, driver disputes, and operational issues for the Admin to resolve.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Ticket ID |
+| user_id | UUID | Foreign Key | The person who raised the issue |
+| order_id | UUID | Foreign Key, Nullable | Relevant order if applicable |
+| issue_category | ENUM | Not Null | 'Late Delivery', 'Missing Item', 'Payment Issue', 'App Bug' |
+| description | TEXT | Not Null | Detailed explanation of the issue |
+| status | ENUM | Not Null | 'Open', 'In-Progress', 'Resolved', 'Closed' |
+| assigned_admin_id| UUID | Foreign Key, Nullable | Admin handling the ticket |
+
+#### 4.3.1.13 Delivery_Zones Table
+Defines the geospatial boundaries (geofences) mapped to each dark store.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Zone identifier |
+| warehouse_id | UUID | Foreign Key | The parent warehouse |
+| zone_name | VARCHAR | Not Null | e.g., 'Koramangala Block 3' |
+| polygon_coordinates | JSONB | Not Null | Array of lat/lng points defining the precise delivery area boundary |
+| is_active | BOOLEAN | Default TRUE | Whether the zone is currently being served |
+
+#### 4.3.1.14 Notifications Table
+Stores historical logs of all system alerts, emails, and push notifications sent to users.
+
+| Column Name | Data Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| id | UUID | Primary Key | Notification ID |
+| user_id | UUID | Foreign Key | The recipient |
+| title | VARCHAR | Not Null | Summary of the alert |
+| body | TEXT | Not Null | Full message content |
+| type | ENUM | Not Null | 'Order Update', 'Shift Reminder', 'Promo', 'System Alert' |
+| is_read | BOOLEAN | Default FALSE | Read status toggled by the user |
+| created_at | TIMESTAMP | Not Null | When the notification was dispatched |

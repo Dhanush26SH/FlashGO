@@ -60,6 +60,8 @@ export interface Product {
   image_url: string;
   is_active?: boolean;
   stock_quantity: number;
+  pack_quantity?: number | null;
+  pack_unit?: string | null;
   warehouse_location: string;
   rating_avg: number;
   rating_count: number;
