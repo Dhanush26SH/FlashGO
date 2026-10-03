@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Modal, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ArrowLeft, Package, RotateCcw, FileText, AlertCircle, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Package, RotateCcw, FileText, AlertCircle, RefreshCw, Home } from 'lucide-react-native';
 import { theme } from '../theme';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useMobileAppContext } from '../context/MobileAppContext';
@@ -79,8 +79,10 @@ export default function OrderDetailsScreen() {
           onPress: async () => {
             try {
               await cancelOrder(order.id, order.payment_method);
-              Alert.alert('Success', 'Order cancelled successfully');
-              navigation.goBack();
+              Alert.alert('Order Cancelled', 'Your order has been cancelled.', [
+                { text: 'Go to Home', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }) }
+              ]);
+              navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
             } catch (err: any) {
               Alert.alert('Cancel Failed', err.message);
             }
@@ -201,6 +203,17 @@ export default function OrderDetailsScreen() {
             <FileText size={20} color={theme.colors.text} />
             <Text style={styles.actionBtnText}>Invoice</Text>
           </TouchableOpacity>
+
+          {/* Back to Home for terminal states */}
+          {(order.status === 'delivered' || order.status === 'cancelled') && (
+            <TouchableOpacity
+              style={[styles.actionBtn, { width: '100%', backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}
+              onPress={() => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] })}
+            >
+              <Home size={20} color={theme.colors.surface} />
+              <Text style={[styles.actionBtnText, { color: theme.colors.surface }]}>Back to Home</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

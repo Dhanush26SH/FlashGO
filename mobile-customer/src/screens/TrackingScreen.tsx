@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
-import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert, XCircle, Box, Package } from 'lucide-react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, Animated } from 'react-native';
+import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert, XCircle, Box, Package, Home } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../lib/supabase';
@@ -20,6 +20,21 @@ export default function TrackingScreen() {
   const [deliveryOtp, setDeliveryOtp] = useState<string | null>(null);
 
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showDeliveredOverlay, setShowDeliveredOverlay] = useState(false);
+  const redirectTimerRef = useRef<any>(null);
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  const redirectToHome = useCallback((delay: number) => {
+    redirectTimerRef.current = setTimeout(() => {
+      navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+    }, delay);
+  }, [navigation]);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   const driverChannelRef = useRef<any>(null);
   const subscribedDriverIdRef = useRef<string | null>(null);
@@ -51,6 +66,14 @@ export default function TrackingScreen() {
              subscribedDriverIdRef.current = null;
            }
            setDeliveryOtp(null);
+           // Show delivered overlay and auto-redirect home after 3s
+           setShowDeliveredOverlay(true);
+           Animated.timing(overlayOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+           redirectToHome(3000);
+        }
+        if (payload.new.status === 'cancelled') {
+           // Auto-redirect home after 2s
+           redirectToHome(2000);
         }
       })
       .subscribe();
@@ -492,9 +515,42 @@ export default function TrackingScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Home button for terminal states */}
+          {(order.status === 'delivered' || order.status === 'cancelled') && (
+            <TouchableOpacity
+              style={styles.homeBtn}
+              onPress={() => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] })}
+            >
+              <Home size={18} color={theme.colors.surface} />
+              <Text style={styles.homeBtnText}>Back to Home</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={{ height: 100 }} />
         </ScrollView>
       </View>
+
+      {/* Delivered Overlay */}
+      {showDeliveredOverlay && (
+        <Animated.View style={[styles.deliveredOverlay, { opacity: overlayOpacity }]}>
+          <View style={styles.deliveredCard}>
+            <CheckCircle2 size={64} color={theme.colors.primary} />
+            <Text style={styles.deliveredTitle}>Order Delivered! 🎉</Text>
+            <Text style={styles.deliveredSub}>Your order has been successfully delivered.</Text>
+            <Text style={styles.deliveredSub}>Redirecting to Home...</Text>
+            <TouchableOpacity
+              style={styles.homeBtn}
+              onPress={() => {
+                if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+                navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+              }}
+            >
+              <Home size={18} color={theme.colors.surface} />
+              <Text style={styles.homeBtnText}>Go to Home Now</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -566,7 +622,29 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.danger, alignItems: 'center',
   },
   cancelBtnText: { color: theme.colors.danger, fontWeight: 'bold', fontSize: 15 },
-  
+  homeBtn: {
+    marginTop: 12, padding: 16, borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primary, alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+  },
+  homeBtnText: { color: theme.colors.surface, fontWeight: 'bold', fontSize: 15 },
+  deliveredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  deliveredCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    marginHorizontal: 24,
+    gap: 12,
+  },
+  deliveredTitle: { fontSize: 24, fontWeight: 'bold', color: theme.colors.text, textAlign: 'center' },
+  deliveredSub: { fontSize: 14, color: theme.colors.textMuted, textAlign: 'center' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 16, fontWeight: '600', color: theme.colors.text, marginTop: 12 }
 });

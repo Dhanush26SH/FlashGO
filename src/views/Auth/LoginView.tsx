@@ -47,10 +47,17 @@ export const LoginView: React.FC = () => {
         .single();
         
       if (profileError) {
-        console.warn("Could not fetch profile role, defaulting to customer.", profileError);
+        // Sign out the auth session since we can't determine their role
+        await supabase.auth.signOut();
+        throw new Error(`Account setup incomplete or access denied. (${profileError.message})`);
+      }
+
+      if (!profile) {
+        await supabase.auth.signOut();
+        throw new Error('No profile found for this account. Please contact an administrator.');
       }
       
-      const userRole = profile?.role || 'customer';
+      const userRole = profile.role;
       
       login(userRole);
       
@@ -154,7 +161,7 @@ export const LoginView: React.FC = () => {
             {isAuthenticating ? 'Authorizing...' : 'Secure Login'}
           </button>
 
-          <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.85rem' }}>
+          {/* <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.85rem' }}>
             <span style={{ color: 'var(--text-secondary)' }}>New to FlashGO? </span>
             <a 
               href="#" 
@@ -166,7 +173,7 @@ export const LoginView: React.FC = () => {
             >
               Sign up here
             </a>
-          </div>
+          </div> */}
         </form>
       </div>
     </div>
