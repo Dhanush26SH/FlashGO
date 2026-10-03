@@ -123,8 +123,11 @@ export const DriverRateCards: React.FC = () => {
     }
 
     // Validation
-    for (let i = 0; i < tiers.length; i++) {
-      const t = tiers[i];
+    const sortedTiers = [...tiers].sort((a, b) => Number(a.min_items) - Number(b.min_items));
+    let expectedNextMin = 1;
+
+    for (let i = 0; i < sortedTiers.length; i++) {
+      const t = sortedTiers[i];
       const minItems = Number(t.min_items);
       const maxItems = t.max_items === null || t.max_items === '' ? null : Number(t.max_items);
       const earningAmount = Number(t.earning_amount);
@@ -133,13 +136,25 @@ export const DriverRateCards: React.FC = () => {
         addToast(`Tier ${i + 1}: Minimum items must be a valid number >= 1`, 'error');
         return;
       }
+      if (minItems !== expectedNextMin) {
+        addToast(`Tier ${i + 1}: Must start exactly at ${expectedNextMin} to form a continuous range (no gaps or overlaps).`, 'error');
+        return;
+      }
       if (maxItems !== null && (isNaN(maxItems) || maxItems < minItems)) {
         addToast(`Tier ${i + 1}: Maximum items cannot be less than minimum`, 'error');
         return;
       }
-      if (t.earning_amount === '' || isNaN(earningAmount) || earningAmount < 0) {
-        addToast(`Tier ${i + 1}: Earning amount must be a valid non-negative number`, 'error');
+      if (t.earning_amount === '' || isNaN(earningAmount) || earningAmount <= 0) {
+        addToast(`Tier ${i + 1}: Earning amount must be greater than zero`, 'error');
         return;
+      }
+      if (maxItems === null) {
+        if (i !== sortedTiers.length - 1) {
+          addToast(`Tier ${i + 1}: Only the final tier can be open-ended (no maximum).`, 'error');
+          return;
+        }
+      } else {
+        expectedNextMin = maxItems + 1;
       }
     }
 

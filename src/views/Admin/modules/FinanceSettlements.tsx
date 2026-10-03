@@ -6,6 +6,8 @@ import { supabase } from '../../../services/api/supabaseClient';
 import { DataTable } from '../../../components/Admin/DataTable';
 import { useApp } from '../../../context/AppContext';
 
+import { DriverRateCards } from './DriverRateCards';
+
 const toLocalIso = (d: Date) => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -93,6 +95,7 @@ export const FinanceSettlements: React.FC = () => {
   
   // Tab State
   const [activeTab, setActiveTab] = useState<'picker' | 'driver' | 'warehouse_staff'>('picker');
+  const [driverSubView, setDriverSubView] = useState<'payouts' | 'rates'>('payouts');
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
   const [pickerPeriodStr, setPickerPeriodStr] = useState<string>(pickerPeriods[0].start);
   const [driverPeriodStr, setDriverPeriodStr] = useState<string>(driverPeriods[0].start);
@@ -671,11 +674,34 @@ export const FinanceSettlements: React.FC = () => {
           </button>
         </div>
 
-        <div className="panel-header-toolbar">
-          <h3 className="panel-title">
-            <Calendar size={18} color="var(--primary)" /> 
-            {activeTab === 'picker' ? 'Picker Payments' : activeTab === 'driver' ? 'Driver Payments' : 'Warehouse Payroll'}
-          </h3>
+        {activeTab === 'driver' && (
+          <div className="finance-tabs" style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-light)', paddingBottom: '0' }}>
+            <button 
+              onClick={() => setDriverSubView('payouts')}
+              className={`finance-tab-btn ${driverSubView === 'payouts' ? 'active' : ''}`}
+              style={{ fontSize: '0.9rem', padding: '8px 16px' }}
+            >
+              Driver Payouts
+            </button>
+            <button 
+              onClick={() => setDriverSubView('rates')}
+              className={`finance-tab-btn ${driverSubView === 'rates' ? 'active' : ''}`}
+              style={{ fontSize: '0.9rem', padding: '8px 16px' }}
+            >
+              Driver Earning Rates
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'driver' && driverSubView === 'rates' ? (
+          <DriverRateCards />
+        ) : (
+          <>
+            <div className="panel-header-toolbar">
+              <h3 className="panel-title">
+                <Calendar size={18} color="var(--primary)" /> 
+                {activeTab === 'picker' ? 'Picker Payments' : activeTab === 'driver' ? 'Driver Payments' : 'Warehouse Payroll'}
+              </h3>
 
           <div className="toolbar-controls">
             <label className="toggle-switch">
@@ -708,7 +734,7 @@ export const FinanceSettlements: React.FC = () => {
           ) : roster.length > 0 ? (
             <DataTable
               data={roster}
-              keyExtractor={(s, index) => `${s.id}-${index}`}
+              keyExtractor={(s) => String(s.id)}
               columns={[
                 { key: 'name', header: 'NAME', render: r => (
                   <span style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => openStaffDetails(r)}>
@@ -748,6 +774,8 @@ export const FinanceSettlements: React.FC = () => {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {isModalOpen && selectedStaff && (
