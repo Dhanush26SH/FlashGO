@@ -22,6 +22,9 @@ const InventoryAuditsModule: React.FC = () => {
   const [auditNote, setAuditNote] = useState('');
   const [auditMappedLocations, setAuditMappedLocations] = useState<any[]>([]);
   const [isResolving, setIsResolving] = useState(false);
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
 
   useEffect(() => {
     AdminService.getWarehouses().then(data => {
@@ -148,38 +151,89 @@ const InventoryAuditsModule: React.FC = () => {
         {isLoading && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Syncing inventory...</span>}
       </div>
 
-      <div className="glass-panel" style={{ padding: '24px' }}>
+      <div className="glass-panel" style={{ padding: '24px', position: 'relative', zIndex: 10 }}>
         <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '16px' }}>Create Audit Task</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
-          <div>
+          <div style={{ position: 'relative' }}>
             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Product</label>
-            <select 
-              value={auditProductId} 
-              onChange={(e) => {
-                setAuditProductId(e.target.value);
-                setAuditLocationId('');
-              }}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}
+            <div 
+              onClick={() => setProductDropdownOpen(!productDropdownOpen)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
-              <option value="">Select a product...</option>
-              {inventory.map(inv => (
-                <option key={inv.product_id} value={inv.product_id}>{inv.name} ({inv.sku})</option>
-              ))}
-            </select>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {auditProductId 
+                  ? (() => { const p = inventory.find(i => i.product_id === auditProductId); return p ? `${p.name} (${p.sku})` : 'Select a product...'; })()
+                  : 'Select a product...'}
+              </span>
+              <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)' }}>▼</span>
+            </div>
+            
+            {productDropdownOpen && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '8px', zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                <div style={{ padding: '8px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Search product or SKU..." 
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}
+                    autoFocus
+                  />
+                </div>
+                <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                  <div 
+                    onClick={() => { setAuditProductId(''); setAuditLocationId(''); setProductDropdownOpen(false); setProductSearch(''); setLocationDropdownOpen(false); }}
+                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}
+                  >
+                    -- Clear Selection --
+                  </div>
+                  {inventory.filter(inv => !productSearch || inv.name.toLowerCase().includes(productSearch.toLowerCase()) || inv.sku.toLowerCase().includes(productSearch.toLowerCase())).map(inv => (
+                    <div 
+                      key={inv.product_id}
+                      onClick={() => { setAuditProductId(inv.product_id); setAuditLocationId(''); setProductDropdownOpen(false); setProductSearch(''); setLocationDropdownOpen(false); }}
+                      style={{ padding: '10px 12px', cursor: 'pointer', backgroundColor: auditProductId === inv.product_id ? 'var(--bg-base)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}
+                    >
+                      {inv.name} ({inv.sku})
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <div>
+          <div style={{ position: 'relative' }}>
             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Target Location (Mapped only)</label>
-            <select 
-              value={auditLocationId} 
-              onChange={(e) => setAuditLocationId(e.target.value)}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)' }}
-              disabled={!auditProductId}
+            <div 
+              onClick={() => { if (auditProductId && auditMappedLocations.length > 0) setLocationDropdownOpen(!locationDropdownOpen); }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', cursor: (!auditProductId || auditMappedLocations.length === 0) ? 'not-allowed' : 'pointer', opacity: (!auditProductId || auditMappedLocations.length === 0) ? 0.6 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
-              <option value="">Select mapped location...</option>
-              {auditMappedLocations.map((p: any) => (
-                <option key={p.location_id} value={p.location_id}>{p.location?.location_code} (Qty: {p.quantity})</option>
-              ))}
-            </select>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {auditLocationId 
+                  ? (() => { const l = auditMappedLocations.find(m => m.location_id === auditLocationId); return l ? `${l.location?.location_code} (Qty: ${l.quantity})` : 'Select mapped location...'; })()
+                  : 'Select mapped location...'}
+              </span>
+              <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)' }}>▼</span>
+            </div>
+            
+            {locationDropdownOpen && auditProductId && auditMappedLocations.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: '8px', zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '250px', overflowY: 'auto' }}>
+                <div 
+                  onClick={() => { setAuditLocationId(''); setLocationDropdownOpen(false); }}
+                  style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}
+                >
+                  -- Clear Selection --
+                </div>
+                {auditMappedLocations.map(p => (
+                  <div 
+                    key={p.location_id}
+                    onClick={() => { setAuditLocationId(p.location_id); setLocationDropdownOpen(false); }}
+                    style={{ padding: '10px 12px', cursor: 'pointer', backgroundColor: auditLocationId === p.location_id ? 'var(--bg-base)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}
+                  >
+                    {p.location?.location_code} (Qty: {p.quantity})
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Note (Optional)</label>

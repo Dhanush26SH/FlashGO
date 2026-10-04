@@ -79,6 +79,14 @@ export const OverviewDashboard: React.FC = () => {
 
   const recentActivityOrders = orders.filter(o => selectedWarehouseId ? o.warehouse_id === selectedWarehouseId : true).slice(0, 5);
 
+  const filteredForSnapshot = orders.filter(o => selectedWarehouseId ? o.warehouse_id === selectedWarehouseId : true);
+  const snapshotPicking = filteredForSnapshot.filter(o => o.status === 'picking').length;
+  const snapshotPacked = filteredForSnapshot.filter(o => o.status === 'packed' || o.status === 'staged').length;
+  const snapshotOutForDelivery = filteredForSnapshot.filter(o => o.status === 'out_for_delivery').length;
+  const snapshotCodOutstanding = filteredForSnapshot
+    .filter(o => o.status === 'out_for_delivery' && o.payment_method === 'cod' && !o.cod_collected)
+    .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
   return (
     <div className="od-container" style={{ position: 'relative' }}>
       {isLoading && (
@@ -150,6 +158,54 @@ export const OverviewDashboard: React.FC = () => {
             <div className="od-kpi-desc" style={{ marginTop: '8px' }}>{k.desc}</div>
           </div>
         ))}
+        
+        {/* Picking Now */}
+        <div className="od-kpi-card animate-slide-up" style={{ animationDelay: '0.35s', minHeight: '120px' }}>
+          <div className="od-kpi-header">
+            <div className="od-kpi-label">PICKING NOW</div>
+            <div className="od-icon-badge" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)' }}><Package size={20} color="var(--success)" /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '12px' }}>
+            <div className="od-kpi-val" style={{ fontSize: '1.8rem' }}>{snapshotPicking}</div>
+          </div>
+          <div className="od-kpi-desc" style={{ marginTop: '8px' }}>Active picking tasks</div>
+        </div>
+
+        {/* Ready / Staged */}
+        <div className="od-kpi-card animate-slide-up" style={{ animationDelay: '0.40s', minHeight: '120px' }}>
+          <div className="od-kpi-header">
+            <div className="od-kpi-label">READY / STAGED</div>
+            <div className="od-icon-badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)' }}><Store size={20} color="var(--info)" /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '12px' }}>
+            <div className="od-kpi-val" style={{ fontSize: '1.8rem' }}>{snapshotPacked}</div>
+          </div>
+          <div className="od-kpi-desc" style={{ marginTop: '8px' }}>Awaiting dispatch</div>
+        </div>
+
+        {/* Out for Delivery */}
+        <div className="od-kpi-card animate-slide-up" style={{ animationDelay: '0.45s', minHeight: '120px' }}>
+          <div className="od-kpi-header">
+            <div className="od-kpi-label">OUT FOR DELIVERY</div>
+            <div className="od-icon-badge" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}><Truck size={20} color="var(--warning)" /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '12px' }}>
+            <div className="od-kpi-val" style={{ fontSize: '1.8rem' }}>{snapshotOutForDelivery}</div>
+          </div>
+          <div className="od-kpi-desc" style={{ marginTop: '8px' }}>Currently en route</div>
+        </div>
+
+        {/* COD Outstanding */}
+        <div className="od-kpi-card animate-slide-up" style={{ animationDelay: '0.50s', minHeight: '120px' }}>
+          <div className="od-kpi-header">
+            <div className="od-kpi-label">COD OUTSTANDING</div>
+            <div className="od-icon-badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)' }}><IndianRupee size={20} color="var(--danger)" /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '12px' }}>
+            <div className="od-kpi-val" style={{ fontSize: '1.8rem' }}>₹{snapshotCodOutstanding.toFixed(2)}</div>
+          </div>
+          <div className="od-kpi-desc" style={{ marginTop: '8px' }}>Pending cash collection</div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '16px', marginBottom: '16px' }}>
@@ -289,28 +345,7 @@ export const OverviewDashboard: React.FC = () => {
                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                   <PremiumMap isStandby={true} />
                   
-                  {/* Floating Overlay */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '24px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 1000,
-                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                    padding: '16px 24px',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                    backdropFilter: 'blur(8px)'
-                  }}>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f8fafc', marginBottom: '4px' }}>Dark Store Coverage Active</h4>
-                    <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0, textAlign: 'center' }}>
-                      Delivery radius monitored and standing by.
-                    </p>
-                  </div>
+
                 </div>
               )}
             </div>

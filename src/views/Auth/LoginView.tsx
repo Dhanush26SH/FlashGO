@@ -87,6 +87,13 @@ export const LoginView: React.FC = () => {
         {theme === 'light' ? <Moon size={20} color="var(--text-primary)" /> : <Sun size={20} color="var(--text-primary)" />}
       </button>
 
+      <div 
+        className="login-scene-bg"
+        style={{
+          backgroundImage: theme === 'light' ? `url('/login-scene-light.jpg')` : `url('/login-scene-dark.jpg')`
+        }} 
+      />
+
       <div className="login-bg-glow"></div>
       
       <div className="login-card glass-panel">

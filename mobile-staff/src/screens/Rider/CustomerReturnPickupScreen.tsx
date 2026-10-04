@@ -25,7 +25,7 @@ export default function CustomerReturnPickupScreen() {
     try {
       const { data, error } = await supabase
         .from('customer_return_tasks')
-        .select('*, warehouses(name), orders(id, customer_snapshot_name, customer_name_snapshot, customer_snapshot_phone, address_snapshot_formatted, address_snapshot_instructions, delivery_lat, delivery_lng), customer_return_items(expected_quantity, order_items(product_name_snapshot, product_image_snapshot, sku_snapshot))')
+        .select('*, warehouses(name), orders(id, customer_snapshot_name, customer_name_snapshot, customer_snapshot_phone, address_snapshot_formatted, address_snapshot_flat, address_snapshot_floor, address_snapshot_landmark, address_snapshot_locality, address_snapshot_instructions, delivery_lat, delivery_lng), customer_return_items(expected_quantity, order_items(product_name_snapshot, product_image_snapshot, sku_snapshot))')
         .eq('id', taskId)
         .eq('assigned_driver_id', profile.id)
         .single();
@@ -172,6 +172,30 @@ export default function CustomerReturnPickupScreen() {
 
   const customerName = task.orders?.customer_snapshot_name || task.orders?.customer_name_snapshot;
 
+  let displayAddress = task.orders?.address_snapshot_formatted || '';
+  if (task.orders) {
+    const rawParts = [
+      task.orders.address_snapshot_flat,
+      task.orders.address_snapshot_floor,
+      task.orders.address_snapshot_landmark,
+      task.orders.address_snapshot_locality,
+      task.orders.address_snapshot_formatted,
+    ];
+    
+    const parts = rawParts
+      .filter((p) => typeof p === 'string')
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    const uniqueParts = parts.filter((item, pos, arr) => {
+      return pos === 0 || item.toLowerCase() !== arr[pos - 1].toLowerCase();
+    });
+
+    if (uniqueParts.length > 0) {
+      displayAddress = uniqueParts.join(', ');
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -207,7 +231,7 @@ export default function CustomerReturnPickupScreen() {
           <View style={styles.detailRow}>
             <MapPin color="#9ca3af" size={18} style={{ marginRight: 12, marginTop: 2 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.detailText}>{task.orders?.address_snapshot_formatted}</Text>
+              <Text style={styles.detailText}>{displayAddress}</Text>
               {task.orders?.address_snapshot_instructions ? (
                 <Text style={styles.detailSubText}>Note: {task.orders.address_snapshot_instructions}</Text>
               ) : null}

@@ -329,40 +329,64 @@ export class InventoryService {
   // --- RETURNS & UNPACK QUEUE API ---
   static async getUnpackQueue(warehouseId: string, filterDate?: Date, filterStatus?: string): Promise<any[]> {
     if (!supabase) return [];
-    let query = supabase
-      .from('order_unpack_queue')
-      .select('*, order:orders(*)')
-      .eq('warehouse_id', warehouseId)
-      .order('created_at', { ascending: false });
-
+    let startIso = null;
+    let endIso = null;
     if (filterDate) {
       const year = filterDate.getFullYear();
       const month = filterDate.getMonth();
       const date = filterDate.getDate();
       const startOfDayIST = new Date(Date.UTC(year, month, date) - (5.5 * 60 * 60 * 1000));
       const nextDayIST = new Date(startOfDayIST.getTime() + 24 * 60 * 60 * 1000);
-      query = query.gte('created_at', startOfDayIST.toISOString()).lt('created_at', nextDayIST.toISOString());
+      startIso = startOfDayIST.toISOString();
+      endIso = nextDayIST.toISOString();
     }
 
-    if (filterStatus && filterStatus !== 'all') {
-      query = query.eq('status', filterStatus);
-    }
+    const { data, error } = await supabase.rpc('admin_get_order_unpack_queue_enriched', {
+      p_warehouse_id: warehouseId,
+      p_filter_start: startIso,
+      p_filter_end: endIso,
+      p_filter_status: filterStatus || 'all'
+    });
 
-    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }
 
   static async getActiveLocations(warehouseId: string): Promise<any[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase
-      .from('warehouse_locations')
-      .select('id, location_code, zone')
-      .eq('warehouse_id', warehouseId)
-      .eq('is_active', true)
-      .order('location_code', { ascending: true });
-    if (error) throw error;
-    return data || [];
+    
+    let allLocations: any[] = [];
+    let page = 0;
+    const limit = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const start = page * limit;
+      const end = start + limit - 1;
+
+      const { data, error } = await supabase
+        .from('warehouse_locations')
+        .select('id, location_code, zone')
+        .eq('warehouse_id', warehouseId)
+        .eq('is_active', true)
+        .order('location_code', { ascending: true })
+        .range(start, end);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        allLocations = allLocations.concat(data);
+        if (data.length < limit) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allLocations;
   }
 
   static async processOrderUnpack(unpackId: string, disposition: 'restocked' | 'damaged' | 'quarantine', userId: string, locationId?: string): Promise<void> {

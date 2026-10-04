@@ -406,6 +406,7 @@ export const ReturnsDispositionModule: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [selectedQueueDate, setSelectedQueueDate] = useState<Date>(new Date());
   const [selectedQueueStatus, setSelectedQueueStatus] = useState<string>('all');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const fetchQueue = async () => {
     try {
@@ -451,6 +452,7 @@ export const ReturnsDispositionModule: React.FC = () => {
   const initiateRestock = (id: string) => {
     setCurrentRestockId(id);
     setSelectedLocationId('');
+    setDropdownOpen(false);
     setRestockModalOpen(true);
   };
 
@@ -461,6 +463,7 @@ export const ReturnsDispositionModule: React.FC = () => {
       await InventoryService.processOrderUnpack(currentRestockId, 'restocked', currentUser!.id, selectedLocationId);
       addToast('Processed as restocked', 'success');
       setRestockModalOpen(false);
+      setDropdownOpen(false);
       setCurrentRestockId(null);
       fetchQueue();
     } catch (e: any) {
@@ -559,6 +562,7 @@ export const ReturnsDispositionModule: React.FC = () => {
             <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-light)' }}>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Return ID</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Order ID</th>
+              <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Items</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Status</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Processed At</th>
               <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)' }}>Action</th>
@@ -581,6 +585,7 @@ export const ReturnsDispositionModule: React.FC = () => {
                 <tr key={q.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{q.id.slice(0, 8)}</td>
                   <td style={{ padding: '12px 16px', fontFamily: 'monospace' }}>{q.order_id.slice(0, 8)}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{q.items_summary}</td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: q.status === 'pending' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: q.status === 'pending' ? '#f59e0b' : '#10b981' }}>
                       {q.status.toUpperCase()}
@@ -621,21 +626,56 @@ export const ReturnsDispositionModule: React.FC = () => {
               Choose a physical location to restock this return into. The location must belong to the current warehouse.
             </p>
             
-            <select 
-              value={selectedLocationId}
-              onChange={(e) => setSelectedLocationId(e.target.value)}
-              disabled={processing}
-              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', marginBottom: '24px' }}
-            >
-              <option value="">-- Select Destination --</option>
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>{loc.location_code} ({loc.zone})</option>
-              ))}
-            </select>
+            <div style={{ position: 'relative', width: '100%', marginBottom: '24px' }}>
+              <div 
+                onClick={() => !processing && setDropdownOpen(!dropdownOpen)}
+                style={{ 
+                  width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)', 
+                  backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', cursor: processing ? 'not-allowed' : 'pointer',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: processing ? 0.6 : 1,
+                  boxSizing: 'border-box'
+                }}
+              >
+                <span>
+                  {selectedLocationId 
+                    ? locations.find(l => l.id === selectedLocationId)?.location_code + ' (' + locations.find(l => l.id === selectedLocationId)?.zone + ')'
+                    : '-- Select Destination --'}
+                </span>
+                <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)' }}>▼</span>
+              </div>
+              
+              {dropdownOpen && !processing && (
+                <div style={{ 
+                  position: 'absolute', top: '100%', left: 0, right: 0, 
+                  backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-light)', 
+                  borderRadius: '6px', marginTop: '4px', maxHeight: '200px', overflowY: 'auto', 
+                  zIndex: 2000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' 
+                }}>
+                  <div 
+                    onClick={() => { setSelectedLocationId(''); setDropdownOpen(false); }}
+                    style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)' }}
+                  >
+                    -- Select Destination --
+                  </div>
+                  {locations.map(loc => (
+                    <div 
+                      key={loc.id}
+                      onClick={() => { setSelectedLocationId(loc.id); setDropdownOpen(false); }}
+                      style={{ padding: '10px', cursor: 'pointer', backgroundColor: selectedLocationId === loc.id ? 'var(--bg-base)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}
+                    >
+                      {loc.location_code} ({loc.zone})
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button 
-                onClick={() => setRestockModalOpen(false)}
+                onClick={() => {
+                  setRestockModalOpen(false);
+                  setDropdownOpen(false);
+                }}
                 disabled={processing}
                 style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-primary)', cursor: processing ? 'not-allowed' : 'pointer', opacity: processing ? 0.6 : 1 }}
               >

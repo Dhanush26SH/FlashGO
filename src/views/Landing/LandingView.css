@@ -1,5 +1,6 @@
 .landing-container {
-  min-height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-base);
@@ -62,6 +63,7 @@
   text-align: center;
   padding: 120px 24px 80px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .hero-bg-glow {
@@ -102,6 +104,7 @@
   margin-bottom: 24px;
   background: linear-gradient(to right, var(--text-primary), var(--text-muted));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: slide-up 0.6s ease-out forwards;
 }
