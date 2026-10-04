@@ -32,13 +32,14 @@ export class VendorsService {
   }
 
   static async updateVendor(id: string, updates: Partial<Vendor>): Promise<Vendor> {
-
-    const { data, error } = await supabase
-      .from('vendors')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('admin_update_vendor', {
+      p_id: id,
+      p_name: updates.name,
+      p_email: updates.email,
+      p_contact_person: updates.contact_person,
+      p_phone: updates.phone,
+      p_address: updates.address
+    });
     
     if (error) throw error;
     return data;

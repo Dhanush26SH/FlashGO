@@ -16,6 +16,8 @@ export const ProcurementSupplier: React.FC = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [showNewVendor, setShowNewVendor] = useState(false);
   const [newVendorData, setNewVendorData] = useState({ name: '', contact_person: '', email: '', phone: '', address: 'N/A' });
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [editVendorData, setEditVendorData] = useState({ id: '', name: '', contact_person: '', email: '', phone: '', address: 'N/A' });
   const [orders, setOrders] = useState<ProcurementOrder[]>([]);
   const [batches, setBatches] = useState<any[]>([]);
   
@@ -401,6 +403,26 @@ export const ProcurementSupplier: React.FC = () => {
     });
   };
 
+  const handleUpdateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editVendorData.name || !editVendorData.email) {
+      addToast('Name and Email are required', 'error');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await VendorsService.updateVendor(editVendorData.id, editVendorData);
+      const updated = await VendorsService.getVendors();
+      setVendors(updated);
+      setEditingVendor(null);
+      addToast('Vendor updated successfully', 'success');
+    } catch (e: any) {
+      addToast(`Failed to update vendor: ${e.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleManageCatalog = async (vendor: any) => {
     setCatalogVendor(vendor);
     setIsCatalogLoading(true);
@@ -642,8 +664,21 @@ export const ProcurementSupplier: React.FC = () => {
                 <div className="vendor-detail">Contact: {v.contact_person}</div>
                 <div className="vendor-detail">Email: {v.email}</div>
                 <div className="vendor-detail">Phone: {v.phone}</div>
-                <div style={{ marginTop: '12px' }}>
-                  <button className="btn-primary" onClick={() => handleManageCatalog(v)} style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+                  <button className="btn-secondary" onClick={() => {
+                    setEditingVendor(v);
+                    setEditVendorData({
+                      id: v.id,
+                      name: v.name,
+                      contact_person: v.contact_person || '',
+                      email: v.email || '',
+                      phone: v.phone || '',
+                      address: v.address || 'N/A'
+                    });
+                  }} style={{ padding: '4px 8px', fontSize: '0.75rem', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', border: '1px solid var(--border-light)', borderRadius: '4px', background: 'transparent' }}>
+                    Edit
+                  </button>
+                  <button className="btn-primary" onClick={() => handleManageCatalog(v)} style={{ padding: '4px 8px', fontSize: '0.75rem', flex: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
                     <Package size={14} /> Manage Catalog
                   </button>
                 </div>
@@ -1338,6 +1373,40 @@ export const ProcurementSupplier: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {editingVendor && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="glass-panel" style={{ padding: '24px', width: '90%', maxWidth: '500px', backgroundColor: 'var(--bg-card)' }}>
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 className="panel-title" style={{ margin: 0 }}>Edit Vendor</h3>
+              <button onClick={() => setEditingVendor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateVendor} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
+                <label className="label">Vendor Name</label>
+                <input className="input" value={editVendorData.name} onChange={e => setEditVendorData({...editVendorData, name: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label className="label">Contact Person</label>
+                <input className="input" value={editVendorData.contact_person} onChange={e => setEditVendorData({...editVendorData, contact_person: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label className="label">Email</label>
+                <input type="email" className="input" value={editVendorData.email} onChange={e => setEditVendorData({...editVendorData, email: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label className="label">Phone</label>
+                <input className="input" value={editVendorData.phone} onChange={e => setEditVendorData({...editVendorData, phone: e.target.value})} required />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="button" className="btn-secondary" onClick={() => setEditingVendor(null)} style={{ flex: 1 }}>Cancel</button>
+                <button type="submit" className="btn-submit" disabled={isSubmitting} style={{ flex: 1 }}>{isSubmitting ? 'Saving...' : 'Save Changes'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
