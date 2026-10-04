@@ -4,6 +4,7 @@ import { MapPin, Bike, CheckCircle2, Clock, PhoneCall, ChevronLeft, ShieldAlert,
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../lib/supabase';
+import { cancelOrder } from '../services/api';
 import { theme } from '../theme';
 
 export default function TrackingScreen() {
@@ -226,33 +227,53 @@ export default function TrackingScreen() {
 
 
 
-  const handleCancelOrder = () => {
-    Alert.alert(
-      "Cancel Order",
-      "Are you sure you want to cancel this order?",
-      [
-        { text: "No", style: "cancel" },
-        { 
-          text: "Yes, Cancel", 
-          style: "destructive",
-          onPress: async () => {
-            setIsCancelling(true);
-            try {
-              const { error } = await supabase.functions.invoke('customer-cancel-order', {
-                body: { orderId: order.id, reason: 'Customer requested cancellation' }
-              });
-              if (error) throw error;
-              fetchOrderDetails();
-            } catch (err) {
-              console.error(err);
-              Alert.alert('Error', 'Could not cancel order. It may be too late to cancel.');
-            } finally {
-              setIsCancelling(false);
+  const handleCancelOrder = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Cancel Order\n\nAre you sure you want to cancel this order?');
+      if (!confirmed) return;
+      setIsCancelling(true);
+      try {
+        await cancelOrder(order.id, order.payment_method);
+        window.alert('Order Cancelled\n\nYour order has been cancelled.');
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+      } catch (err: any) {
+        console.error(err);
+        window.alert('Error\n\nCould not cancel order. It may be too late to cancel.');
+      } finally {
+        setIsCancelling(false);
+      }
+    } else {
+      Alert.alert(
+        "Cancel Order",
+        "Are you sure you want to cancel this order?",
+        [
+          { text: "No", style: "cancel" },
+          {
+            text: "Yes, Cancel",
+            style: "destructive",
+            onPress: async () => {
+              setIsCancelling(true);
+              try {
+                await cancelOrder(order.id, order.payment_method);
+                Alert.alert(
+                  'Order Cancelled',
+                  'Your order has been cancelled.',
+                  [{
+                    text: 'OK',
+                    onPress: () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }),
+                  }]
+                );
+              } catch (err) {
+                console.error(err);
+                Alert.alert('Error', 'Could not cancel order. It may be too late to cancel.');
+              } finally {
+                setIsCancelling(false);
+              }
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const getTimelineSteps = () => {
