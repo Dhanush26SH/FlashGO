@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image } from 'react-native';
 import { User, Briefcase, ChevronDown } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -103,7 +103,7 @@ export default function RequestAccessScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logoText}>⚡ FLASH<Text style={{ color: '#10b981' }}>GO</Text> STAFF</Text>
+      <Image source={require('../../../assets/flashgo-logo.png')} style={styles.logoImage} resizeMode="contain" />
       
       <View style={styles.card}>
         <Text style={styles.title}>Request Access</Text>
@@ -200,12 +200,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24
   },
-  logoText: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 2,
-    marginBottom: 24
+  logoImage: {
+    width: 200,
+    height: 80,
+    marginBottom: 24,
+    alignSelf: 'center'
   },
   card: {
     backgroundColor: '#0f172a',
