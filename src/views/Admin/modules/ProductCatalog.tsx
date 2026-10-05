@@ -139,6 +139,7 @@ export const ProductCatalog: React.FC = () => {
   const [editPackQuantity, setEditPackQuantity] = useState('');
   const [editPackUnit, setEditPackUnit] = useState('');
   const [editSupplierId, setEditSupplierId] = useState('');
+  const [editSupplierCount, setEditSupplierCount] = useState(0);
   const [editPurchasePrice, setEditPurchasePrice] = useState('');
   const [editMoq, setEditMoq] = useState('1');
   const [editVendorSku, setEditVendorSku] = useState('');
@@ -234,6 +235,7 @@ export const ProductCatalog: React.FC = () => {
     setEditIsActive(p.is_active !== false);
     
     setEditSupplierId('');
+    setEditSupplierCount(0);
     setEditPurchasePrice('');
     setEditMoq('1');
     setEditVendorSku('');
@@ -244,10 +246,13 @@ export const ProductCatalog: React.FC = () => {
       if (data && data.length === 1) {
         const vp = data[0];
         setEditSupplierId(vp.vendor_id);
+        setEditSupplierCount(1);
         setEditPurchasePrice(vp.purchase_price != null ? vp.purchase_price.toString() : '');
         setEditMoq(vp.minimum_order_quantity != null ? vp.minimum_order_quantity.toString() : '1');
         setEditVendorSku(vp.vendor_sku || '');
       } else if (data && data.length > 1) {
+        setEditSupplierId('MULTIPLE');
+        setEditSupplierCount(data.length);
         addToast('Multiple suppliers mapped. Inline editing supports single supplier.', 'warning');
       }
     } catch (e) {
@@ -287,7 +292,7 @@ export const ProductCatalog: React.FC = () => {
       updates.pack_unit = editPackUnit || null;
     }
 
-    if (editSupplierId) {
+    if (editSupplierId && editSupplierId !== 'MULTIPLE') {
       updates.supplier_id = editSupplierId;
       updates.purchase_price = editPurchasePrice ? parseFloat(editPurchasePrice) : null;
       updates.minimum_order_quantity = editMoq ? parseInt(editMoq, 10) : 1;
@@ -442,12 +447,22 @@ export const ProductCatalog: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Supplier Mapping</span>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-            <select value={editSupplierId} onChange={e => setEditSupplierId(e.target.value)} className="admin-input" style={{ width: '240px', padding: '8px 12px', borderRadius: '6px' }}>
-              <option value="">-- No Supplier --</option>
+            <select 
+              value={editSupplierId} 
+              onChange={e => setEditSupplierId(e.target.value)} 
+              className="admin-input" 
+              style={{ width: '240px', padding: '8px 12px', borderRadius: '6px' }}
+              disabled={editSupplierId === 'MULTIPLE'}
+            >
+              {editSupplierId === 'MULTIPLE' ? (
+                <option value="MULTIPLE">{editSupplierCount} Suppliers Mapped</option>
+              ) : (
+                <option value="">-- No Supplier --</option>
+              )}
               {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
             
-            {editSupplierId && (
+            {editSupplierId && editSupplierId !== 'MULTIPLE' && (
               <div style={{ display: 'flex', gap: '12px', flex: 1, padding: '10px 14px', backgroundColor: 'var(--bg-base)', borderRadius: '8px', border: '1px solid var(--border-light)', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Purchase Price (₹)</span>

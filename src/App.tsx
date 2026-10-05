@@ -12,8 +12,16 @@ import { WarehouseView } from './views/Warehouse/WarehouseView';
 import type { UserRole } from './types';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: UserRole[] }> = ({ children, allowedRoles }) => {
-  const { isAuthenticated, activeRole } = useApp();
+  const { isAuthenticated, isAuthReady, activeRole } = useApp();
   
+  if (!isAuthReady) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-base)', color: 'var(--text-secondary)' }}>
+        Verifying session...
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }

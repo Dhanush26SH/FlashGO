@@ -26,6 +26,7 @@ interface AppContextType {
   updateCurrentUserProfile: (profile: Profile) => void;
   addWalletFunds: (userId: string, amount: number) => void;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
   login: (role: UserRole) => void;
   logout: () => void;
   fallbackState: { type: 'none' | 'partial' | 'full', failedModules: string[] };
@@ -121,6 +122,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (saved === 'light' || saved === 'dark') ? saved : 'dark';
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 
   // Platform Settings State
   const [baseDeliveryFee, setBaseDeliveryFee] = useState(2.99);
@@ -141,6 +143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = (role: UserRole) => {
     setActiveRole(role);
     setIsAuthenticated(true);
+    setIsAuthReady(true);
     localStorage.setItem('flashgo_auth', 'true');
     localStorage.setItem('flashgo_role', role);
     addToast(`Successfully logged in as ${role.replace('_', ' ')}`, 'success');
@@ -156,6 +159,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Error signing out of Supabase", e);
     }
     setIsAuthenticated(false);
+    setIsAuthReady(true);
     setCurrentUser(undefined);
     localStorage.removeItem('flashgo_role');
     setCart([]);
@@ -300,6 +304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         setCurrentUser(profs.find(p => p.id === profileMap[activeRole]));
         setIsLoadingData(false);
+        setIsAuthReady(true);
         setFallbackState({ type: 'full', failedModules: [] });
         return;
       }
@@ -385,6 +390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
          setActiveRole(authenticatedProfile.role);
          localStorage.setItem('flashgo_role', authenticatedProfile.role);
       } else {
+         setIsAuthenticated(false);
          if (activeRole !== 'customer') {
            const profileMap: Record<UserRole, string> = {
              customer: 'u-cust', // Legacy, unused
@@ -398,7 +404,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
            setCurrentUser(profs.find((p: any) => p.role === activeRole) || FlashGoDB.getProfiles().find((p: any) => p.id === profileMap[activeRole]));
          } else {
            setCurrentUser(undefined);
-           setIsAuthenticated(false);
          }
       }
     } catch (e: any) {
@@ -407,6 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToast('Failed to load live data. Check Supabase connection.', 'error');
     } finally {
       setIsLoadingData(false);
+      setIsAuthReady(true);
     }
   };
 
@@ -1054,6 +1060,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateCurrentUserProfile,
       addWalletFunds,
       isAuthenticated,
+      isAuthReady,
       login,
       logout,
       fallbackState,
