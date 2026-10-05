@@ -23,7 +23,7 @@ async function run() {
   const { data: udupiCatalog } = await supabase.rpc('get_warehouse_catalog', { p_warehouse_id: udupiId });
   const { data: manipalCatalog } = await supabase.rpc('get_warehouse_catalog', { p_warehouse_id: manipalId });
 
-  const getStats = (warehouseId) => {
+  const getStats = (warehouseId: string) => {
     const stockRows = stockData?.filter(s => s.warehouse_id === warehouseId) || [];
     const batches = batchData?.filter(b => b.warehouse_id === warehouseId) || [];
     const resRows = reservations?.filter(r => r.warehouse_id === warehouseId) || [];
@@ -41,8 +41,8 @@ async function run() {
     const activeBatches = batches.filter(b => !b.expiry_date || new Date(b.expiry_date) > now).length;
     const expiredBatches = batches.filter(b => b.expiry_date && new Date(b.expiry_date) <= now).length;
 
-    const catalogAvailable = catalog ? catalog.filter(c => c.in_stock).length : 0;
-    const sellableProductsCount = catalog ? catalog.filter(c => c.stock_quantity > 0).length : 0;
+    const catalogAvailable = catalog ? catalog.filter((c: any) => c.in_stock).length : 0;
+    const sellableProductsCount = catalog ? catalog.filter((c: any) => c.stock_quantity > 0).length : 0;
     
     return {
       totalStockRows, // This is count of unique products with stock rows

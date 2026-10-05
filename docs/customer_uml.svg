@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" font-family="Times New Roman, serif" font-size="12">
+
+  <!-- ======== CUSTOMER CLASS (Top Center) ======== -->
+  <g transform="translate(280, 20)">
+    <!-- Title bar -->
+    <rect x="0" y="0" width="340" height="30" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="170" y="20" text-anchor="middle" font-size="13" font-weight="bold">Customer</text>
+
+    <!-- Attributes section -->
+    <rect x="0" y="30" width="340" height="145" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="47">id: uuid</text>
+    <text x="8" y="62">name: string</text>
+    <text x="8" y="77">phone: string</text>
+    <text x="8" y="92">email: string</text>
+    <text x="8" y="107">address: string</text>
+    <text x="8" y="122">wallet_balance: float</text>
+    <text x="8" y="137">account_status: string</text>
+    <text x="8" y="152">created_at: date</text>
+    <text x="8" y="167">  </text>
+
+    <!-- Methods section -->
+    <rect x="0" y="175" width="340" height="115" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="192">login()</text>
+    <text x="8" y="207">updateProfile()</text>
+    <text x="8" y="222">placeOrder()</text>
+    <text x="8" y="237">trackLiveOrder()</text>
+    <text x="8" y="252">addFunds()</text>
+    <text x="8" y="267">viewHistory()</text>
+    <text x="8" y="282">  </text>
+  </g>
+
+  <!-- ======== ORDERS CLASS (Bottom Left) ======== -->
+  <g transform="translate(20, 430)">
+    <!-- Title bar -->
+    <rect x="0" y="0" width="240" height="30" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="120" y="20" text-anchor="middle" font-size="13" font-weight="bold">Orders</text>
+
+    <!-- Attributes -->
+    <rect x="0" y="30" width="240" height="175" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="47">id: uuid</text>
+    <text x="8" y="62">customer_id: uuid</text>
+    <text x="8" y="77">driver_id: uuid</text>
+    <text x="8" y="92">status: string</text>
+    <text x="8" y="107">total_amount: float</text>
+    <text x="8" y="122">created_at: date</text>
+    <text x="8" y="137">dropoff_lat: float</text>
+    <text x="8" y="152">dropoff_lng: float</text>
+    <text x="8" y="167">payment_status: string</text>
+    <text x="8" y="182">  </text>
+    <text x="8" y="197">  </text>
+
+    <!-- Methods -->
+    <rect x="0" y="205" width="240" height="65" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="222">processOrder()</text>
+    <text x="8" y="237">cancelOrder()</text>
+    <text x="8" y="252">rateDelivery()</text>
+    <text x="8" y="267">  </text>
+  </g>
+
+  <!-- ======== ORDER DETAILS CLASS (Bottom Center) ======== -->
+  <g transform="translate(330, 430)">
+    <!-- Title bar -->
+    <rect x="0" y="0" width="240" height="30" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="120" y="20" text-anchor="middle" font-size="13" font-weight="bold">Order Details</text>
+
+    <!-- Attributes -->
+    <rect x="0" y="30" width="240" height="210" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="47">id: uuid</text>
+    <text x="8" y="62">order_id: uuid</text>
+    <text x="8" y="77">product_name: string</text>
+    <text x="8" y="92">quantity: int</text>
+    <text x="8" y="107">unit_price: float</text>
+    <text x="8" y="122">subtotal: float</text>
+    <text x="8" y="137">warehouse_id: uuid</text>
+    <text x="8" y="152">picker_id: uuid</text>
+    <text x="8" y="167">packed_at: date</text>
+    <text x="8" y="182">  </text>
+    <text x="8" y="197">  </text>
+    <text x="8" y="212">  </text>
+    <text x="8" y="230">  </text>
+
+    <!-- Methods (empty section for visual balance) -->
+    <rect x="0" y="240" width="240" height="30" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="259">  </text>
+  </g>
+
+  <!-- ======== ORDER HISTORY CLASS (Bottom Right) ======== -->
+  <g transform="translate(640, 430)">
+    <!-- Title bar -->
+    <rect x="0" y="0" width="240" height="30" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="120" y="20" text-anchor="middle" font-size="13" font-weight="bold">Order History</text>
+
+    <!-- Attributes -->
+    <rect x="0" y="30" width="240" height="210" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="47">id: uuid</text>
+    <text x="8" y="62">order_id: uuid</text>
+    <text x="8" y="77">date: date</text>
+    <text x="8" y="92">status: string</text>
+    <text x="8" y="107">remarks: string</text>
+    <text x="8" y="122">latitude: float</text>
+    <text x="8" y="137">longitude: float</text>
+    <text x="8" y="152">updated_by: string</text>
+    <text x="8" y="167">timestamp: timestamp</text>
+    <text x="8" y="182">  </text>
+    <text x="8" y="197">  </text>
+    <text x="8" y="212">  </text>
+    <text x="8" y="230">  </text>
+
+    <!-- Methods (empty section) -->
+    <rect x="0" y="240" width="240" height="30" fill="white" stroke="black" stroke-width="1.5"/>
+    <text x="8" y="259">  </text>
+  </g>
+
+  <!-- ======== RELATIONSHIP LINES ======== -->
+
+  <!-- Line: Customer → Orders (Manages) -->
+  <!-- Customer bottom-left corner = (280+0, 20+290) = (280, 310) -->
+  <!-- Orders top-center = (20+120, 430) = (140, 430) -->
+  <line x1="310" y1="310" x2="140" y2="430" stroke="black" stroke-width="1.2"/>
+  <!-- Label: Manages -->
+  <text x="190" y="360" font-size="11" font-style="italic">Manages</text>
+  <!-- Multiplicity: 1 on Customer side -->
+  <text x="296" y="335" font-size="11">1</text>
+  <!-- Multiplicity: * on Orders side -->
+  <text x="148" y="426" font-size="11">*</text>
+
+  <!-- Line: Customer → Order Details (Views) -->
+  <!-- Customer bottom-center = (450, 310) -->
+  <!-- Order Details top-center = (330+120, 430) = (450, 430) -->
+  <line x1="450" y1="310" x2="450" y2="430" stroke="black" stroke-width="1.2"/>
+  <!-- Label: Views -->
+  <text x="456" y="375" font-size="11" font-style="italic">Views</text>
+  <!-- Multiplicity -->
+  <text x="430" y="328" font-size="11">1</text>
+  <text x="430" y="426" font-size="11">*</text>
+
+  <!-- Line: Customer → Order History (View) -->
+  <!-- Customer bottom-right area = (620, 310) -->
+  <!-- Order History top-center = (640+120, 430) = (760, 430) -->
+  <line x1="590" y1="310" x2="760" y2="430" stroke="black" stroke-width="1.2"/>
+  <!-- Label: View -->
+  <text x="660" y="360" font-size="11" font-style="italic">View</text>
+  <!-- Multiplicity -->
+  <text x="600" y="335" font-size="11">1</text>
+  <text x="750" y="426" font-size="11">*</text>
+
+</svg>
