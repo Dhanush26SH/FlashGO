@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="950" viewBox="0 0 1300 950" font-family="Times New Roman, serif">
+  <defs>
+    <marker id="arr_right" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="black" />
+    </marker>
+    <marker id="arr_left" markerWidth="9" markerHeight="9" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M8,0 L8,6 L0,3 z" fill="black" />
+    </marker>
+  </defs>
+  <rect width="1300" height="950" fill="white" />
+  <text x="650" y="45" text-anchor="middle" font-size="22" font-weight="bold">FlashGO System — Level 1 Data Flow Diagram (All Modules)</text>
+  <line x1="120" y1="65" x2="1180" y2="65" stroke="black" stroke-width="1.4" />
+  <rect x="45" y="112.0" width="145" height="76" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="117.5" y="155" text-anchor="middle" font-size="15" font-weight="bold">Customer</text>
+  <ellipse cx="530" cy="150" rx="135" ry="38" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="530" y="155" text-anchor="middle" font-size="14" font-weight="bold">1.0 Customer Module</text>
+  <line x1="190" y1="136" x2="404.49602979428846" y2="136" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="130" text-anchor="middle" font-size="11">Order & Payment Info</text>
+  <line x1="404.49602979428846" y1="164" x2="190" y2="164" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="180" text-anchor="middle" font-size="11">Catalog Items & Live Order Status</text>
+  <line x1="960" y1="105" x2="1220" y2="105" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="127" x2="1220" y2="127" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="105" x2="998" y2="127" stroke="black" stroke-width="1.1" />
+  <text x="979" y="120" text-anchor="middle" font-size="11" font-weight="bold">D1</text>
+  <text x="1109.0" y="120" text-anchor="middle" font-size="12">Users Table</text>
+  <line x1="590.2901571327477" y1="116" x2="960" y2="116" stroke="black" stroke-width="1.1" marker-start="url(#arr_left)" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="111" text-anchor="middle" font-size="10.5">Profile & Auth</text>
+  <line x1="960" y1="139" x2="1220" y2="139" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="161" x2="1220" y2="161" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="139" x2="998" y2="161" stroke="black" stroke-width="1.1" />
+  <text x="979" y="154" text-anchor="middle" font-size="11" font-weight="bold">D2</text>
+  <text x="1109.0" y="154" text-anchor="middle" font-size="12">Products Table</text>
+  <line x1="960" y1="150" x2="665.0" y2="150" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="812.5" y="145" text-anchor="middle" font-size="10.5">Browse Catalog</text>
+  <line x1="960" y1="173" x2="1220" y2="173" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="195" x2="1220" y2="195" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="173" x2="998" y2="195" stroke="black" stroke-width="1.1" />
+  <text x="979" y="188" text-anchor="middle" font-size="11" font-weight="bold">D4</text>
+  <text x="1109.0" y="188" text-anchor="middle" font-size="12">Orders Table</text>
+  <line x1="590.2901571327477" y1="184" x2="960" y2="184" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="179" text-anchor="middle" font-size="10.5">Store Order Record</text>
+  <rect x="45" y="277.0" width="145" height="76" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="117.5" y="308" text-anchor="middle" font-size="14" font-weight="bold">Warehouse</text>
+  <text x="117.5" y="328" text-anchor="middle" font-size="14" font-weight="bold">Staff</text>
+  <ellipse cx="530" cy="315" rx="135" ry="38" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="530" y="320" text-anchor="middle" font-size="14" font-weight="bold">2.0 Warehouse Staff Module</text>
+  <line x1="190" y1="301" x2="404.49602979428846" y2="301" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="295" text-anchor="middle" font-size="11">Stock Counts & PO Receipts</text>
+  <line x1="404.49602979428846" y1="329" x2="190" y2="329" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="345" text-anchor="middle" font-size="11">Low-Stock Alerts & Inventory Reports</text>
+  <line x1="960" y1="284" x2="1220" y2="284" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="306" x2="1220" y2="306" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="284" x2="998" y2="306" stroke="black" stroke-width="1.1" />
+  <text x="979" y="299" text-anchor="middle" font-size="11" font-weight="bold">D3</text>
+  <text x="1109.0" y="299" text-anchor="middle" font-size="12">Warehouse Inventory</text>
+  <line x1="644.7890393099723" y1="295" x2="960" y2="295" stroke="black" stroke-width="1.1" marker-start="url(#arr_left)" marker-end="url(#arr_right)" />
+  <text x="802.3945196549862" y="290" text-anchor="middle" font-size="10.5">Stock Adjustments</text>
+  <line x1="960" y1="324" x2="1220" y2="324" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="346" x2="1220" y2="346" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="324" x2="998" y2="346" stroke="black" stroke-width="1.1" />
+  <text x="979" y="339" text-anchor="middle" font-size="11" font-weight="bold">D2</text>
+  <text x="1109.0" y="339" text-anchor="middle" font-size="12">Products Table</text>
+  <line x1="644.7890393099723" y1="335" x2="960" y2="335" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="802.3945196549862" y="330" text-anchor="middle" font-size="10.5">Catalog Stock Sync</text>
+  <rect x="45" y="442.0" width="145" height="76" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="117.5" y="485" text-anchor="middle" font-size="15" font-weight="bold">Picker</text>
+  <ellipse cx="530" cy="480" rx="135" ry="38" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="530" y="485" text-anchor="middle" font-size="14" font-weight="bold">3.0 Picker Module</text>
+  <line x1="190" y1="466" x2="404.49602979428846" y2="466" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="460" text-anchor="middle" font-size="11">Scanned Barcodes & OOS Flags</text>
+  <line x1="404.49602979428846" y1="494" x2="190" y2="494" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="510" text-anchor="middle" font-size="11">Assigned Pick-List Queue</text>
+  <line x1="960" y1="435" x2="1220" y2="435" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="457" x2="1220" y2="457" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="435" x2="998" y2="457" stroke="black" stroke-width="1.1" />
+  <text x="979" y="450" text-anchor="middle" font-size="11" font-weight="bold">D4</text>
+  <text x="1109.0" y="450" text-anchor="middle" font-size="12">Orders Table</text>
+  <line x1="960" y1="446" x2="590.2901571327477" y2="446" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="441" text-anchor="middle" font-size="10.5">Fetch Placed Orders</text>
+  <line x1="960" y1="469" x2="1220" y2="469" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="491" x2="1220" y2="491" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="469" x2="998" y2="491" stroke="black" stroke-width="1.1" />
+  <text x="979" y="484" text-anchor="middle" font-size="11" font-weight="bold">D3</text>
+  <text x="1109.0" y="484" text-anchor="middle" font-size="12">Warehouse Inventory</text>
+  <line x1="665.0" y1="480" x2="960" y2="480" stroke="black" stroke-width="1.1" marker-start="url(#arr_left)" marker-end="url(#arr_right)" />
+  <text x="812.5" y="475" text-anchor="middle" font-size="10.5">Verify & Decrement Stock</text>
+  <line x1="960" y1="503" x2="1220" y2="503" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="525" x2="1220" y2="525" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="503" x2="998" y2="525" stroke="black" stroke-width="1.1" />
+  <text x="979" y="518" text-anchor="middle" font-size="11" font-weight="bold">D4</text>
+  <text x="1109.0" y="518" text-anchor="middle" font-size="12">Orders Table</text>
+  <line x1="590.2901571327477" y1="514" x2="960" y2="514" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="509" text-anchor="middle" font-size="10.5">Update Status: Packed</text>
+  <rect x="45" y="607.0" width="145" height="76" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="117.5" y="650" text-anchor="middle" font-size="15" font-weight="bold">Driver</text>
+  <ellipse cx="530" cy="645" rx="135" ry="38" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="530" y="650" text-anchor="middle" font-size="14" font-weight="bold">4.0 Driver Module</text>
+  <line x1="190" y1="631" x2="404.49602979428846" y2="631" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="625" text-anchor="middle" font-size="11">GPS Telemetry & Delivery OTP</text>
+  <line x1="404.49602979428846" y1="659" x2="190" y2="659" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="675" text-anchor="middle" font-size="11">Dispatch Trips & Navigation Route</text>
+  <line x1="960" y1="600" x2="1220" y2="600" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="622" x2="1220" y2="622" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="600" x2="998" y2="622" stroke="black" stroke-width="1.1" />
+  <text x="979" y="615" text-anchor="middle" font-size="11" font-weight="bold">D4</text>
+  <text x="1109.0" y="615" text-anchor="middle" font-size="12">Orders Table</text>
+  <line x1="960" y1="611" x2="590.2901571327477" y2="611" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="606" text-anchor="middle" font-size="10.5">Fetch Packed Orders</text>
+  <line x1="960" y1="634" x2="1220" y2="634" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="656" x2="1220" y2="656" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="634" x2="998" y2="656" stroke="black" stroke-width="1.1" />
+  <text x="979" y="649" text-anchor="middle" font-size="11" font-weight="bold">D5</text>
+  <text x="1109.0" y="649" text-anchor="middle" font-size="12">Driver Telemetry</text>
+  <line x1="665.0" y1="645" x2="960" y2="645" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="812.5" y="640" text-anchor="middle" font-size="10.5">Stream Live Coordinates</text>
+  <line x1="960" y1="668" x2="1220" y2="668" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="690" x2="1220" y2="690" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="668" x2="998" y2="690" stroke="black" stroke-width="1.1" />
+  <text x="979" y="683" text-anchor="middle" font-size="11" font-weight="bold">D4</text>
+  <text x="1109.0" y="683" text-anchor="middle" font-size="12">Orders Table</text>
+  <line x1="590.2901571327477" y1="679" x2="960" y2="679" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="674" text-anchor="middle" font-size="10.5">Update Status: Delivered</text>
+  <rect x="45" y="772.0" width="145" height="76" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="117.5" y="815" text-anchor="middle" font-size="15" font-weight="bold">Super Admin</text>
+  <ellipse cx="530" cy="810" rx="135" ry="38" fill="white" stroke="black" stroke-width="1.5" />
+  <text x="530" y="815" text-anchor="middle" font-size="14" font-weight="bold">5.0 Admin Module</text>
+  <line x1="190" y1="796" x2="404.49602979428846" y2="796" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="790" text-anchor="middle" font-size="11">Platform Controls & Dispute Actions</text>
+  <line x1="404.49602979428846" y1="824" x2="190" y2="824" stroke="black" stroke-width="1.2" marker-end="url(#arr_right)" />
+  <text x="297.24801489714423" y="840" text-anchor="middle" font-size="11">Analytics, Fleet Map & Audit Logs</text>
+  <line x1="960" y1="765" x2="1220" y2="765" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="787" x2="1220" y2="787" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="765" x2="998" y2="787" stroke="black" stroke-width="1.1" />
+  <text x="979" y="780" text-anchor="middle" font-size="11" font-weight="bold">D1</text>
+  <text x="1109.0" y="780" text-anchor="middle" font-size="12">Users Table</text>
+  <line x1="590.2901571327477" y1="776" x2="960" y2="776" stroke="black" stroke-width="1.1" marker-start="url(#arr_left)" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="771" text-anchor="middle" font-size="10.5">User Roles & Suspensions</text>
+  <line x1="960" y1="799" x2="1220" y2="799" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="821" x2="1220" y2="821" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="799" x2="998" y2="821" stroke="black" stroke-width="1.1" />
+  <text x="979" y="814" text-anchor="middle" font-size="11" font-weight="bold">D4</text>
+  <text x="1109.0" y="814" text-anchor="middle" font-size="12">Orders Table</text>
+  <line x1="960" y1="810" x2="665.0" y2="810" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="812.5" y="805" text-anchor="middle" font-size="10.5">Audit Revenue & Orders</text>
+  <line x1="960" y1="833" x2="1220" y2="833" stroke="black" stroke-width="1.3" />
+  <line x1="960" y1="855" x2="1220" y2="855" stroke="black" stroke-width="1.3" />
+  <line x1="998" y1="833" x2="998" y2="855" stroke="black" stroke-width="1.1" />
+  <text x="979" y="848" text-anchor="middle" font-size="11" font-weight="bold">D5</text>
+  <text x="1109.0" y="848" text-anchor="middle" font-size="12">Driver Telemetry</text>
+  <line x1="960" y1="844" x2="590.2901571327477" y2="844" stroke="black" stroke-width="1.1" marker-end="url(#arr_right)" />
+  <text x="775.1450785663739" y="839" text-anchor="middle" font-size="10.5">Live Fleet Monitoring</text>
+  <line x1="35" y1="232" x2="1265" y2="232" stroke="#cccccc" stroke-width="0.7" stroke-dasharray="4,4" />
+  <line x1="35" y1="397" x2="1265" y2="397" stroke="#cccccc" stroke-width="0.7" stroke-dasharray="4,4" />
+  <line x1="35" y1="562" x2="1265" y2="562" stroke="#cccccc" stroke-width="0.7" stroke-dasharray="4,4" />
+  <line x1="35" y1="727" x2="1265" y2="727" stroke="#cccccc" stroke-width="0.7" stroke-dasharray="4,4" />
+</svg>
