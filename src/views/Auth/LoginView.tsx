@@ -98,7 +98,7 @@ export const LoginView: React.FC = () => {
       
       <div className="login-card glass-panel">
         <img 
-          src="/flashgo-logo.png" 
+          src={theme === 'dark' ? '/flashgo-logo-dark.png' : '/flashgo-logo.png'}
           alt="FlashGO Logo" 
           style={{ width: '200px', objectFit: 'contain', margin: '0 auto 16px auto', display: 'block' }} 
         />

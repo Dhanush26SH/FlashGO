@@ -64,6 +64,13 @@
   color: var(--primary);
 }
 
+/* Remove white background from logo image — works for both light and dark mode */
+.login-card img {
+  background: transparent !important;
+  border: none;
+  box-shadow: none;
+}
+
 .login-subtitle {
   color: var(--text-secondary);
   margin-bottom: 40px;
